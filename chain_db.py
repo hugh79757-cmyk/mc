@@ -1,0 +1,378 @@
+"""
+mc — 체인 DB 관리 모듈 (Phase 2)
+
+SQLite 스키마 및 CRUD. Phase 2 추가: draft_md, slug, chain_type 컬럼.
+"""
+
+import sqlite3
+import json
+import os
+from datetime import datetime
+from typing import Optional
+
+from mc_paths import load_config
+
+cfg = None  # lazy load
+
+
+def _get_cfg():
+    global cfg
+    if cfg is None:
+        cfg = load_config()
+    return cfg
+
+
+def _db_path() -> str:
+    return _get_cfg()["db_path"]
+
+
+def _ensure_dir(path: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+
+def get_conn() -> sqlite3.Connection:
+    """Return a new SQLite connection (row_factory = sqlite3.Row)."""
+    path = _db_path()
+    _ensure_dir(path)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+# ── Schema ──
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS chains (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    seed        TEXT    NOT NULL,
+    depth_count INTEGER NOT NULL DEFAULT 3,
+    chain_type  TEXT    NOT NULL DEFAULT 'depth',
+    status      TEXT    NOT NULL DEFAULT 'derived',
+    -- derived | generating | drafted | completed | failed
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS chain_posts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    chain_id        INTEGER NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
+    depth           INTEGER NOT NULL,  -- 0, 1, 2
+    step            INTEGER DEFAULT 0,
+    chain_type      TEXT    DEFAULT 'depth',
+    title           TEXT    NOT NULL,
+    target_keyword  TEXT,
+    key_points      TEXT,   -- JSON array string
+    angle           TEXT,
+    category_guess  TEXT,
+    bridge_logic    TEXT,
+    image_prompt    TEXT,
+    image_keyword   TEXT,
+    image_url       TEXT,
+    draft_md        TEXT,
+    slug            TEXT,
+    hugo_file_path  TEXT,   -- published hugo file
+    published_url   TEXT,   -- Phase 3: 최종 발행 URL
+    published_at    TEXT,   -- Phase 3: 발행 일시
+    card_injected   INTEGER DEFAULT 0,  -- Phase 3: 카드 주입 완료 여부
+    card_injected_at TEXT,  -- Phase 3: 카드 주입 일시
+    publish_method  TEXT,   -- Phase 3: 'hugo' | 'blogger' | 'manual' | 'manual_pending'
+    status          TEXT    NOT NULL DEFAULT 'derived',
+    -- derived | image_generated | drafted | published | failed
+    error_log       TEXT,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_chain_posts_chain_id ON chain_posts(chain_id);
+CREATE INDEX IF NOT EXISTS idx_chain_posts_depth     ON chain_posts(depth);
+"""
+
+# ── Phase 1 → Phase 2 마이그레이션 ──
+
+MIGRATIONS_SQL = [
+    # Phase 1→2
+    "ALTER TABLE chains ADD COLUMN chain_type TEXT NOT NULL DEFAULT 'depth'",
+    "ALTER TABLE chain_posts ADD COLUMN step INTEGER DEFAULT 0",
+    "ALTER TABLE chain_posts ADD COLUMN chain_type TEXT DEFAULT 'depth'",
+    "ALTER TABLE chain_posts ADD COLUMN angle TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN category_guess TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN bridge_logic TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN draft_md TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN slug TEXT",
+    # Phase 2→3
+    "ALTER TABLE chain_posts ADD COLUMN published_url TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN published_at TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN card_injected INTEGER DEFAULT 0",
+    "ALTER TABLE chain_posts ADD COLUMN card_injected_at TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN publish_method TEXT",
+]
+
+
+def _run_migrations():
+    """Phase 1 DB에 Phase 2 컬럼이 없으면 추가."""
+    conn = get_conn()
+    cursor = conn.execute("PRAGMA table_info(chains)")
+    chains_cols = {row["name"] for row in cursor.fetchall()}
+    cursor = conn.execute("PRAGMA table_info(chain_posts)")
+    posts_cols = {row["name"] for row in cursor.fetchall()}
+
+    for sql in MIGRATIONS_SQL:
+        # 컬럼명 추출: "ALTER TABLE xxx ADD COLUMN col_name TYPE ..."
+        col_name = sql.split("ADD COLUMN ")[1].split(" ")[0]
+        table_name = "chains" if "chains" in sql.split("ALTER TABLE ")[1].split(" ")[0] else "chain_posts"
+        cols = chains_cols if table_name == "chains" else posts_cols
+        if col_name not in cols:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass  # 이미 존재하는 경우 무시
+    conn.commit()
+    conn.close()
+
+
+def init_db():
+    """Create tables if they don't exist + run migrations."""
+    conn = get_conn()
+    conn.executescript(SCHEMA_SQL)
+    conn.commit()
+    conn.close()
+    _run_migrations()
+
+
+# ── Chain CRUD ──
+
+def create_chain(seed: str, depth_count: int = 3, chain_type: str = "depth") -> int:
+    """Insert a new chain row, return chain_id."""
+    conn = get_conn()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur = conn.execute(
+        "INSERT INTO chains (seed, depth_count, chain_type, status, created_at, updated_at) VALUES (?, ?, ?, 'derived', ?, ?)",
+        (seed, depth_count, chain_type, now, now),
+    )
+    conn.commit()
+    chain_id = cur.lastrowid
+    conn.close()
+    return chain_id
+
+
+def get_chain(chain_id: int) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM chains WHERE id = ?", (chain_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_chain_status(chain_id: int, status: str):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chains SET status = ?, updated_at = ? WHERE id = ?",
+        (status, now, chain_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_chain_type(chain_id: int, chain_type: str):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chains SET chain_type = ?, updated_at = ? WHERE id = ?",
+        (chain_type, now, chain_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ── ChainPost CRUD ──
+
+def create_chain_post(chain_id: int, depth: int, title: str,
+                      target_keyword: str = None,
+                      key_points: list = None,
+                      image_prompt: str = None,
+                      image_keyword: str = None,
+                      step: int = None,
+                      chain_type: str = None,
+                      angle: str = None,
+                      category_guess: str = None,
+                      bridge_logic: str = None) -> int:
+    conn = get_conn()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur = conn.execute(
+        """INSERT INTO chain_posts
+           (chain_id, depth, step, chain_type, title, target_keyword, key_points,
+            angle, category_guess, bridge_logic, image_prompt, image_keyword,
+            status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'derived', ?, ?)""",
+        (chain_id, depth, step or depth + 1, chain_type or "depth", title,
+         target_keyword,
+         json.dumps(key_points, ensure_ascii=False) if key_points else None,
+         angle, category_guess, bridge_logic, image_prompt, image_keyword,
+         now, now),
+    )
+    conn.commit()
+    post_id = cur.lastrowid
+    conn.close()
+    return post_id
+
+
+def get_chain_posts(chain_id: int) -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM chain_posts WHERE chain_id = ? ORDER BY depth", (chain_id,)
+    ).fetchall()
+    conn.close()
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("key_points"):
+            try:
+                d["key_points"] = json.loads(d["key_points"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        result.append(d)
+    return result
+
+
+def get_post(post_id: int) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM chain_posts WHERE id = ?", (post_id,)).fetchone()
+    conn.close()
+    if row:
+        d = dict(row)
+        if d.get("key_points"):
+            try:
+                d["key_points"] = json.loads(d["key_points"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return d
+    return None
+
+
+def update_post_status(post_id: int, status: str, error_log: str = None):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    if error_log:
+        conn.execute(
+            "UPDATE chain_posts SET status = ?, error_log = ?, updated_at = ? WHERE id = ?",
+            (status, error_log, now, post_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE chain_posts SET status = ?, updated_at = ? WHERE id = ?",
+            (status, now, post_id),
+        )
+    conn.commit()
+    conn.close()
+
+
+def update_post_image(post_id: int, image_url: str):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET image_url = ?, status = 'image_generated', updated_at = ? WHERE id = ?",
+        (image_url, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_post_draft(post_id: int, draft_md: str, slug: str):
+    """Save draft content and slug, set status = 'drafted'."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET draft_md = ?, slug = ?, status = 'drafted', updated_at = ? WHERE id = ?",
+        (draft_md, slug, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_post_published(post_id: int, hugo_file_path: str):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET hugo_file_path = ?, status = 'published', updated_at = ? WHERE id = ?",
+        (hugo_file_path, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ── Phase 3: 발행 URL 관리 ──
+
+def update_published_url(post_id: int, url: str, method: str):
+    """발행 완료 후 URL + 방식 저장. status='published' 전환."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET published_url = ?, publish_method = ?, "
+        "published_at = ?, status = 'published', updated_at = ? WHERE id = ?",
+        (url, method, now, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_card_injected(post_id: int):
+    """카드 주입 완료 플래그 저장."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET card_injected = 1, card_injected_at = ?, updated_at = ? WHERE id = ?",
+        (now, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_chain_posts_ordered(chain_id: int, direction: str = "asc") -> list[dict]:
+    """step 기준 정순(asc) 또는 역순(desc) 조회."""
+    order = "ASC" if direction.lower() == "asc" else "DESC"
+    conn = get_conn()
+    rows = conn.execute(
+        f"SELECT * FROM chain_posts WHERE chain_id = ? ORDER BY step {order}", (chain_id,)
+    ).fetchall()
+    conn.close()
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("key_points"):
+            try:
+                d["key_points"] = json.loads(d["key_points"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        result.append(d)
+    return result
+
+
+def get_pending_card_injections(chain_id: int) -> list[dict]:
+    """발행 완료되었으나 카드가 아직 주입되지 않은 posts."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM chain_posts WHERE chain_id = ? AND published_url IS NOT NULL "
+        "AND (card_injected IS NULL OR card_injected = 0) "
+        "ORDER BY step ASC",
+        (chain_id,),
+    ).fetchall()
+    conn.close()
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("key_points"):
+            try:
+                d["key_points"] = json.loads(d["key_points"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        result.append(d)
+    return result
+
+
+# ── Initialization Guard ──
+
+if __name__ == "__main__":
+    init_db()
+    print(f"[mc] DB initialized at {_db_path()}")
