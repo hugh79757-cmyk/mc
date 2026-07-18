@@ -1,6 +1,7 @@
 # ── 매뉴얼 체인 (mc) ── Phase 3 config ──
 
 # === 블로그별 발행 설정 ===
+# === Phase 5: 사이트별 발행 설정 (+ theme/cf_pages_project/permalink) ===
 sites:
   rotcha:
     site_path: /Users/twinssn/Projects/rotcha-blog
@@ -8,6 +9,9 @@ sites:
     base_url: https://rotcha.kr
     publisher_type: hugo
     hugo_root: /Users/twinssn/Projects/rotcha-blog
+    theme: Blowfish
+    cf_pages_project: rotcha-blog
+    permalink_pattern: "/posts/:slug/"
     content_dir: content/posts
     card_cta:
       depth: "더 깊이 알아보기 →"
@@ -19,6 +23,9 @@ sites:
     base_url: https://informationhot.kr
     publisher_type: hugo
     hugo_root: /Users/twinssn/Projects/informationhot-hugo
+    theme: PaperMod
+    cf_pages_project: informationhot-hugo
+    permalink_pattern: "/posts/:slug/"
     content_dir: content/posts
     card_cta:
       depth: "더 깊이 알아보기 →"
@@ -30,6 +37,9 @@ sites:
     base_url: https://techpawz.com
     publisher_type: hugo
     hugo_root: /Users/twinssn/Projects/techpawz-hugo
+    theme: Blowfish
+    cf_pages_project: techpawz-hugo
+    permalink_pattern: "/:slug/"
     content_dir: content/posts
     card_cta:
       depth: "더 자세히 보기 →"
@@ -39,6 +49,8 @@ sites:
     publisher_type: blogger
     blog_id: "5484205249958557854"
     base_url: https://2.techpawz.com
+    blogger_credentials: config/blogger_credentials.json
+    token_path: config/blogger_token_2techpawz.json
     card_cta:
       depth: "더 자세히 보기 →"
       swallow: "다음 단계 보기 →"
@@ -47,6 +59,8 @@ sites:
     publisher_type: blogger
     blog_id: "BLOGGER_BLOG_ID_HERE"
     base_url: https://65.informationhot.kr
+    blogger_credentials: config/blogger_credentials.json
+    token_path: config/blogger_token_65info.json
     card_cta:
       depth: "더 깊이 알아보기 →"
       swallow: "이어서 신청방법 보기 →"
@@ -111,9 +125,41 @@ pollinations:
   enabled: true
   base_url: https://image.pollinations.ai/prompt/
   width: 1024
-  height: 768
+  height: 1024
   model: flux
   rate_limit_seconds: 15
+
+# === Loop 퍼널 설정 (Phase 6) ===
+loop:
+  hub_url_base: https://rotcha.kr/hub
+  spokes_per_hub: 3
+  hub_layout: hub
+  cardView: true
+  cta:
+    info_cta_text: "관련 글 모두 보기 →"
+    conv_cta_text: "추천 상품 보기 →"
+    conv_cta_url: ""
+
+# === 검색 증강 작성 (Phase 7) ===
+search:
+  enabled: true
+  provider: naver
+  max_sources: 5
+  endpoints_by_angle:
+    basic: ["encyc", "kin", "webkr"]
+    advanced: ["webkr", "news", "blog"]
+    expert: ["news", "webkr", "cafearticle"]
+  display_per_endpoint: 5
+  timeout: 10
+  daily_quota: 25000
+
+thumbnail:
+  provider: auto
+  fallback_chain:
+    - pexels
+    - pollinations
+    - krea
+  target_size: [1024, 1024]
 
 # === 체인 DB 경로 ===
 db_path: /Users/twinssn/Projects/5000/data/mc_chains.db

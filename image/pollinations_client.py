@@ -33,8 +33,8 @@ def _sanitize_filename(label: str, max_len: int = 60) -> str:
 def generate_image(
     prompt: str,
     slug: str = "post",
-    width: int = 1200,
-    height: int = 675,
+    width: int = 1024,
+    height: int = 1024,
     model: str = "flux",
     seed: int = None,
     retries: int = 3,
@@ -46,7 +46,7 @@ def generate_image(
     Args:
         prompt: 영문 이미지 생성 프롬프트
         slug:  파일명 식별자
-        width/height: 해상도 (기본 16:9)
+        width/height: 해상도 (기본 1:1)
         model: "flux" (기본)
         seed:  고정 시드 (None=랜덤)
     """

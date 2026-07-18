@@ -35,10 +35,13 @@ One random keyword → 3 interconnected blog posts on 3 different domains, each 
 ### Out of Scope
 
 - Multi-chain parallel execution — one chain at a time
-- Cloudflare R2 image upload — local Hugo static/images/ only
 - Pollinations gen endpoint (API key required) — legacy Flux endpoint is sufficient
-- Non-Hugo publishing platforms — Hugo-only v1
 - Text generation via Pollinations — OpenAI/GPT handles drafting
+
+### Formerly Out of Scope (now in scope as of Phase 5)
+
+- **Cloudflare R2 image upload** — ✅ Phase 5: R2-first image strategy replaces local static/images/
+- **Non-Hugo publishing platforms (Blogger)** — ✅ Phase 3-5: Blogger API publishing with JSON tokens, markdown→HTML conversion
 
 ## Context
 
@@ -64,11 +67,13 @@ Previous 5000 project's hugo_writer.py is referenced for publishing logic reuse.
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Depth-stage model over angle-split model | Random keywords don't fit fixed categories; depth stages (basic→applied→advanced) work universally | — Pending |
-| Reverse publish order (3→2→1) | Ensures bridge cards have target URLs before insertion | — Pending |
-| Pollinations Flux legacy endpoint | Fully free, no API key, sufficient quality for blog thumbnails | — Pending |
-| English image prompts via GPT | Flux quality is dramatically better with English prompts | — Pending |
-| Local static/images/ storage | Hugo serves directly, no external storage dependency | — Pending |
+| Depth-stage model over angle-split model | Random keywords don't fit fixed categories; depth stages (basic→applied→advanced) work universally | ✅ Phase 1-4 validated |
+| Reverse publish order (3→2→1) | Ensures bridge cards have target URLs before insertion | ✅ Phase 3 validated |
+| Pollinations Flux legacy endpoint | Fully free, no API key, sufficient quality for blog thumbnails | ✅ Phase 3 validated |
+| English image prompts via GPT | Flux quality is dramatically better with English prompts | ✅ Phase 3 validated |
+| Local static/images/ storage → R2-first (Phase 5) | Hugo serves directly, no external storage dependency → R2 enables cross-platform image sharing between Hugo and Blogger | ⚡ Phase 5: switch to R2 |
+| git push deploy → Hugo local build + Wrangler (Phase 5) | Cloudflare Pages auto-build is unreliable; local build + wrangler deploy is deterministic | ⚡ Phase 5: switch |
+| Blogger pickle token → JSON token (Phase 5) | JSON is portable, debuggable, and aligns with mde2's proven pattern | ⚡ Phase 5: switch |
 
 ---
 

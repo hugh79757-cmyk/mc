@@ -23,6 +23,7 @@ from mc_paths import (
 )
 from shared.ai_writer import generate
 from chain_db import get_chain, get_chain_posts, update_post_draft
+from search_retriever import NaverSearchClient, retrieve_context_for_post
 
 
 # ── 설정 로드 ──────────────────────────────────────────────────────
@@ -94,6 +95,7 @@ def draft_single_post(
     post: dict,
     posts: list[dict],
     seed_keyword: str,
+    use_context: bool = False,
 ) -> str:
     """
     post       : chain_posts 행 dict
@@ -126,6 +128,32 @@ def draft_single_post(
         next_context=next_ctx,
     )
 
+    # ── Search context injection (Phase 7) ──
+    if use_context:
+        try:
+            client = NaverSearchClient()
+            # Map angle prefix to basic/advanced/expert
+            angle_first = post.get("angle", "")[:2]
+            angle_map = {"기초": "basic", "분석": "advanced", "전문": "expert",
+                         "구매": "basic", "절약": "advanced", "금융": "expert",
+                         "주제": "basic", "비교": "advanced", "비즈니스": "expert"}
+            angle_key = angle_map.get(angle_first, "webkr")
+
+            chain_cfg = _load_chain_cfg()
+            ok, ctx = retrieve_context_for_post(
+                seed_keyword, angle_key, client, cfg=chain_cfg,
+            )
+            if ok:
+                context_md = ctx
+                from chain_db import update_post_context
+                update_post_context(post["id"], ctx)
+                user_prompt += "\n\n" + ctx
+                print(f"  [drafter] Step {post.get('step', '?')} 검색 컨텍스트 {len(ctx)}자 추가됨")
+            else:
+                print(f"  [drafter] ⚠️ 검색 결과 없음: {ctx}")
+        except Exception as e:
+            print(f"  [drafter] ⚠️ 검색 컨텍스트 스킵: {e}")
+
     system_prompt = prompts["draft_system"]
 
     print(f"  [drafter] Step {post.get('step', '?')} ({blog_key}) 초안 생성 중...")
@@ -140,7 +168,7 @@ def draft_single_post(
 
 # ── 체인 전체 초안 생성 ────────────────────────────────────────────
 
-def draft_chain(chain_id: int, seed_keyword: str) -> list[dict]:
+def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> list[dict]:
     """
     chain_id의 모든 포스트 초안 생성.
     각 초안을 DB + output/drafts/{chain_id}/ 에 저장.
@@ -156,7 +184,7 @@ def draft_chain(chain_id: int, seed_keyword: str) -> list[dict]:
     updated_posts = []
 
     for post in posts:
-        draft_md = draft_single_post(post, posts, seed_keyword)
+        draft_md = draft_single_post(post, posts, seed_keyword, use_context=use_context)
 
         slug = _build_slug(post["title"], seed_keyword)
         slug = f"{slug}-s{post.get('step', post['depth'] + 1)}"

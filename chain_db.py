@@ -87,6 +87,17 @@ CREATE TABLE IF NOT EXISTS chain_posts (
 
 CREATE INDEX IF NOT EXISTS idx_chain_posts_chain_id ON chain_posts(chain_id);
 CREATE INDEX IF NOT EXISTS idx_chain_posts_depth     ON chain_posts(depth);
+
+-- Phase 5: publish_log (4-layer dedup layer 2)
+CREATE TABLE IF NOT EXISTS publish_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    blog_id         TEXT NOT NULL,
+    slug            TEXT NOT NULL,
+    published_url   TEXT,
+    publish_method  TEXT,
+    published_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(blog_id, slug)
+);
 """
 
 # ── Phase 1 → Phase 2 마이그레이션 ──
@@ -369,6 +380,189 @@ def get_pending_card_injections(chain_id: int) -> list[dict]:
                 pass
         result.append(d)
     return result
+
+
+# ── Phase 5: publish_log (4-layer dedup layer 2) ──
+
+def log_publish(blog_id: str, slug: str, published_url: str = None, publish_method: str = None):
+    """발행 성공 기록 → 중복 발행 방지."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR IGNORE INTO publish_log (blog_id, slug, published_url, publish_method) "
+        "VALUES (?, ?, ?, ?)",
+        (blog_id, slug, published_url, publish_method),
+    )
+    conn.commit()
+    conn.close()
+
+
+def check_duplicate(blog_id: str, slug: str) -> bool:
+    """이미 발행된 slug 인지 확인."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT 1 FROM publish_log WHERE blog_id = ? AND slug = ?", (blog_id, slug),
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def get_publish_log(blog_id: str = None, limit: int = 50) -> list[dict]:
+    """발행 이력 조회 (blog_id 필터 선택)."""
+    conn = get_conn()
+    if blog_id:
+        rows = conn.execute(
+            "SELECT * FROM publish_log WHERE blog_id = ? ORDER BY published_at DESC LIMIT ?",
+            (blog_id, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM publish_log ORDER BY published_at DESC LIMIT ?", (limit,),
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ── Phase 6: Loop Funnel ──
+
+LOOP_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS loop_chains (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    chain_id     INTEGER NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
+    hub_slug     TEXT    NOT NULL,
+    hub_url      TEXT,
+    spokes_count INTEGER DEFAULT 3,
+    status       TEXT    NOT NULL DEFAULT 'hub_pending',
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+"""
+
+LOOP_MIGRATIONS_SQL = [
+    "ALTER TABLE chain_posts ADD COLUMN loop_role TEXT",
+]
+
+
+def init_loop_tables():
+    """Create loop_chains table + run loop migrations."""
+    conn = get_conn()
+    conn.executescript(LOOP_SCHEMA_SQL)
+    conn.commit()
+
+    cursor = conn.execute("PRAGMA table_info(chain_posts)")
+    posts_cols = {row["name"] for row in cursor.fetchall()}
+
+    for sql in LOOP_MIGRATIONS_SQL:
+        col_name = sql.split("ADD COLUMN ")[1].split(" ")[0]
+        if col_name not in posts_cols:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass
+    conn.commit()
+    conn.close()
+
+
+def insert_loop_chain(chain_id: int, hub_slug: str, spokes_count: int = 3) -> int:
+    """Register a new loop chain. Returns loop_chain_id."""
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO loop_chains (chain_id, hub_slug, spokes_count, status) VALUES (?, ?, ?, 'hub_pending')",
+        (chain_id, hub_slug, spokes_count),
+    )
+    conn.commit()
+    lid = cur.lastrowid
+    conn.close()
+    return lid
+
+
+def get_loop_chain(chain_id: int) -> Optional[dict]:
+    """Get loop chain record for a chain_id."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM loop_chains WHERE chain_id = ? ORDER BY id DESC LIMIT 1",
+        (chain_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_loop_chain_status(loop_chain_id: int, hub_url: str = None, status: str = None):
+    """Update hub URL and/or status for a loop chain."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    parts = ["updated_at = ?"]
+    vals = [now]
+    if hub_url is not None:
+        parts.append("hub_url = ?")
+        vals.append(hub_url)
+    if status is not None:
+        parts.append("status = ?")
+        vals.append(status)
+    vals.append(loop_chain_id)
+    conn.execute(
+        f"UPDATE loop_chains SET {', '.join(parts)} WHERE id = ?", vals
+    )
+    conn.commit()
+    conn.close()
+
+
+def set_loop_role(post_id: int, role: str):
+    """Set loop_role for a chain post: 'hub', 'spoke', or None to clear."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET loop_role = ?, updated_at = ? WHERE id = ?",
+        (role, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_chain_posts_by_loop_role(chain_id: int, role: str) -> list[dict]:
+    """Get chain posts filtered by loop_role."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM chain_posts WHERE chain_id = ? AND loop_role = ? ORDER BY step",
+        (chain_id, role),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ── Phase 7: Search Context ──
+
+SEARCH_MIGRATIONS_SQL = [
+    "ALTER TABLE chain_posts ADD COLUMN context_md TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN search_sources TEXT",
+]
+
+
+def init_search_columns():
+    """Add context_md and search_sources columns to chain_posts if missing."""
+    conn = get_conn()
+    cursor = conn.execute("PRAGMA table_info(chain_posts)")
+    cols = {row["name"] for row in cursor.fetchall()}
+    for sql in SEARCH_MIGRATIONS_SQL:
+        col_name = sql.split("ADD COLUMN ")[1].split(" ")[0]
+        if col_name not in cols:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass
+    conn.commit()
+    conn.close()
+
+
+def update_post_context(post_id: int, context_md: str, search_sources: str = None):
+    """Update context_md and search_sources for a chain post."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET context_md = ?, search_sources = ?, updated_at = ? WHERE id = ?",
+        (context_md, search_sources, now, post_id),
+    )
+    conn.commit()
+    conn.close()
 
 
 # ── Initialization Guard ──

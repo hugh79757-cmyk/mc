@@ -26,6 +26,9 @@ CHAIN_CONFIG_PATH = os.path.join(CONFIG_DIR, "chain_config.yaml")
 # ── 5000 경로 (하드코딩) ──
 PATH_5000 = "/Users/twinssn/Projects/5000"
 
+# ── Phase 5: mde2 경로 ──
+PATH_MDE2 = "/Users/twinssn/Projects/mde2"
+
 # ── DB 경로 (lazy init) ──
 MC_DB_PATH = None  # set by init_db_path()
 
@@ -41,6 +44,12 @@ def ensure_5000_on_path():
     """5000 프로젝트 루트를 sys.path 에 추가 (중복 방지)."""
     if PATH_5000 not in sys.path:
         sys.path.insert(0, PATH_5000)
+
+
+def ensure_mde2_on_path():
+    """Phase 5: mde2 프로젝트 루트를 sys.path 에 추가."""
+    if PATH_MDE2 not in sys.path:
+        sys.path.insert(0, PATH_MDE2)
 
 
 def load_config(config_name: str = "chain_config.yaml") -> Dict[str, Any]:
@@ -152,6 +161,7 @@ def resolve_chain_type(keyword: str, override: str = None) -> str:
     return mapping.get(category, "depth")
 
 
-# ── 최초 import 시 DB 경로 초기화 + 5000 경로 추가 ──
+# ── 최초 import 시 DB 경로 초기화 + 5000/mde2 경로 추가 ──
 ensure_5000_on_path()
+ensure_mde2_on_path()
 init_db_path()

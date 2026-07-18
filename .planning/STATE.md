@@ -7,7 +7,7 @@
 See: .planning/PROJECT.md (updated 2026-07-18)
 
 **Core value:** One random keyword → 3 interconnected blog posts on 3 different domains, each going deeper than the last, with images and cross-links — fully automated.
-**Current focus:** Phase 3 — 역순 발행, 카드 주입, 스케줄러 — Wave 3 마무리 중
+**Current focus:** Phase 5 — mde2 아키텍처 기반 발행 코어 전면 재작성
 
 ## Phase Status
 
@@ -15,7 +15,9 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 |-------|--------|-------|----------|
 | 1 — Foundation & Config | ✅ Complete | config/chain_config.yaml, config/prompts.yaml, chain_db.py, mc_paths.py, chain_deriver.py, chain_publisher.py | 6/6 files |
 | 2 — AI Content Generation | ✅ Complete | chain_drafter.py, image/, pipeline --dry-run/--draft/--image | 8/8 tasks verified |
-| 3 — Image, Publishing & CLI | 🔵 Wave 3 진행중 | 8 tasks across 3 waves | Wave 1/2 ✅ Wave 3: 2/3 ✅ |
+| 3 — Image, Publishing & CLI | ✅ Complete | 8 tasks across 3 waves | Wave 1/2/3 ✅ |
+| 4 — Loop Chain Direction | ✅ Complete | loop 방향 라우팅 + 2-CTA 주입 | Committed b9a6f53 |
+| 5 — mde2 Architecture Rewrite | ✅ PLAN.md Verified | chain_publisher_core.py 전면 재작성 (7 fixes) | 3 Waves, 11 Tasks |
 
 ## Active Context
 

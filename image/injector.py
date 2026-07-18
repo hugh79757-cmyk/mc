@@ -23,7 +23,7 @@ def _find_image_file(slug: str) -> Path | None:
 def _hugo_figure(src_path: str, alt: str = "", caption: str = "") -> str:
     """
     Hugo figure shortcode 생성.
-    src: Hugo 기준 상대 경로 (예: /images/step-1-xxx_1200x675.jpg)
+    src: Hugo 기준 상대 경로 (예: /images/step-1-xxx_1024x1024.jpg)
     """
     lines = [
         "{{< figure",

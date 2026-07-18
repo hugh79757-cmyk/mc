@@ -174,10 +174,14 @@ def _get_blog_for_step(chain_id: int, step: int, config: dict,
 
 
 def publish_chain(chain_id: int, mode: str = "auto",
-                  blog_overrides: dict = None) -> None:
+                  blog_overrides: dict = None,
+                  theme_override: str = None,
+                  cf_project_override: str = None) -> None:
     """
     역순(Step 3→2→1) 발행.
     mode: "auto" | "interactive" | "manual"
+    theme_override: Hugo 테마 강제 지정 (PaperMod/Blowfish)
+    cf_project_override: Cloudflare Pages 프로젝트명 강제 지정
     """
     from chain_publisher_core import PublisherCore
 
@@ -212,9 +216,20 @@ def publish_chain(chain_id: int, mode: str = "auto",
         if mode == "interactive":
             input(f"    Press Enter to publish Step {step} to {blog_key}... ")
 
-        url, method = core.publish_post(blog_key, draft_md, slug, title, labels)
+        # Phase 5: 런타임 오버라이드 적용
+        if theme_override or cf_project_override:
+            site_cfg = config["sites"].get(blog_key, {})
+            if theme_override:
+                site_cfg["theme"] = theme_override
+            if cf_project_override:
+                site_cfg["cf_pages_project"] = cf_project_override
+            config["sites"][blog_key] = site_cfg
+
+        url, method, file_path = core.publish_post(blog_key, draft_md, slug, title, labels)
         if url:
             db.update_published_url(post["id"], url, method)
+            if file_path:
+                db.update_post_published(post["id"], file_path)
             print(f"  [publish] ✅ Step {step} published: {url}")
         else:
             db.update_post_status(post["id"], "failed",
@@ -225,10 +240,10 @@ def publish_chain(chain_id: int, mode: str = "auto",
     print(f"\n[mc] Chain #{chain_id} publish complete")
 
 
-# ── Phase 3: 카드 주입 ───────────────────────────────────────────
+# ── Phase 5: 카드 주입 (draft_md 기반) ──────────────────────────────
 
 def inject_cards_chain(chain_id: int) -> None:
-    """Step 1→2→3 정순으로 next 카드 주입."""
+    """Step 1→2→3 정순으로 next 카드 주입 (draft_md 기반 + 재발행)."""
     from chain_card_injector import CardInjector
     from chain_publisher_core import PublisherCore
 
@@ -256,31 +271,24 @@ def inject_cards_chain(chain_id: int) -> None:
         step = post.get("step", 1)
         blog_key = _get_blog_for_step(chain_id, step, config)
         direction = chain.get("chain_type", "depth")
-        content = post.get("draft_md", "")
 
-        if not content or not next_post.get("published_url"):
-            print(f"  [inject] Step {step}: missing content or next URL, skipping")
+        if not next_post.get("published_url"):
+            print(f"  [inject] Step {step}: missing next URL, skipping")
             continue
 
-        updated = injector.inject_cards(
-            content=content,
+        success = injector.inject_into_post(
+            publisher_core=core,
+            post_id=post["id"],
             next_title=next_post["title"],
             next_url=next_post["published_url"],
             blog_key=blog_key,
             direction=direction,
         )
-
-        if updated != content:
-            blog_cfg = config["sites"].get(blog_key, {})
-            hugo_file = post.get("hugo_file_path", "")
-            if os.path.exists(hugo_file):
-                with open(hugo_file, "w", encoding="utf-8") as f:
-                    f.write(updated)
-                core._git_push(blog_cfg.get("hugo_root", ""))
-                db.update_card_injected(post["id"])
-                print(f"  [inject] ✅ Step {step} card injected")
-            else:
-                print(f"  [inject] Step {step}: hugo file not found ({hugo_file})")
+        if success:
+            db.update_card_injected(post["id"])
+            print(f"  [inject] ✅ Step {step} card injected & re-published")
+        else:
+            print(f"  [inject] Step {step}: draft_md missing, skipping")
 
 
 # ── Phase 3: 스케줄러 ────────────────────────────────────────────
@@ -328,7 +336,9 @@ def schedule_remove(chain_id: int, use_launchd: bool = False) -> None:
 
 def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
               image_only: bool = False, chain_type: str = None,
-              publish_mode: str = None, blog_overrides: dict = None) -> int:
+              publish_mode: str = None, blog_overrides: dict = None,
+              theme_override: str = None, cf_project_override: str = None,
+              use_context: bool = False) -> int:
     config = load_config()
     chain_id = derive_chain(seed, chain_type=chain_type)
     if not chain_id:
@@ -343,7 +353,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
 
     from chain_drafter import draft_chain
     print(f"\n{'='*60}\n[mc] Drafting chain #{chain_id}\n{'='*60}\n")
-    drafted = draft_chain(chain_id, seed)
+    drafted = draft_chain(chain_id, seed, use_context=use_context)
     print(f"\n[mc] Draft complete: {len(drafted)} posts")
 
     if draft_only:
@@ -354,7 +364,8 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
         return chain_id
 
     if publish_mode:
-        publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides)
+        publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides,
+                      theme_override=theme_override, cf_project_override=cf_project_override)
         if publish_mode != "manual":
             inject_cards_chain(chain_id)
     else:
@@ -380,6 +391,102 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
     return chain_id
 
 
+# ── Phase 6: Loop Funnel ─────────────────────────────────
+
+def cmd_hub(chain_id: int, dry_run: bool = False) -> bool:
+    from draft_hub_page import draft_hub_page
+    from chain_publisher_core import PublisherCore
+
+    cfg = load_config()
+    publisher = PublisherCore(cfg)
+
+    print(f"\n{'='*60}\n[mc] 🌀 Hub page for chain #{chain_id}\n{'='*60}\n")
+    ok, hub_slug = draft_hub_page(chain_id)
+    if not ok:
+        print(f"  [hub] ❌ {hub_slug}")
+        return False
+
+    if dry_run:
+        hub_path = f"rotcha-blog/content/hub/{hub_slug}/index.md"
+        url = f"https://rotcha.kr/hub/{hub_slug}/"
+        print(f"  [hub] dry-run: draft at {hub_path}")
+        print(f"  [hub] dry-run: would publish to {url}")
+        return True
+
+    hub_draft = {
+        "content_dir": "content/hub",
+        "slug": hub_slug,
+        "draft_md": open(
+            Path(cfg["sites"]["rotcha"]["hugo_root"])
+            / "content" / "hub" / hub_slug / "index.md"
+        ).read(),
+    }
+
+    url, method, path = publisher.publish_hub_page(hub_draft)
+    if not url:
+        print(f"  [hub] ❌ Publish failed")
+        return False
+
+    loop_chain = db.get_loop_chain(chain_id)
+    if loop_chain:
+        db.update_loop_chain_status(loop_chain["id"], hub_url=url, status="hub_published")
+
+    print(f"  [hub] ✅ Published: {url}")
+    return True
+
+
+def cmd_spoke(chain_id: int, dry_run: bool = False) -> bool:
+    from chain_publisher_core import PublisherCore
+    from chain_card_injector import DualCTAInjector
+
+    cfg = load_config()
+    publisher = PublisherCore(cfg)
+    injector = DualCTAInjector(cfg)
+
+    posts = db.get_chain_posts(chain_id)
+    loop_chain = db.get_loop_chain(chain_id)
+    if not loop_chain:
+        print(f"  [spoke] ❌ No loop chain found for #{chain_id}. Run --hub first.")
+        return False
+
+    hub_url = loop_chain.get("hub_url") or f"{cfg['loop']['hub_url_base']}/{loop_chain['hub_slug']}/"
+    hub_title = f"{db.get_chain(chain_id)['seed']} — 완벽 가이드 모음"
+
+    success = 0
+    for p in posts:
+        if p.get("loop_role") != "spoke":
+            continue
+        if dry_run:
+            print(f"  [spoke] dry-run: would inject dual-CTA into post #{p['id']} ({p.get('slug')})")
+            success += 1
+            continue
+
+        ok = injector.inject_into_post(
+            publisher, p["id"], hub_url, hub_title
+        )
+        if ok:
+            success += 1
+
+    print(f"  [spoke] ✅ {success}/{len(posts)} spokes processed")
+    return success > 0
+
+
+def cmd_loop(chain_id: int, dry_run: bool = False) -> bool:
+    print(f"\n{'='*60}\n[mc] 🔄 Full loop for chain #{chain_id}\n{'='*60}\n")
+
+    if not cmd_hub(chain_id, dry_run):
+        return False
+    if not cmd_spoke(chain_id, dry_run):
+        return False
+
+    loop_chain = db.get_loop_chain(chain_id)
+    if loop_chain:
+        db.update_loop_chain_status(loop_chain["id"], status="loop_completed")
+
+    print(f"\n  [loop] ✅ Chain #{chain_id} loop completed (hub + {len(db.get_chain_posts(chain_id))} spokes)")
+    return True
+
+
 # ── CLI ──
 
 if __name__ == "__main__":
@@ -400,7 +507,30 @@ if __name__ == "__main__":
                         help="Publish one by one with confirmation")
     parser.add_argument("--publish-manual", action="store_true",
                         help="Manual publish (HTML + URL input)")
-    parser.add_argument("--inject", action="store_true", help="Card injection only")
+    parser.add_argument("--inject", action="store_true", help="Card injection only (legacy HTML)")
+    
+    # Phase 5: New flags
+    parser.add_argument("--inject-card", action="store_true",
+                        help="Card injection (draft_md based + re-publish)")
+    parser.add_argument("--theme-override", type=str,
+                        help="Override Hugo theme (PaperMod|Blowfish)")
+    parser.add_argument("--cf-pages-project", type=str,
+                        help="Override Cloudflare Pages project name")
+
+    # Phase 6: Loop Funnel flags
+    parser.add_argument("--loop", action="store_true",
+                        help="Full loop: hub + spoke dual-CTA")
+    parser.add_argument("--hub", action="store_true",
+                        help="Generate and publish hub page only")
+    parser.add_argument("--spoke", action="store_true",
+                        help="Inject dual-CTA and republish spokes")
+
+    # Phase 7: Search context flags
+    parser.add_argument("--search", action="store_true",
+                        help="Enable Naver search context for drafting")
+    parser.add_argument("--no-search", action="store_true",
+                        help="Disable search context (default)")
+    
     parser.add_argument("--blog-step1", type=str, help="Blog key for step 1 (override)")
     parser.add_argument("--blog-step2", type=str, help="Blog key for step 2 (override)")
     parser.add_argument("--blog-step3", type=str, help="Blog key for step 3 (override)")
@@ -436,6 +566,16 @@ if __name__ == "__main__":
         inject_cards_chain(args.chain_id)
         sys.exit(0)
 
+    # Phase 6: Loop Funnel routing
+    if (args.hub or args.spoke or args.loop) and args.chain_id:
+        if args.hub:
+            ok = cmd_hub(args.chain_id, args.dry_run)
+        elif args.spoke:
+            ok = cmd_spoke(args.chain_id, args.dry_run)
+        elif args.loop:
+            ok = cmd_loop(args.chain_id, args.dry_run)
+        sys.exit(0 if ok else 1)
+
     # Publish only (existing chain)
     if args.publish and args.chain_id:
         blog_overrides = {}
@@ -445,7 +585,12 @@ if __name__ == "__main__":
             blog_overrides[2] = args.blog_step2
         if args.blog_step3:
             blog_overrides[3] = args.blog_step3
-        publish_chain(args.chain_id, mode="auto", blog_overrides=blog_overrides)
+        publish_chain(args.chain_id, mode="auto", blog_overrides=blog_overrides,
+                      theme_override=args.theme_override, cf_project_override=args.cf_pages_project)
+        inject_cards_chain(args.chain_id)
+        sys.exit(0)
+
+    if args.inject_card and args.chain_id:
         inject_cards_chain(args.chain_id)
         sys.exit(0)
 
@@ -475,6 +620,8 @@ if __name__ == "__main__":
         if args.blog_step3:
             blog_overrides[3] = args.blog_step3
 
+        use_context = args.search and not args.no_search
+
         run_chain(
             args.seed,
             dry_run=args.dry_run,
@@ -483,13 +630,36 @@ if __name__ == "__main__":
             chain_type=args.chain_type,
             publish_mode=publish_mode,
             blog_overrides=blog_overrides or None,
+            theme_override=args.theme_override,
+            cf_project_override=args.cf_pages_project,
+            use_context=use_context,
         )
     elif args.chain_id:
+        if args.draft:
+            from chain_drafter import draft_chain
+            chain = db.get_chain(args.chain_id)
+            if not chain:
+                print(f"Chain #{args.chain_id} not found.")
+                sys.exit(1)
+            print(f"\n{'='*60}\n[mc] Drafting chain #{args.chain_id}\n{'='*60}\n")
+            use_context = args.search and not args.no_search
+            drafted = draft_chain(args.chain_id, chain['seed'], use_context=use_context)
+            print(f"\n[mc] Draft complete: {len(drafted)} posts")
+            sys.exit(0)
+        if args.image:
+            generate_chain_images(args.chain_id)
+            sys.exit(0)
+        if args.dry_run:
+            chain = db.get_chain(args.chain_id)
+            if chain:
+                print(f"Chain #{args.chain_id}: seed='{chain['seed']}', "
+                      f"type={chain['chain_type']}, status={chain['status']}")
+            sys.exit(0)
         chain = db.get_chain(args.chain_id)
         if chain:
             print(f"Chain #{args.chain_id}: seed='{chain['seed']}', "
                   f"type={chain['chain_type']}, status={chain['status']}")
-            print("Use --publish, --inject, or --schedule to act on this chain.")
+            print("Use --draft, --image, --publish, --inject, or --schedule to act on this chain.")
         else:
             print(f"Chain #{args.chain_id} not found.")
     else:

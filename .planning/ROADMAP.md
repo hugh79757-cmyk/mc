@@ -60,14 +60,64 @@
 
 ---
 
-## Summary
+## Phase 4: Loop Chain Direction (Historical)
 
-| Phase | Focus | Plans | Requirements |
-|-------|-------|-------|-------------|
-| 1 | Foundation & Config | 3 | 6 |
-| 2 | AI Content Generation | 2 | 6 |
-| 3 | Image, Publishing & CLI | 6 | 11 |
-| **Total** | | **11** | **23** |
+**Goal:** ~~"loop" 체인 방향 추가~~ → 실질 구현은 Phase 6으로 이관
+
+**Status:** 🔴 Deprecated — 실제 구현 없음. Phase 6이 대체
 
 ---
-*Last updated: 2026-07-18 after initial definition*
+
+## Phase 5: mde2 Architecture Publish Rewrite
+
+**Goal:** chain_publisher_core.py를 5000 패턴에서 mde2 아키텍처로 전면 재작성 (7 fixes).
+
+**Status:** ✅ Complete (verified with Chain #9: 3/3 posts published to live Hugo sites)
+
+**7 Core Fixes:**
+1. **R2-first 이미지** — 로컬 static/images/ 제거, 전 이미지 R2 업로드
+2. **Hugo 로컬 빌드 + Wrangler 배포** — git push 폐기
+3. **테마별 frontmatter 분기** — PaperMod cover.image, Blowfish featureimage
+4. **slug 기반 URL** — filename 기반 URL 생성 버그 수정
+5. **Blogger JSON 토큰** — pickle → JSON, markdown→HTML 변환, thumb 프리픽스
+6. **4-layer dedup** — fcntl lock + DB UNIQUE + API title 검색 + ghost 복구
+7. **카드 주입 별도 스텝** — Hugo path에서 제거, --inject-card 플래그
+
+---
+
+## Phase 6: Loop Funnel (Blowfish Hub + 2-CTA Spokes)
+
+**Goal:** Spoke(3 posts) → Hub(1 page at rotcha.kr/hub/{slug}/) → dual CTA (info + conversion) injection.
+
+**Status:** ✅ Complete. All 3 waves implemented and verified (hub page generation + publish, dual-CTA injection, CLI --hub/--spoke/--loop flags).
+
+**Plan file:** `.planning/phases/phase-06/PLAN.md`
+
+**Key deliverables:**
+1. `draft_hub_page.py` — hub index.md generator (Blowfish cardView)
+2. `draft_loop_spoke.py` — spoke loop role marker
+3. `chain_db.py` — loop_chains table + loop_role migration
+4. `chain_card_injector.py` — DualCTAInjector class
+5. `chain_publisher_core.py` — publish_hub_page() method
+6. `chain_publisher.py` — --loop, --hub, --spoke CLI flags
+7. `config/chain_config.yaml` — loop section + rotcha theme fix (PaperMod→Blowfish)
+8. `rotcha-blog/config/_default/params.toml` — mainSections에 "hub" 추가
+
+---
+
+## Summary
+
+| Phase | Focus | Plans | Status |
+|-------|-------|-------|--------|
+| 1 | Foundation & Config | 3 | ✅ Complete |
+| 2 | AI Content Generation | 2 | ✅ Complete |
+| 3 | Image, Publishing & CLI | 6 | ✅ Complete |
+| 4 | Loop Chain Direction (Hist.) | — | 🔴 Deprecated |
+| 5 | mde2 Architecture Publish Rewrite | — | ✅ Complete |
+| 6 | Loop Funnel (Blowfish Hub + 2-CTA) | 8 | ✅ Complete |
+| 7 | Search-Augmented Drafting (Naver API) | 7 | ✅ Complete |
+| **Total** | | **26** | |
+
+---
+
+*Last updated: 2026-07-18 — Phase 6 complete, Phase 7 complete*

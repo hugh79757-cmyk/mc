@@ -16,9 +16,9 @@ POLLINATIONS_STYLE_MAP = {
 }
 
 POLLINATIONS_ASPECT_RATIOS = {
-    "rotcha": (1200, 675),      # 16:9
-    "informationhot": (1200, 675),  # 16:9
-    "techpawz": (1200, 675),    # 16:9 (기본)
+    "rotcha": (1024, 1024),      # 1:1
+    "informationhot": (1024, 1024),  # 1:1
+    "techpawz": (1024, 1024),    # 1:1
 }
 
 POLLINATIONS_NEGATIVE = (
