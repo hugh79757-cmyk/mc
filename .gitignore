@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# 환경변수 (API 키)
+.env
+
+# DB (로컬 전용)
+data/*.db
+
+# 생성된 이미지 (Hugo static에 복사됨)
+output/
+
+# macOS
+.DS_Store
