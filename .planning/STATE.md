@@ -53,6 +53,7 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 
 ## Next Action
 
-1. E2E 테스트: `python chain_publisher.py --seed "근로장려금 신청기간" --search --draft`
-2. 차트 발행 테스트: `python chain_publisher.py --chain-id <new> --publish`
-3. 전체 Git 커밋
+1. ✅ E2E 테스트 통과 (chain #13, chain #9)
+2. ✅ Git 커밋 (ab09204) + push
+3. ✅ REQUIREMENTS.md traceability 업데이트
+4. ○ 다음 페이즈 결정 (Phase 9: KREA Fallback 후보)

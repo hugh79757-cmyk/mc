@@ -77,35 +77,51 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCF-01 | Phase 1 | Pending |
-| SCF-02 | Phase 1 | Pending |
-| SCF-03 | Phase 1 | Pending |
-| CFG-01 | Phase 1 | Pending |
-| CFG-02 | Phase 1 | Pending |
-| DB-01 | Phase 1 | Pending |
-| DERV-01 | Phase 2 | Pending |
-| DERV-02 | Phase 2 | Pending |
-| DERV-03 | Phase 2 | Pending |
-| DRAFT-01 | Phase 2 | Pending |
-| DRAFT-02 | Phase 2 | Pending |
-| DRAFT-03 | Phase 2 | Pending |
-| IMG-01 | Phase 3 | Pending |
-| IMG-02 | Phase 3 | Pending |
-| IMG-03 | Phase 3 | Pending |
-| IMG-04 | Phase 3 | Pending |
-| IMG-05 | Phase 3 | Pending |
-| PUB-01 | Phase 3 | Pending |
-| PUB-02 | Phase 3 | Pending |
-| CARD-01 | Phase 3 | Pending |
-| CLI-01 | Phase 3 | Pending |
-| CLI-02 | Phase 3 | Pending |
-| CLI-03 | Phase 3 | Pending |
+| SCF-01 | Phase 1 | ✅ Validated |
+| SCF-02 | Phase 1 | ✅ Validated |
+| SCF-03 | Phase 1 | ✅ Validated |
+| CFG-01 | Phase 1 | ✅ Validated |
+| CFG-02 | Phase 1 | ✅ Validated |
+| DB-01 | Phase 1 | ✅ Validated |
+| DERV-01 | Phase 2 | ✅ Validated |
+| DERV-02 | Phase 2 | ✅ Validated |
+| DERV-03 | Phase 2 | ✅ Validated |
+| DRAFT-01 | Phase 2 | ✅ Validated |
+| DRAFT-02 | Phase 2 | ✅ Validated |
+| DRAFT-03 | Phase 2 | ✅ Validated |
+| IMG-01 | Phase 3 | ✅ Validated |
+| IMG-02 | Phase 3 | ✅ Validated (1200×630 thumbnail) |
+| IMG-03 | Phase 3 | ✅ Validated |
+| IMG-04 | Phase 3 | ✅ Validated (Phase 7: featureimage field) |
+| IMG-05 | Phase 3 | 🔴 Deprecated → IMG-v2-01 (R2) |
+| PUB-01 | Phase 3 | ✅ Validated |
+| PUB-02 | Phase 3 | ✅ Validated |
+| CARD-01 | Phase 3 | ✅ Validated (Phase 6: DualCTA) |
+| CLI-01 | Phase 3 | ✅ Validated |
+| CLI-02 | Phase 3 | ✅ Validated |
+| CLI-03 | Phase 3 | ✅ Validated |
+
+### Phase 5-8 Additions (retroactively mapped)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| IMG-v2-01 (R2 upload) | Phase 5 | ✅ Validated |
+| IMG-v2-02 (WebP) | Phase 5 | ○ Pending (low priority) |
+| PUB-v2-01 (mde2 rewrite, 7 fixes) | Phase 5 | ✅ Validated |
+| LOOP-01 (Hub + spoke funnel) | Phase 6 | ✅ Validated |
+| LOOP-02 (DualCTA injection) | Phase 6 | ✅ Validated |
+| SEARCH-01 (Naver API context) | Phase 7 | ✅ Validated |
+| IMG-v3-01 (Unsplash/Pexels thumbnail) | Phase 7 | ✅ Validated |
+| IMG-v3-02 (Content image pipeline) | Phase 7 | ✅ Validated |
+| CHART-01 (GPT chart recognition) | Phase 8 | ✅ Validated |
+| CHART-02 (Pillow chart rendering) | Phase 8 | ✅ Validated |
+| CHART-03 (Korean font support) | Phase 8 | ✅ Validated |
 
 **Coverage:**
-- v1 requirements: 23 total
-- Mapped to phases: 23
+- v1 requirements: 23 total, 22 validated, 1 deprecated (IMG-05 → R2)
+- v2/v3 additions: 11 mapped to Phase 5-8
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-18*
-*Last updated: 2026-07-18 after initial definition*
+*Last updated: 2026-07-19 — Phase 8 transition, traceability sync*

@@ -116,8 +116,22 @@
 | 5 | mde2 Architecture Publish Rewrite | — | ✅ Complete |
 | 6 | Loop Funnel (Blowfish Hub + 2-CTA) | 8 | ✅ Complete |
 | 7 | Search-Augmented Drafting (Naver API) | 7 | ✅ Complete |
-| **Total** | | **26** | |
+| 8 | Chart Generation (pillow_chart.py) | 7 | ✅ Complete |
+| **Total** | | **40** | |
 
 ---
 
-*Last updated: 2026-07-18 — Phase 6 complete, Phase 7 complete*
+*Last updated: 2026-07-19 — Phase 8 complete (E2E verified, commit ab09204)*
+
+## Next Phase Candidates
+
+Phase 1-8 core pipeline 완료. v2 요구사항 중 미구현 항목:
+
+| Candidate | Requirement | Value | Effort |
+|-----------|-------------|-------|--------|
+| Phase 9: KREA Fallback | IMG-v2-03 | Pollinations 실패 시 KREA AI 대체 | Low |
+| Phase 10: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
+| Phase 11: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
+| Phase 12: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |
+
+**우선순위 논의 필요** — 사용자가 결정.
