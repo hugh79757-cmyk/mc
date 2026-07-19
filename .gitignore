@@ -15,5 +15,8 @@ data/*.db
 # 생성된 이미지 (Hugo static에 복사됨)
 output/
 
+# opencode session artifacts
+.omo/
+
 # macOS
 .DS_Store

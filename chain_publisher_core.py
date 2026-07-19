@@ -268,8 +268,19 @@ class PublisherCore:
                 logger.info(f"[Hugo] 구형 평면 파일 제거: {stale_flat}")
 
             # draft_md를 index.md로 복사 (멱등성: 항상 덮어쓰기)
+            # frontmatter closer 보장: --- 가 라인 시작이고 뒤에 공백이다른 내용 없이 개행으로 끝나는지 확이
+            _fix = draft_md
+            if not _fix.lstrip().startswith("---"):
+                _fix = "---\ndraft: false\n---\n\n" + _fix
+            else:
+                _lines_all = _fix.splitlines()
+                _has_closer = any(l.strip() == "---" for l in _lines_all[1:])
+                if not _has_closer:
+                                _first = _lines_all[0]
+                                _rest = "\n".join(_lines_all[1:])
+                                _fix = _first + "\n---\ndraft: false\n\n" + _rest
             index_md = target_dir / "index.md"
-            index_md.write_text(draft_md, encoding="utf-8")
+            index_md.write_text(_fix, encoding="utf-8")
 
             # 4. frontmatter 수정: draft:false, date, slug 추가, featureimage R2 URL 교체
             if index_md.exists():
@@ -326,6 +337,21 @@ class PublisherCore:
 
                 # 마크다운 본문 정제
                 text = _sanitize_markdown_body(text)
+                # 본문 이미지 placeholder 교체 (<!-- image: 설명 --> ← ![]())
+                _content_img_url = None
+                if url_map:
+                    for _ln, _ru in url_map.items():
+                        _low = _ln.lower()
+                        if "thumb" not in _low and _ln.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                            _content_img_url = _ru
+                            break
+                if _content_img_url:
+                    _alt_prefix = (title or "image")[:30]
+                    def _img_repl(m):
+                        _d = m.group(1).strip() if m.lastindex else _alt_prefix
+                        return f"![{_d}]({_content_img_url})"
+                    text = re.sub(r"<!--\s*image:\s*(.*?)\s*-->", _img_repl, text)
+                    text = re.sub(r"<!--todo:chart-->", f"![{_alt_prefix}]({_content_img_url})", text)
                 index_md.write_text(text, encoding="utf-8")
 
             # 5. Hugo 빌드
