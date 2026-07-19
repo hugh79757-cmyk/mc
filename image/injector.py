@@ -13,11 +13,21 @@ from .pollinations_client import IMAGE_DIR
 
 
 def _find_image_file(slug: str) -> Path | None:
-    """slug에 해당하는 첫 번째 이미지 파일을 IMAGE_DIR에서 찾음."""
-    if not IMAGE_DIR.exists():
-        return None
-    candidates = sorted(IMAGE_DIR.glob(f"{slug}_*.jpg"))
-    return candidates[0] if candidates else None
+  """slug에 해당하는 첫 번째 이미지 파일을 여러 경로에서 찾음."""
+  base = Path("output/images")
+  if not base.exists():
+    return None
+  search_patterns = [
+    f"thumb_{slug}.jpg",          # Phase 7: thumbnail.py primary output
+    f"{slug}_*.jpg",              # pollinations_client.py legacy output
+    f"content_{slug}.jpg",        # Phase 7+ content image
+    f"chart_{slug}.jpg",          # Phase 8: pillow_chart output
+  ]
+  for pattern in search_patterns:
+    candidates = sorted(base.glob(pattern))
+    if candidates:
+      return candidates[0]
+  return None
 
 
 def _hugo_figure(src_path: str, alt: str = "", caption: str = "") -> str:
@@ -69,24 +79,21 @@ def inject_images_into_draft(
     rel_path = _image_relative_path(image_path)
     figure = _hugo_figure(rel_path, alt=title, caption=title)
 
-    # 마커 치환
+    # 마커 치환 (자동 삽입 분기 제거 — drafter가 마커 삽입 여부를 결정)
     if "<!--todo:image-->" in draft_md:
         injected = draft_md.replace("<!--todo:image-->", figure)
         print(f"  [injector] ✅ 이미지 삽입 (마커 치환): {rel_path}")
         return injected
 
-    # 첫 h2 앞에 삽입
-    h2_pattern = re.compile(r"^## ", re.MULTILINE)
-    h2_match = h2_pattern.search(draft_md)
-    if h2_match:
-        pos = h2_match.start()
-        injected = draft_md[:pos].rstrip() + "\n\n" + figure + "\n\n" + draft_md[pos:]
-        print(f"  [injector] ✅ 이미지 삽입 (첫 h2 전): {rel_path}")
+    # Phase 8: <!--todo:chart--> 마커 치환
+    if "<!--todo:chart-->" in draft_md:
+        injected = draft_md.replace("<!--todo:chart-->", figure)
+        print(f"  [injector] ✅ 차트 삽입 (마커 치환): {rel_path}")
         return injected
 
-    # 끝에 추가
-    print(f"  [injector] ✅ 이미지 추가 (문서 끝): {rel_path}")
-    return draft_md.rstrip() + "\n\n" + figure + "\n"
+    # 마커 없으면 패스 (image_type=none인 경우 정상)
+    print(f"  [injector] ⏭️ 마커 없음, 삽입 건너뜀")
+    return draft_md
 
 
 # ── CLI test ──

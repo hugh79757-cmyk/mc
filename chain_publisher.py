@@ -40,6 +40,56 @@ import chain_db as db
 from chain_deriver import derive_chain
 
 
+# ── Phase 7: Preflight Check ──
+
+def _preflight_check() -> bool:
+    """
+    E2E 실행 전 필수 사항 확인.
+    False 반환 시 발행 중단.
+    """
+    from pathlib import Path
+
+    # 1. Unsplash (Primary) — ERROR
+    if not os.environ.get('UNSPLASH_ACCESS_KEY'):
+        print("ERROR: UNSPLASH_ACCESS_KEY not set in .env")
+        print("발급: https://unsplash.com/developers")
+        return False
+
+    # 2. Pexels (Fallback 1) — WARN
+    if not os.environ.get('PEXELS_API_KEY'):
+        print("WARN: PEXELS_API_KEY not set. Fallback: Unsplash→Pollinations.")
+        print("발급(선택): https://www.pexels.com/api/")
+
+    # 3. Pollinations (Fallback 2) — 키 불필요, 체크 제외
+
+    # 4. 한글 폰트 — WARN
+    font_candidates = [
+        Path("assets/fonts/NotoSansKR-Regular.otf"),
+        Path("/System/Library/Fonts/PingFang.ttc"),
+        Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+    ]
+    if not any(p.exists() for p in font_candidates):
+        print("WARN: No Korean font found. PIL text overlay renders as squares.")
+        print("설치: https://fonts.google.com/noto/specimen/Noto+Sans+KR")
+
+    # 5. 차트 폰트 — WARN
+    chart_font = load_config().get("chart", {}).get("font", "")
+    if chart_font and not Path(chart_font).exists():
+        system_fonts = [
+            Path("/System/Library/Fonts/PingFang.ttc"),
+            Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
+            Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        ]
+        if not any(p.exists() for p in system_fonts):
+            print("WARN: No Korean font for chart. image_type=chart will fallback to photo.")
+
+    # 6. output/images/ — 자동 생성
+    Path("output/images").mkdir(parents=True, exist_ok=True)
+
+    return True
+
+
 # ── 이미지 생성 (Legacy) ──
 
 def generate_image_remote(image_prompt: str, image_keyword: str, pollinations_cfg: dict) -> str:
@@ -545,6 +595,10 @@ if __name__ == "__main__":
     parser.add_argument("--hour", type=int, default=9, help="Schedule hour")
     parser.add_argument("--minute", type=int, default=0, help="Schedule minute")
 
+    # Phase 7: Preflight
+    parser.add_argument("--preflight", action="store_true",
+                        help="Run preflight check (API keys, font, output dir)")
+
     args = parser.parse_args()
 
     # Schedule management
@@ -576,8 +630,17 @@ if __name__ == "__main__":
             ok = cmd_loop(args.chain_id, args.dry_run)
         sys.exit(0 if ok else 1)
 
+    # Phase 7: Preflight check
+    if args.preflight:
+        ok = _preflight_check()
+        print(f"\n[mc] Preflight: {'PASS' if ok else 'FAIL'}")
+        sys.exit(0 if ok else 1)
+
     # Publish only (existing chain)
     if args.publish and args.chain_id:
+        if not _preflight_check():
+            print("[mc] Preflight failed. Aborting publish.")
+            sys.exit(1)
         blog_overrides = {}
         if args.blog_step1:
             blog_overrides[1] = args.blog_step1

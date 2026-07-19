@@ -12,6 +12,8 @@ chain_publisher.py 의 인라인 draft_post() / _build_chain_context() 를
 """
 
 import os
+import re
+import json
 import yaml
 from pathlib import Path
 from datetime import datetime
@@ -89,6 +91,42 @@ def _build_slug(title: str, keyword: str) -> str:
     return f"{base}-{date_suffix}"
 
 
+# ── frontmatter 유틸 ──────────────────────────────────────────────────
+
+def _ensure_featureimage(draft_md: str) -> str:
+  """frontmatter에 featureimage: "" 필드를 항상 포함시킴 (빈칸 → publisher가 채움)."""
+  if not draft_md.startswith("---"):
+    return "---\nfeatureimage: \"\"\n---\n\n" + draft_md
+  end = draft_md.find("---", 3)
+  if end == -1:
+    return draft_md
+  before_close = draft_md[:end]
+  rest = draft_md[end:]
+  if "featureimage:" in before_close:
+    return draft_md  # 이미 있으면 그대로
+  return before_close.rstrip() + "\nfeatureimage: \"\"\n" + rest
+
+
+def _insert_body_image_marker(draft_md: str) -> str:
+  """본문 첫 번째 ## 헤딩 직전에 <!--todo:image--> 마커 삽입."""
+  h2_pattern = re.compile(r"^## ", re.MULTILINE)
+  m = h2_pattern.search(draft_md)
+  if m:
+    pos = m.start()
+    return draft_md[:pos].rstrip() + "\n\n<!--todo:image-->\n\n" + draft_md[pos:]
+  return draft_md  # H2 없으면 건너뜀
+
+
+def _insert_chart_marker(draft_md: str) -> str:
+    """Insert <!--todo:chart--> before first ## heading."""
+    h2_pattern = re.compile(r"^## ", re.MULTILINE)
+    m = h2_pattern.search(draft_md)
+    if m:
+        pos = m.start()
+        return draft_md[:pos].rstrip() + "\n\n<!--todo:chart-->\n\n" + draft_md[pos:]
+    return draft_md
+
+
 # ── 단일 포스트 초안 생성 ──────────────────────────────────────────
 
 def draft_single_post(
@@ -96,12 +134,13 @@ def draft_single_post(
     posts: list[dict],
     seed_keyword: str,
     use_context: bool = False,
-) -> str:
+) -> tuple[str, dict]:
     """
     post       : chain_posts 행 dict
     posts      : 같은 chain의 전체 post list (컨텍스트 빌드용)
     seed_keyword : 원본 시드 키워드
-    Returns    : Hugo 마크다운 초안 전문 (frontmatter 포함)
+    Returns    : (Hugo 마크다운 초안 전문, meta dict)
+                 meta: {image_type, image_keyword, image_reason, chart_type, chart_data}
     """
     prompts = _load_prompts()
 
@@ -158,12 +197,36 @@ def draft_single_post(
 
     print(f"  [drafter] Step {post.get('step', '?')} ({blog_key}) 초안 생성 중...")
     result = generate(system_prompt, user_prompt, tier="default", temperature=0.85)
-    draft_md = result["content"]
+    raw_output = result["content"]
+
+    # Parse chart JSON from GPT output
+    meta = {"image_type": "none", "image_keyword": "", "image_reason": "", "chart_type": None, "chart_data": None}
+    draft_md = raw_output
+
+    json_match = re.search(r'```json\s*\n(.*?)\n```', raw_output, re.DOTALL)
+    if not json_match:
+        # Fallback: GPT sometimes omits closing ```
+        json_match = re.search(r'```json\s*\n(.*?)$', raw_output, re.DOTALL)
+    if json_match:
+        try:
+            chart_json = json.loads(json_match.group(1))
+            meta["image_type"] = chart_json.get("image_type", "none")
+            meta["image_keyword"] = chart_json.get("image_keyword", "")
+            meta["image_reason"] = chart_json.get("image_reason", "")
+            meta["chart_type"] = chart_json.get("chart_type")
+            meta["chart_data"] = chart_json.get("chart_data")
+            # Remove JSON block from draft
+            draft_md = raw_output[:json_match.start()].rstrip()
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"  [drafter] ⚠️ chart JSON 파싱 실패: {e}. image_type=none")
+    else:
+        # No JSON block found — no chart
+        pass
 
     char_count = len(draft_md)
     print(f"  [drafter] Step {post.get('step', '?')} 완료 — {char_count:,}자 (model: {result['model']})")
 
-    return draft_md
+    return draft_md, meta
 
 
 # ── 체인 전체 초안 생성 ────────────────────────────────────────────
@@ -184,13 +247,39 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> 
     updated_posts = []
 
     for post in posts:
-        draft_md = draft_single_post(post, posts, seed_keyword, use_context=use_context)
+        draft_md, meta = draft_single_post(post, posts, seed_keyword, use_context=use_context)
+
+        # Phase 8: image_type determination
+        image_type = meta.get("image_type", "none")
+        if image_type == "chart":
+            if not meta.get("chart_type") or not meta.get("chart_data"):
+                print(f"  [drafter] ⚠️ image_type=chart but chart_type/chart_data missing. Fallback to photo.")
+                image_type = "photo"
+
+        # Phase 7: placeholder insertion
+        draft_md = _ensure_featureimage(draft_md)
+        if image_type == "photo":
+            draft_md = _insert_body_image_marker(draft_md)
+        elif image_type == "chart":
+            draft_md = _insert_chart_marker(draft_md)
+        # 'none' → no marker
 
         slug = _build_slug(post["title"], seed_keyword)
         slug = f"{slug}-s{post.get('step', post['depth'] + 1)}"
 
         # DB 업데이트
         update_post_draft(post["id"], draft_md, slug)
+
+        # Phase 8: DB에 chart 데이터 저장
+        if image_type == "chart":
+            from chain_db import update_chart
+            update_chart(post["id"], meta["chart_type"], json.dumps(meta["chart_data"], ensure_ascii=False))
+        if meta.get("image_keyword"):
+            from chain_db import update_post_image
+            update_post_image(post["id"], meta["image_keyword"])
+        if meta.get("image_reason"):
+            from chain_db import update_post_context
+            update_post_context(post["id"], meta["image_reason"])
 
         # 파일 저장
         step = post.get("step", post["depth"] + 1)

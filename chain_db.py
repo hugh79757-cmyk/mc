@@ -56,33 +56,40 @@ CREATE TABLE IF NOT EXISTS chains (
 );
 
 CREATE TABLE IF NOT EXISTS chain_posts (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    chain_id        INTEGER NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
-    depth           INTEGER NOT NULL,  -- 0, 1, 2
-    step            INTEGER DEFAULT 0,
-    chain_type      TEXT    DEFAULT 'depth',
-    title           TEXT    NOT NULL,
-    target_keyword  TEXT,
-    key_points      TEXT,   -- JSON array string
-    angle           TEXT,
-    category_guess  TEXT,
-    bridge_logic    TEXT,
-    image_prompt    TEXT,
-    image_keyword   TEXT,
-    image_url       TEXT,
-    draft_md        TEXT,
-    slug            TEXT,
-    hugo_file_path  TEXT,   -- published hugo file
-    published_url   TEXT,   -- Phase 3: 최종 발행 URL
-    published_at    TEXT,   -- Phase 3: 발행 일시
-    card_injected   INTEGER DEFAULT 0,  -- Phase 3: 카드 주입 완료 여부
-    card_injected_at TEXT,  -- Phase 3: 카드 주입 일시
-    publish_method  TEXT,   -- Phase 3: 'hugo' | 'blogger' | 'manual' | 'manual_pending'
-    status          TEXT    NOT NULL DEFAULT 'derived',
-    -- derived | image_generated | drafted | published | failed
-    error_log       TEXT,
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
-    updated_at      TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chain_id INTEGER NOT NULL REFERENCES chains(id) ON DELETE CASCADE,
+  depth INTEGER NOT NULL, -- 0, 1, 2
+  step INTEGER DEFAULT 0,
+  chain_type TEXT DEFAULT 'depth',
+  title TEXT NOT NULL,
+  target_keyword TEXT,
+  key_points TEXT, -- JSON array string
+  angle TEXT,
+  category_guess TEXT,
+  bridge_logic TEXT,
+  image_prompt TEXT,
+  image_keyword TEXT,
+  image_url TEXT,  -- DEPRECATED: Phase 7 이전 Pollinations URL 저장용. 신규 로직은 thumbnail_path 사용.
+  thumbnail_path TEXT,  -- Phase 7: static/images/thumb_{slug}.jpg 또는 NULL
+  thumbnail_source TEXT,  -- Phase 7: 'unsplash'|'pexels'|'pollinations'|'pillow_chart' 또는 NULL
+  content_image_path TEXT,  -- Phase 7: output/images/content_{slug}.jpg 또는 NULL
+  content_image_source TEXT,  -- Phase 7: 'pexels'|'pollinations'|'pillow_chart' 또는 NULL
+  chart_type TEXT,  -- Phase 8: 'bar'|'timeline'|'comparison' 또는 NULL
+  chart_data TEXT,  -- Phase 8: JSON string (ensure_ascii=False)
+  image_reason TEXT,  -- Phase 8: LLM의 image_type 선택 근거
+  draft_md TEXT,
+  slug TEXT,
+  hugo_file_path TEXT, -- published hugo file
+  published_url TEXT, -- Phase 3: 최종 발행 URL
+  published_at TEXT, -- Phase 3: 발행 일시
+  card_injected INTEGER DEFAULT 0, -- Phase 3: 카드 주입 완료 여부
+  card_injected_at TEXT, -- Phase 3: 카드 주입 일시
+  publish_method TEXT, -- Phase 3: 'hugo' | 'blogger' | 'manual' | 'manual_pending'
+  status TEXT NOT NULL DEFAULT 'derived',
+  -- derived | image_generated | drafted | published | failed
+  error_log TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_chain_posts_chain_id ON chain_posts(chain_id);
@@ -103,21 +110,30 @@ CREATE TABLE IF NOT EXISTS publish_log (
 # ── Phase 1 → Phase 2 마이그레이션 ──
 
 MIGRATIONS_SQL = [
-    # Phase 1→2
-    "ALTER TABLE chains ADD COLUMN chain_type TEXT NOT NULL DEFAULT 'depth'",
-    "ALTER TABLE chain_posts ADD COLUMN step INTEGER DEFAULT 0",
-    "ALTER TABLE chain_posts ADD COLUMN chain_type TEXT DEFAULT 'depth'",
-    "ALTER TABLE chain_posts ADD COLUMN angle TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN category_guess TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN bridge_logic TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN draft_md TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN slug TEXT",
-    # Phase 2→3
-    "ALTER TABLE chain_posts ADD COLUMN published_url TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN published_at TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN card_injected INTEGER DEFAULT 0",
-    "ALTER TABLE chain_posts ADD COLUMN card_injected_at TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN publish_method TEXT",
+# Phase 1→2
+"ALTER TABLE chains ADD COLUMN chain_type TEXT NOT NULL DEFAULT 'depth'",
+"ALTER TABLE chain_posts ADD COLUMN step INTEGER DEFAULT 0",
+"ALTER TABLE chain_posts ADD COLUMN chain_type TEXT DEFAULT 'depth'",
+"ALTER TABLE chain_posts ADD COLUMN angle TEXT",
+"ALTER TABLE chain_posts ADD COLUMN category_guess TEXT",
+"ALTER TABLE chain_posts ADD COLUMN bridge_logic TEXT",
+"ALTER TABLE chain_posts ADD COLUMN draft_md TEXT",
+"ALTER TABLE chain_posts ADD COLUMN slug TEXT",
+# Phase 2→3
+"ALTER TABLE chain_posts ADD COLUMN published_url TEXT",
+"ALTER TABLE chain_posts ADD COLUMN published_at TEXT",
+"ALTER TABLE chain_posts ADD COLUMN card_injected INTEGER DEFAULT 0",
+"ALTER TABLE chain_posts ADD COLUMN card_injected_at TEXT",
+"ALTER TABLE chain_posts ADD COLUMN publish_method TEXT",
+# Phase 7: Image integration
+"ALTER TABLE chain_posts ADD COLUMN thumbnail_path TEXT",
+"ALTER TABLE chain_posts ADD COLUMN thumbnail_source TEXT",
+"ALTER TABLE chain_posts ADD COLUMN content_image_path TEXT",
+"ALTER TABLE chain_posts ADD COLUMN content_image_source TEXT",
+# Phase 8: Chart generation
+"ALTER TABLE chain_posts ADD COLUMN chart_type TEXT",
+"ALTER TABLE chain_posts ADD COLUMN chart_data TEXT",
+"ALTER TABLE chain_posts ADD COLUMN image_reason TEXT",
 ]
 
 
@@ -303,15 +319,53 @@ def update_post_draft(post_id: int, draft_md: str, slug: str):
 
 
 def update_post_published(post_id: int, hugo_file_path: str):
+  now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+  conn = get_conn()
+  conn.execute(
+    "UPDATE chain_posts SET hugo_file_path = ?, status = 'published', updated_at = ? WHERE id = ?",
+    (hugo_file_path, now, post_id),
+  )
+  conn.commit()
+  conn.close()
+
+# ── Phase 7: Thumbnail / Content Image helpers ────────────────────
+
+def update_thumbnail(post_id: int, path: str, source: str):
+  """Save thumbnail path + source. Does NOT overwrite if already set (idempotent)."""
+  now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+  conn = get_conn()
+  conn.execute(
+    "UPDATE chain_posts SET thumbnail_path = ?, thumbnail_source = ?, updated_at = ? "
+    "WHERE id = ? AND thumbnail_path IS NULL",
+    (path, source, now, post_id),
+  )
+  conn.commit()
+  conn.close()
+
+def update_content_image(post_id: int, path: str, source: str):
+  """Save content image path + source. Overwrites existing (chart regeneration possible)."""
+  now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+  conn = get_conn()
+  conn.execute(
+    "UPDATE chain_posts SET content_image_path = ?, content_image_source = ?, updated_at = ? "
+    "WHERE id = ?",
+    (path, source, now, post_id),
+  )
+  conn.commit()
+  conn.close()
+
+# ── Phase 8: Chart helpers ────────────────────────────────────────
+
+def update_chart(post_id: int, chart_type: str, chart_data: str):
+    """Save chart_type + chart_data (JSON string)."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_conn()
     conn.execute(
-        "UPDATE chain_posts SET hugo_file_path = ?, status = 'published', updated_at = ? WHERE id = ?",
-        (hugo_file_path, now, post_id),
+        "UPDATE chain_posts SET chart_type = ?, chart_data = ?, updated_at = ? WHERE id = ?",
+        (chart_type, chart_data, now, post_id),
     )
     conn.commit()
     conn.close()
-
 
 # ── Phase 3: 발행 URL 관리 ──
 

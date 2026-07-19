@@ -305,3 +305,25 @@ draft_user: |
 
   위 모든 규칙을 준수하여 Hugo 마크다운 포스트를 작성하세요.
   Frontmatter부터 시작해서 본문 전체를 출력하세요.
+
+  # 이미지 유형 판단 (마지막에 반드시 JSON 블록 출력)
+  글 작성 완료 후, 아래 JSON 형식을 **마크다운 코드블록 밖에** 그대로 출력하세요.
+  image_type 결정 기준:
+  - "chart": 숫자, 비교, 통계, 비율, 금액, 날짜, A vs B 등 수치 기반 표현이 효과적인 경우
+  - "photo": 구체적 객체, 상황, 장소, 기기, 음식, 동물, 문서 등 실사 사진이 어울리는 경우
+  - "none": 추상적/철학적/전략적 내용으로 이미지가 도움이 되지 않는 경우
+
+  ```json
+  {{
+    "image_type": "photo" 또는 "chart" 또는 "none",
+    "image_keyword": "영문 키워드 (photo인 경우만, 공백은 -로)",
+    "image_reason": "image_type 선택 근거 (1문장)",
+    "chart_type": "bar" 또는 "timeline" 또는 "comparison" 또는 null,
+    "chart_data": {{...}} 또는 null
+  }}
+  ```
+
+  chart_data 스키마:
+  - bar: {{"items": [{{"label": "항목명", "value": 숫자, "unit": "단위"}}], "orientation": "vertical"|"horizontal"}}
+  - timeline: {{"events": [{{"label": "이벤트", "date": "YYYY-MM-DD"}}]}}
+  - comparison: {{"left": {{"label": "좌측", "items": [{{"key": "항목", "value": "값"}}]}}, "right": {{"label": "우측", "items": [...]}}}}

@@ -120,7 +120,40 @@ publish_mode:
   confirm_before_publish: true
   retry_on_failure: 3
 
+# === 썸네일 이미지 생성 (Phase 7) — primary 이미지 설정 ===
+thumbnail:
+  provider: auto
+  fallback_chain:
+    - unsplash
+    - pexels
+    - pollinations
+    - pillow_chart
+  target_size: [1024, 1024]
+  text_overlay:
+    enabled: true
+    font: assets/fonts/NotoSansKR-Regular.otf
+    bg_alpha: 0.55
+
+# === 차트 이미지 생성 (Phase 8) ===
+chart:
+  enabled: true
+  output_dir: output/images
+  filename_pattern: "chart_{slug}.jpg"
+  font: assets/fonts/NotoSansKR-Regular.otf
+  colors:
+    primary: "#2563EB"
+    secondary: "#DC2626"
+    tertiary: "#16A34A"
+  background: "#FFFFFF"
+  text_color: "#1F2937"
+  title_font_size: 42
+  label_font_size: 28
+  output_size: [1200, 630]
+  jpeg_quality: 92
+
 # === Pollinations.ai 이미지 생성 ===
+# DEPRECATED: thumbnail fallback 체인 내에서만 사용.
+# 독립 호출 비활성화 (chain_publisher --image 직접 Pollinations 경로 제거, Phase 7)
 pollinations:
   enabled: true
   base_url: https://image.pollinations.ai/prompt/
@@ -152,14 +185,6 @@ search:
   display_per_endpoint: 5
   timeout: 10
   daily_quota: 25000
-
-thumbnail:
-  provider: auto
-  fallback_chain:
-    - pexels
-    - pollinations
-    - krea
-  target_size: [1024, 1024]
 
 # === 체인 DB 경로 ===
 db_path: /Users/twinssn/Projects/5000/data/mc_chains.db

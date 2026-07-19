@@ -145,7 +145,7 @@ class CardInjector:
         direction: str,
     ) -> bool:
         """
-        DB에서 draft_md 조회 → 카드 주입 → PublisherCore.update_post_content 호출.
+        DB에서 draft_md 조회 → 카드 주입 → 기존 frontmatter 보존 후 파일 업데이트.
         """
         post = get_post(post_id)
         if not post or not post.get("draft_md"):
@@ -155,8 +155,21 @@ class CardInjector:
             post["draft_md"], next_title, next_url, blog_key, direction
         )
 
-        # 발행된 글 업데이트 (Hugo: 파일 수정+push / Blogger: API)
+        # 기존 파일에서 frontmatter 보존 (publish 시 적용된 draft:false, date, featureimage 등)
         hugo_file = post.get("hugo_file_path")
+        if hugo_file and os.path.exists(hugo_file):
+            with open(hugo_file, "r", encoding="utf-8") as f:
+                existing = f.read()
+            fm_end = existing.find("---", 4)
+            if fm_end != -1:
+                existing_fm = existing[:fm_end + 3]
+                # updated_md에서 frontmatter 제거 후 기존 frontmatter와 결합
+                if updated_md.startswith("---"):
+                    body_end = updated_md.find("---", 4)
+                    if body_end != -1:
+                        updated_md = updated_md[body_end + 3:].lstrip("\n")
+                updated_md = existing_fm + "\n\n" + updated_md
+
         publisher_core.update_post_content(
             blog_key,
             hugo_file or post_id,

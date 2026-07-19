@@ -1,466 +1,328 @@
-# Phase 7: 검색 증강 작성 (Naver Search API)
+# Phase 7: Search-Augmented Drafting — Image Pipeline Integration
 
-**Created:** 2026-07-18  
-**Phase Number:** 7  
-**Mode:** mvp  
+**Goal:** Wire `image/thumbnail.py` into the chain publisher pipeline end-to-end. Close the 6 broken connections identified during Phase 7 implementation.
 
-## Goal
+## Current State (as of this plan)
 
-Naver Search API를 활용한 검색 증강 글쓰기. `chain_drafter`가 포스트 초안을 생성할 때 Naver 검색 결과를 참고 자료로 프롬프트에 주입하여 더 사실적이고 풍부한 내용의 글을 생성한다.
+| File | Function | Gap |
+|---|---|---|
+| `image/thumbnail.py:328` | `generate_thumbnail(title, keyword, slug, subtitle)` | Works in isolation, returns `Path`. Uncalled from pipeline. |
+| `image/injector.py:47` | `inject_images_into_draft(draft_md, slug, blog_key, step, title)` | `_find_image_file()` only searches `output/images/{slug}_*.jpg` — misses `thumb_*.jpg` |
+| `chain_drafter.py:171` | `draft_chain()` | Saves draft_md + image_prompt/image_keyword to DB. No placeholder insertion. |
+| `chain_publisher_core.py:153` | `_publish_hugo()` | Hardcodes `thumbnail.webp`/`cover.webp` for R2 frontmatter replace (lines 207–245). |
+| `chain_db.py:58` | `chain_posts` schema | No `thumbnail_path`, `thumbnail_source`, `content_image_path`, `content_image_source` columns. |
+| `config/chain_config.yaml:156` | `thumbnail:` block | Exists but `pollinations:` block (line 123) also active — no clear precedence. |
 
-**핵심:** 검색은 작성 보조 도구일 뿐. 검색 실패/부재 시에도 기존처럼 draft는 정상 진행되어야 함.
+---
 
-## Design Decisions
+## Design Decisions (갭 결정사항)
 
-| Decision | Value | Why |
-|----------|-------|------|
-| Provider | Naver Search API | 국내 검색 점유율 1위, 한국어 콘텐츠 최적 |
-| Endpoints by angle | basic: encyc/kin/webkr, advanced: webkr/news/blog, expert: news/webkr/cafearticle | Step별 특성에 맞는 정보 소스 |
-| Context injection | `draft_user` 프롬프트 끝에 `## 참고 자료` 섹션 추가 | 기존 프롬프트 구조 변경 없음 |
-| API key source | `twinssn/.env.common` | mc/.env와 분리, 공유 자격 증명 |
-| Caching | 메모리 LRU (선택적) | 동일 쿼리 중복 호출 방지 |
-| Fallback | 검색 실패/API 키 없음 → 경고 로그 + 기존 draft 진행 | Zero-block design |
+### Gap 1: 썸네일 플레이스홀더 방식 — Option B
 
-## Existing Code Constraints (MUST NOT Violate)
-
-- `draft_chain()` 시그니처 변경 금지 → `use_context=False` 기본값 매개변수만 추가
-- `chain_db.py` 기존 함수 수정 금지 → 새로운 `init_search_columns()` + `update_post_context()`만 추가
-- `chain_publisher.py` 기존 argparse 플래그 수정 금지 → `--search` / `--no-search`만 추가
-- 검색 결과 출처 URL을 최종 글에 절대 노출 금지
-- 검색 결과의 `<b>` 태그 제거 필수 (네이버 API는 결과 키워드를 `<b>`로 감쌈)
-- API 키 하드코딩 금지 — 항상 환경변수에서 로드
-
-## Wave 1: DB + Config (2 tasks)
-
-### Task 1.1: chain_db.py — Add search columns
-
-**Files to modify:** `chain_db.py`  
-**Change type:** Append new functions (do NOT modify existing ones)
-
-Add at end of file (after Phase 6 loop functions):
-
-```python
-SEARCH_MIGRATIONS_SQL = [
-    "ALTER TABLE chain_posts ADD COLUMN context_md TEXT",
-    "ALTER TABLE chain_posts ADD COLUMN search_sources TEXT",
-]
-
-def init_search_columns():
-    """Add context_md and search_sources columns to chain_posts."""
-    conn = get_conn()
-    cursor = conn.execute("PRAGMA table_info(chain_posts)")
-    cols = {row["name"] for row in cursor.fetchall()}
-    for sql in SEARCH_MIGRATIONS_SQL:
-        col_name = sql.split("ADD COLUMN ")[1].split(" ")[0]
-        if col_name not in cols:
-            try:
-                conn.execute(sql)
-            except sqlite3.OperationalError:
-                pass
-    conn.commit()
-    conn.close()
-
-def update_post_context(post_id: int, context_md: str, search_sources: str = None):
-    """Save search context for a post."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    conn = get_conn()
-    conn.execute(
-        "UPDATE chain_posts SET context_md = ?, search_sources = ?, updated_at = ? WHERE id = ?",
-        (context_md, search_sources, now, post_id),
-    )
-    conn.commit()
-    conn.close()
-```
-
-### Task 1.2: config/chain_config.yaml — Add search section
-
-**Files to modify:** `config/chain_config.yaml`
-
-Add at end of file (before `db_path`):
+drafter는 `<!--todo:thumbnail-->` 마커를 넣지 않는다. 대신 frontmatter `featureimage:` 필드를 빈칸으로 둔다.
 
 ```yaml
-# === 검색 증강 작성 (Phase 7) ===
-search:
-  enabled: true
-  provider: naver
-  max_sources: 5
-  endpoints_by_angle:
-    basic: ["encyc", "kin", "webkr"]
-    advanced: ["webkr", "news", "blog"]
-    expert: ["news", "webkr", "cafearticle"]
-  display_per_endpoint: 5
-  timeout: 10
-  daily_quota: 25000
+---
+title: "..."
+date: "..."
+slug: "..."
+featureimage: ""  # ← 빈칸. publisher가 채움
+---
 ```
+
+publisher 동작: `_publish_hugo()`가 frontmatter 파싱 시 `featureimage` 값이 빈 문자열이면 `generate_thumbnail()` 호출 → 생성된 R2 URL로 `featureimage:` 채우기. 마커 파싱 로직 불필요.
+
+**Task 7-4 수정:** drafter는 `<!--todo:thumbnail-->` 삽입 로직 제거. 대신 frontmatter에 `featureimage: ""` 빈 필드를 항상 포함하도록 GPT 프롬프트 수정. `<!--todo:image-->` 본문 마커는 유지.
+
+### Gap 2: injector 자동 삽입 분기 제거
+
+`inject_images_into_draft()`의 "첫 H2 전 자동 삽입" 분기 제거. 마커 교체만 수행.
+
+**제거 대상:**
+```python
+# if no <!--todo:image--> marker found, auto-insert before first H2
+```
+
+**새 로직:**
+```python
+if '<!--todo:image-->' in draft_md:
+    # figure로 교체
+else:
+    pass  # image_type=none인 경우, 정상
+```
+
+이유: drafter가 삽입 여부를 결정하므로, injector가 다시 자동 삽입하면 이중 삽입 리스크.
+
+**Task 7-3 수정:** `_find_image_file()` 멀티패스 검색 확장은 유지, 자동 삽입 분기 제거.
+
+### Gap 3: chain_id 9 멱등성 보장
+
+재발행 시 기존 데이터/파일을 안전하게 덮어쓰도록 3곳 처리:
+
+- **DB**: `thumbnail_path`/`content_image_path`가 이미 채워져 있으면 재생성 스킵
+- **Hugo content**: `open(..., 'w')`로 무조건 덮어쓰기 (기존 파일 존재 체크 로직 제거)
+- **R2**: `put_object()`는 동일 key 덮어쓰기가 기본 → 추가 처리 불필요. 업로드 전 파일 없으면 스킵(로그만)
+
+**Task 7-5 수정:** `_publish_hugo()`에 3가지 멱등성 조건 반영.
+
+### Gap 4: image_url 컬럼 — 사용 중단 주석만
+
+`image_url` 컬럼은 신규 로직에서 건드리지 않음. 스키마 정의에 deprecated 주석만 추가. 기존 데이터 보존, 이동/복사 없음.
+
+### Gap 5: 사전 확인 3종 — E2E 실행 전 필수 체크
+
+`--publish` 시 자동 실행되는 `_preflight_check()`:
+
+| 항목 | 역할 | 레벨 | 이유 |
+|---|---|---|---|
+| `UNSPLASH_ACCESS_KEY` | Primary provider | ERROR (중단) | 없으면 썸네일 생성 불가 |
+| `PEXELS_API_KEY` | Fallback 1 | WARN (계속) | Unsplash 실패 시에만 필요 |
+| Pollinations | Fallback 2 | 체크 제외 | 키 불필요, 무료 엔드포인트 |
+| 한글 폰트 | PIL 오버레이 | WARN (계속) | 없으면 텍스트 없는 이미지 반환 |
+| `output/images/` | 출력 디렉토리 | 자동 생성 | 없으면 `os.makedirs()` |
 
 ---
 
-## Wave 2: Search Retriever (1 new file)
+## Plan
 
-### Task 2.1: search_retriever.py — NaverSearchClient + context builder
+### Task 7-1: DB Schema Migration
 
-**New file:** `search_retriever.py`
+**File:** `chain_db.py`
 
-```python
-"""
-search_retriever.py — Naver Search API 기반 검색 증강 모듈 (Phase 7)
-
-NaverSearchClient: 네이버 검색 API 래퍼
-retrieve_context_for_post: post 각도별 엔드포인트 매핑 + Markdown 컨텍스트 생성
-"""
-
-import os
-import json
-import time
-import hashlib
-import logging
-from urllib.request import Request, urlopen
-from urllib.parse import urlencode, quote
-from urllib.error import HTTPError
-
-logger = logging.getLogger(__name__)
-
-# ── Memory cache ──
-_cache: dict[str, tuple] = {}  # hash → (timestamp, json_str)
-
-def _cache_key(endpoint: str, query: str, display: int) -> str:
-    raw = f"{endpoint}:{query}:{display}"
-    return hashlib.md5(raw.encode()).hexdigest()
-
-def _get_cached(key: str, ttl: int = 300) -> str | None:
-    if key in _cache:
-        ts, data = _cache[key]
-        if time.time() - ts < ttl:
-            return data
-        del _cache[key]
-    return None
-
-def _set_cache(key: str, data: str):
-    _cache[key] = (time.time(), data)
-
-
-class NaverSearchClient:
-    """Naver Search API client."""
-    
-    def __init__(self, client_id: str = None, client_secret: str = None):
-        self.client_id = client_id or os.environ.get("NAVER_CLIENT_ID", "")
-        self.client_secret = client_secret or os.environ.get("NAVER_CLIENT_SECRET", "")
-        self._quota_used = 0
-    
-    def search(self, query: str, endpoint: str = "webkr",
-               display: int = 5, start: int = 1, sort: str = "sim") -> tuple:
-        """
-        Search Naver API endpoint.
-        Returns: (ok: bool, result: str)
-          ok=True → result is JSON string
-          ok=False → result is error message
-        """
-        if not self.client_id or not self.client_secret:
-            return (False, "NAVER_CLIENT_ID/NAVER_CLIENT_SECRET not configured")
-        
-        ck = _cache_key(endpoint, query, display)
-        cached = _get_cached(ck)
-        if cached:
-            return (True, cached)
-        
-        # Check daily quota (25,000/day)
-        if self._quota_used >= 25000:
-            logger.warning("[search] ⚠️ Daily Naver API quota exhausted (25,000)")
-            return (False, "Daily quota exhausted")
-        
-        try:
-            enc_query = quote(query)
-            url = f"https://openapi.naver.com/v1/search/{endpoint}.json?query={enc_query}&display={display}&start={start}&sort={sort}"
-            req = Request(url)
-            req.add_header("X-Naver-Client-Id", self.client_id)
-            req.add_header("X-Naver-Client-Secret", self.client_secret)
-            
-            with urlopen(req, timeout=10) as resp:
-                data = resp.read().decode("utf-8")
-                self._quota_used += 1
-                _set_cache(ck, data)
-                return (True, data)
-        except HTTPError as e:
-            return (False, f"Naver API HTTP {e.code}: {e.reason}")
-        except Exception as e:
-            return (False, f"Naver API error: {e}")
-    
-    @property
-    def quota_used(self) -> int:
-        return self._quota_used
-
-
-def _strip_b_tags(text: str) -> str:
-    """Remove <b> and </b> tags from Naver API results."""
-    return text.replace("<b>", "").replace("</b>", "")
-
-
-def retrieve_context_for_post(
-    keyword: str,
-    angle: str,
-    client: NaverSearchClient,
-    max_sources: int = 5,
-    cfg: dict = None,
-) -> tuple:
-    """
-    Search Naver for sources relevant to a post's angle.
-    
-    angle: 'basic' | 'advanced' | 'expert'
-    Returns: (ok: bool, context_md_or_err: str)
-      ok=True → context_md is ready-to-use Markdown reference section
-      ok=False → context_md_or_err is error message
-    
-    Markdown format:
-    ## 참고 자료
-    
-    다음은 이 글의 주제와 관련된 검색 결과입니다. 내용 참고하여 풍부한 글을 작성하세요.
-    
-    ### [Title](link)
-    > Description
-    
-    ### [Title](link)
-    > Description
-    ...
-    """
-    # Resolve endpoints from config or defaults
-    endpoints_map = {
-        "basic": ["encyc", "kin", "webkr"],
-        "advanced": ["webkr", "news", "blog"],
-        "expert": ["news", "webkr", "cafearticle"],
-    }
-    
-    if cfg and "search" in cfg:
-        ep_cfg = cfg["search"].get("endpoints_by_angle", {})
-        if angle in ep_cfg:
-            endpoints_map.update({angle: ep_cfg[angle]})
-    
-    endpoints = endpoints_map.get(angle, ["webkr"])
-    max_per_endpoint = max(1, max_sources // len(endpoints))
-    
-    seen_links: set = set()
-    results: list[dict] = []
-    
-    for ep in endpoints:
-        ok, data = client.search(keyword, endpoint=ep, display=max_per_endpoint)
-        if not ok:
-            logger.debug(f"[search] {ep} failed: {data}")
-            continue
-        
-        try:
-            parsed = json.loads(data)
-            items = parsed.get("items", [])
-            for item in items:
-                link = item.get("link", "").strip()
-                if not link or link in seen_links:
-                    continue
-                seen_links.add(link)
-                results.append({
-                    "title": _strip_b_tags(item.get("title", "")),
-                    "description": _strip_b_tags(item.get("description", "")),
-                    "link": link,
-                })
-        except json.JSONDecodeError:
-            continue
-    
-    if not results:
-        return (False, "No search results found")
-    
-    # Build context markdown
-    lines = [
-        "## 참고 자료",
-        "",
-        "다음은 이 글의 주제와 관련된 검색 결과입니다. 내용을 참고하여 풍부한 글을 작성하세요.",
-        "",
-    ]
-    for i, r in enumerate(results[:max_sources], 1):
-        title = r["title"]
-        desc = r["description"]
-        link = r["link"]
-        lines.append(f"### {i}. {title}")
-        if desc:
-            lines.append(f"> {desc}")
-        lines.append("")
-    
-    context_md = "\n".join(lines)
-    return (True, context_md)
+Add 4 columns to `chain_posts`:
+```sql
+ALTER TABLE chain_posts ADD COLUMN thumbnail_path TEXT;
+ALTER TABLE chain_posts ADD COLUMN thumbnail_source TEXT;  -- 'unsplash'|'pexels'|'pollinations'
+ALTER TABLE chain_posts ADD COLUMN content_image_path TEXT;
+ALTER TABLE chain_posts ADD COLUMN content_image_source TEXT;
 ```
 
-**Key behaviors:**
-- `<b>` 태그 제거 (`_strip_b_tags`)
-- 중복 제거 (link 기준)
-- 검색 실패 시 `(False, error_msg)` — caller가 fallback
-- 캐싱 (메모리 LRU, 5분 TTL)
-- 일일 25,000회 한도 체크 (`_quota_used`)
-
----
-
-## Wave 3: Draft Integration (2 files to extend)
-
-### Task 3.1: chain_drafter.py — Add search context injection
-
-**Files to modify:** `chain_drafter.py`  
-**Change type:** Add `use_context` parameter + context injection logic
-
-**Changes:**
-
-1. **Import 추가** (파일 상단):
-```python
-from search_retriever import NaverSearchClient, retrieve_context_for_post
+Mark `image_url` as deprecated in schema comment:
+```sql
+image_url TEXT,  -- DEPRECATED: Phase 7 이전 Pollinations URL 저장용. 신규 로직은 thumbnail_path 사용.
 ```
 
-2. **`draft_chain()` 시그니처 변경**:
-```python
-def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> list[dict]:
-```
+Add helper methods: `update_thumbnail(post_id, path, source)` and `update_content_image(post_id, path, source)`. Existing method signatures unchanged.
 
-3. **`draft_single_post()` 시그니처 변경**:
-```python
-def draft_single_post(
-    post: dict,
-    posts: list[dict],
-    seed_keyword: str,
-    use_context: bool = False,
-) -> str:
-```
+**Idempotency (Gap 3):** In `_publish_hugo()` flow, before calling `generate_thumbnail()`: check if DB `thumbnail_path` is already non-NULL → skip generation.
 
-4. In `draft_single_post`, **after context building** and **before `generate()` call**, add context retrieval:
-```python
-    # ── Search context injection (Phase 7) ──
-    context_md = ""
-    if use_context:
-        try:
-            client = NaverSearchClient()
-            angle_key = {"기초": "basic", "분석": "advanced", "전문": "expert", 
-                         "구매": "basic", "절약": "advanced", "금융": "expert",
-                         "주제": "basic", "비교": "advanced", "비즈니스": "expert"}.get(
-                post.get("angle", "")[:2], "webkr")
-            ok, ctx = retrieve_context_for_post(
-                seed_keyword, angle_key, client, cfg=chain_cfg,
-            )
-            if ok:
-                context_md = ctx
-                # Save to DB
-                from chain_db import update_post_context
-                update_post_context(post["id"], ctx)
-        except Exception as e:
-            print(f"  [drafter] ⚠️ Search context skipped: {e}")
-    
-    # ── Build final user prompt with context ──
-    user_prompt = draft_user.format(...)
-    if context_md:
-        user_prompt += "\n\n" + context_md
-```
-
-**Angle mapping logic:**
-- `angle` field in chain_posts contains strings like `"기초 개념 소개 및 중요성"`
-- Extract first 2 chars → map to Naver endpoint category:
-  - 기초/구매/주제 → `basic`
-  - 분석/절약/비교 → `advanced`
-  - 전문/금융/비즈니스 → `expert`
-- Fallback: `webkr` (general web)
-
-**Do NOT:**
-- Change the original `draft_user` template
-- Add search context INSIDE the format string — only APPEND at the end
-- Fail if search fails — just skip context and continue
-
-### Task 3.2: chain_publisher.py — Add --search / --no-search flag
-
-**Files to modify:** `chain_publisher.py`  
-**Change type:** Add new argparse flag + routing
-
-**Add argparse flag** (after Phase 6 flags):
-```python
-parser.add_argument("--search", action="store_true",
-                    help="Enable Naver search context for drafting")
-parser.add_argument("--no-search", action="store_true",
-                    help="Disable search context (default)")
-```
-
-**Routing in `publish_chain()` call** (where `run_chain` or `draft_chain` is called):
-```python
-# In the --publish / --seed routing:
-use_context = args.search and not args.no_search
-
-# Pass to run_chain():
-run_chain(
-    args.seed,
-    ...,
-    use_context=use_context,
-)
-
-# If --seed + --draft directly:
-if args.draft and args.seed:
-    chain = db.get_chain(chain_id)
-    drafted = draft_chain(chain_id, chain['seed'], use_context=use_context)
-```
-
-**Also:** `run_chain()` in chain_publisher.py needs `use_context` param forwarded to `draft_chain()`:
-```python
-def run_chain(seed, ..., use_context=False):
-    ...
-    if not args.skip_draft:
-        drafted = draft_chain(chain_id, seed, use_context=use_context)
-```
-
-**Do NOT:**
-- Change existing flag behavior
-- Make `--search` the default (must be opt-in)
-- `--no-search` exists for explicitness but is redundant (default is no-search)
-
----
-
-## .env Update (User Action Required)
-
-Add to `mc/.env`:
+**Verification:**
 ```bash
-# Phase 7: Naver Search API (from ~/.env.common)
-NAVER_CLIENT_ID=Ss5fmY2dm6QCf9y1cIwV
-NAVER_CLIENT_SECRET=HRhD8QKZim
-```
-
-Or have `search_retriever.py` read directly from `~/.env.common`:
-```python
-def _load_naver_creds():
-    """Try ~/.env.common first, then env vars."""
-    env_path = os.path.expanduser("~/.env.common")
-    if os.path.exists(env_path):
-        from dotenv import load_dotenv
-        load_dotenv(env_path)
-    return os.environ.get("NAVER_CLIENT_ID", ""), os.environ.get("NAVER_CLIENT_SECRET", "")
+sqlite3 data/mc_chains.db "PRAGMA table_info(chain_posts)" | grep -E "thumbnail_path|thumbnail_source|content_image"
+# 4 new columns visible
 ```
 
 ---
 
-## Verification Criteria
+### Task 7-2: thumbnail.py — Return Tuple, Unified Output Path
 
-| # | Criteria | Command |
-|---|----------|---------|
-| V1 | All files py_compile | `python -m py_compile search_retriever.py chain_db.py chain_drafter.py chain_publisher.py` |
-| V2 | DB migration: context_md + search_sources columns added | `python -c "import chain_db as db; db.init_db(); db.init_search_columns(); c=db.get_conn(); print([r[1] for r in c.execute('PRAGMA table_info(chain_posts)').fetchall()])"` → shows `context_md` and `search_sources` |
-| V3 | Naver Search API call succeeds | `python -c "from search_retriever import NaverSearchClient; c=NaverSearchClient(); ok,data=c.search('강아지 영양제','encyc'); print('OK' if ok else data)"` |
-| V4 | Context retrieval returns markdown | `python -c "from search_retriever import NaverSearchClient, retrieve_context_for_post; c=NaverSearchClient(); ok,ctx=retrieve_context_for_post('강아지 영양제','basic',c); print(ctx[:500] if ok else ctx)"` |
-| V5 | Draft with --search flag | `python chain_publisher.py --chain-id 9 --draft --search` → verify `context_md` is stored in DB |
-| V6 | --search 없이 기존 동작 유지 | `python chain_publisher.py --chain-id 9 --draft` (no --search) — should work exactly as before |
-| V7 | 검색 실패 시 fallback | Remove NAVER keys → `python chain_publisher.py --chain-id 9 --draft --search` — should warn and continue without context |
+**File:** `image/thumbnail.py`
 
-## Files Summary
+1. Change return type of `generate_thumbnail()` from `Optional[Path]` to `Optional[tuple[Path, str]]` returning `(path, source_name)`.
+2. Output path: **`output/images/thumb_{safe_slug}.jpg`** (unify with injector/hugo search path).
+3. Backwards-compat: callers use `path, _ = generate_thumbnail(...)`.
+4. `generate_thumbnail()` must not overwrite existing file unless forced (idempotency: check if file exists at target path → return existing path + source).
 
-| File | Action | Lines (est.) |
-|------|--------|-------------|
-| `search_retriever.py` | **NEW** | ~150 |
-| `chain_db.py` | EXTEND | ~25 |
-| `config/chain_config.yaml` | MODIFY | ~12 |
-| `chain_drafter.py` | MODIFY | ~30 |
-| `chain_publisher.py` | EXTEND | ~20 |
-| `.env` | MODIFY (user) | 3 lines |
-| **Total** | | **~240** |
+**Verification:**
+```bash
+python3 -c "from image import generate_thumbnail; r = generate_thumbnail('Test', '서울', slug='t1'); print(r)"
+# Expected: (PosixPath('output/images/thumb_t1.jpg'), 'unsplash'|'pexels'|'pollinations')
+```
 
-## Do NOT
+---
 
-- Change `draft_chain()` existing parameters or return type
-- Remove or modify existing prompt templates
-- Expose search result URLs in published content
-- Leave `<b>` tags in context_md
-- Hardcode API credentials in source files
-- Block drafting on search failure — always fall through
+### Task 7-3: injector.py — Multi-Path Discovery, No Auto-Insert
+
+**File:** `image/injector.py`
+
+**Modify `_find_image_file(slug)`** to search in order:
+1. `output/images/thumb_{slug}.jpg` ← thumbnail.py (Phase 7)
+2. `output/images/thumb_{slug}.jpg` ← pollinations_client legacy
+3. `output/images/{slug}_*.jpg` ← pollinations_client
+4. `output/images/chart_{slug}.jpg` ← pillow_chart.py (Phase 8)
+
+**Remove auto-insert fallback (Gap 2):** Delete the block that inserts a figure before the first H2 when no `<!--todo:image-->` marker is found. Only marker replacement. If marker absent, return draft unchanged.
+
+Signature unchanged: `inject_images_into_draft(draft_md, slug, blog_key, step, title)`.
+
+**Verification:**
+```bash
+python3 -c "
+from image.injector import inject_images_into_draft
+md = open('output/drafts/9/step-1-xxx.md').read()
+out = inject_images_into_draft(md, 'xxx', 'rotcha', 1, 'Test')
+assert '{{< figure' in out
+print('injector OK')
+"
+```
+
+---
+
+### Task 7-4: chain_drafter.py — Empty featureimage Field + Body Marker
+
+**File:** `chain_drafter.py`, function `draft_chain()` (line 171)
+
+**Remove:** `<!--todo:thumbnail-->` insertion logic (Gap 1).
+
+**Add:** After `draft_md = draft_single_post(...)`, ensure frontmatter has `featureimage: ""` (empty string, not omitted). If GPT output already includes `featureimage: ""` → no change needed. If missing → append before closing `---`.
+
+**Keep:** Insert `<!--todo:image-->` before the first `## ` heading in the body.
+
+**GPT Prompt change:** Add instruction to `prompts.yaml` `draft_user` template:
+```
+featureimage: ""  # 빈칸으로 둘 것. publisher가 썸네일 생성 후 채움.
+```
+
+Store `image_type='photo'` in DB (default, drafter doesn't set it).
+
+**Verification:** Inspect draft MD — `featureimage: ""` in frontmatter, `<!--todo:image-->` before first H2.
+
+---
+
+### Task 7-5: chain_publisher_core.py — DB Lookup, No Hardcoding, Idempotency
+
+**File:** `chain_publisher_core.py`, `_publish_hugo()` method
+
+**Replace** hardcoded `thumbnail.webp`/`cover.webp`/`thumbnail.png` logic (lines 207–245):
+
+```python
+# 1. Load post from DB: thumbnail_path, thumbnail_source, image_keyword
+# 2. thumbnail_path is NULL → call generate_thumbnail(title, keyword, slug)
+#    → update DB with (path, source)
+# 3. Build absolute path from thumbnail_path
+# 4. upload_all_images(temp_dir, slug, r2_prefix, r2_domain)
+#    → all files under temp_dir/assets/ are included automatically
+# 5. frontmatter replace: use R2 URL returned from upload_all_images
+#    for featureimage/cover.image — NO hardcoded filename
+```
+
+**Idempotency (Gap 3):**
+- DB: if `thumbnail_path` already set → log "thumbnail already set, skipping", do not call `generate_thumbnail()`
+- Hugo file: use `open(path, 'w')` → always overwrite (remove `if target_dir.exists(): shutil.rmtree()` guard for the file itself)
+- R2: `upload_all_images()` overwrites existing objects by key — no extra handling needed
+
+**Signature preserved:** `_publish_hugo(self, blog_cfg, draft_md, slug, title, labels=None)` — same.
+
+**Verification:**
+```bash
+python chain_publisher.py --chain-id 9 --publish --dry-run
+# Log: "[Hugo] cover.image → R2 URL: https://img.aikorea24.kr/..."
+```
+
+---
+
+### Task 7-6: config/chain_config.yaml — Precedence Clarification
+
+**File:** `config/chain_config.yaml`
+
+Reorder so `thumbnail:` block comes first, add deprecation comment to `pollinations:` block:
+
+```yaml
+# thumbnail: primary image config (Phase 7)
+thumbnail:
+  provider: auto
+  fallback_chain: [unsplash, pexels, pollinations, pillow_chart]
+  target_size: [1024, 1024]
+
+# pollinations: DEPRECATED — only used as fallback inside thumbnail.py
+# 독립 호출 금지 (chain_publisher --image 직접 Pollinations 경로 제거)
+pollinations:
+  enabled: true
+  width: 1024
+  height: 1024
+```
+
+**Verification:** `python3 -c "from mc_paths import load_config; print(load_config()['thumbnail']['provider'])"` → `auto`.
+
+---
+
+### Task 7-7: Preflight Check + End-to-End Verification
+
+**File:** `chain_publisher.py` — add `_preflight_check()` function + `--preflight` flag (also auto-runs before `--publish`).
+
+**Preflight logic:**
+```python
+def _preflight_check() -> bool:
+    # 1. Unsplash (Primary) — ERROR
+    if not os.environ.get('UNSPLASH_ACCESS_KEY'):
+        print("ERROR: UNSPLASH_ACCESS_KEY not set in .env")
+        print("발급: https://unsplash.com/developers")
+        return False
+
+    # 2. Pexels (Fallback 1) — WARN
+    if not os.environ.get('PEXELS_API_KEY'):
+        print("WARN: PEXELS_API_KEY not set. Fallback: Unsplash→Pollinations.")
+        print("발급(선택): https://www.pexels.com/api/")
+
+    # 3. Pollinations (Fallback 2) — 키 불필요, 체크 제외
+
+    # 4. 한글 폰트 — WARN
+    font_candidates = [
+        "assets/fonts/NotoSansKR-Regular.otf",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ]
+    if not any(os.path.exists(p) for p in font_candidates):
+        print("WARN: No Korean font. PIL overlay renders as squares.")
+        print("설치: https://fonts.google.com/noto/specimen/Noto+Sans+KR")
+
+    # 5. output/images/ — 자동 생성
+    Path("output/images").mkdir(parents=True, exist_ok=True)
+    return True
+```
+
+**E2E verification sequence:**
+```bash
+# 1. Preflight
+python chain_publisher.py --preflight
+
+# 2. DB 마이그레이션 (one-time)
+sqlite3 data/mc_chains.db "ALTER TABLE chain_posts ADD COLUMN thumbnail_path TEXT;"
+sqlite3 data/mc_chains.db "ALTER TABLE chain_posts ADD COLUMN thumbnail_source TEXT;"
+sqlite3 data/mc_chains.db "ALTER TABLE chain_posts ADD COLUMN content_image_path TEXT;"
+sqlite3 data/mc_chains.db "ALTER TABLE chain_posts ADD COLUMN content_image_source TEXT;"
+
+# 3. Draft (verify placeholders)
+python chain_publisher.py --chain-id 9 --draft
+
+# 4. Full publish
+python chain_publisher.py --chain-id 9 --image --publish
+
+# 5. DB 검증
+sqlite3 data/mc_chains.db \
+  "SELECT slug, thumbnail_path, thumbnail_source FROM chain_posts WHERE chain_id=9;"
+
+# 6. R2 검증
+curl -sI "https://img.aikorea24.kr/images/{slug}/thumb_{slug}.jpg" | head -1  # 200
+
+# 7. 라이브 URL 검증
+curl -sI "https://rotcha.kr/posts/{slug}/" | head -1  # 200
+
+# 8. 멱등성 검증 (Gap 3)
+python chain_publisher.py --chain-id 9 --image --publish
+# 기대: "thumbnail already set, skipping" + 에러 없음
+```
+
+---
+
+## Definition of Done
+
+- `--preflight` → passes with UNSPLASH_ACCESS_KEY present; PEXELS_API_KEY missing gives WARN but continues
+- `--chain-id 9 --draft` → `featureimage: ""` in frontmatter, `<!--todo:image-->` before first H2
+- `--chain-id 9 --image --publish` → succeeds without errors
+- DB: `thumbnail_path` = `output/images/thumb_{slug}.jpg`, `thumbnail_source` = `'unsplash'|'pexels'|'pollinations'`
+- R2: `thumb_{slug}.jpg` uploaded, `curl -sI` returns 200
+- Published frontmatter: `featureimage: https://img.aikorea24.kr/.../thumb_{slug}.jpg`
+- Published body: `<figure>` before first H2 (or no insertion if image_type=none)
+- Re-run `--publish` on same chain_id → no regeneration, no errors (idempotent)
+- `image_url` column untouched, no writes to it from new code
+
+---
+
+## Constraints
+
+- **No new modules** except `image/pillow_chart.py` (Phase 8, image_type=chart).
+- **No signature changes** to `generate_thumbnail()`, `inject_images_into_draft()`, `_publish_hugo()`. Internal return type of `generate_thumbnail()` expands to `tuple[Path, str]` but callers just destructure.
+- `image_url` column: do not delete, do not write to it. Deprecated comment only.
+- Existing `static/images/thumb_*.jpg` test files remain as-is (not canonical path going forward; output/images/ is canonical).

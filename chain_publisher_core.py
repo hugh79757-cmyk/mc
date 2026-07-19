@@ -166,84 +166,163 @@ class PublisherCore:
             cf_project = blog_cfg.get("cf_pages_project", "")
             theme = blog_cfg.get("theme", "PaperMod")
 
-            # 2. R2 이미지 업로드
+# 2. 썸네일 보장 + R2 이미지 업로드
             r2_prefix, r2_domain = get_r2_config(str(hugo_path))
+            assets_dir = post_temp_dir / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
+
+            # DB에서 post 조회 (thumbnail_path, image_keyword)
+            from chain_db import get_conn, update_thumbnail as _db_update_thumb
+            _conn = get_conn()
+            _row = _conn.execute(
+                "SELECT id, thumbnail_path, thumbnail_source, image_keyword, chart_type, chart_data, content_image_path FROM chain_posts WHERE slug = ?",
+                (slug,),
+            ).fetchone()
+            _conn.close()
+            _post = dict(_row) if _row else {}
+            _post_id = _post.get("id")
+
+            # Phase 7: thumbnail_path 없으면 생성 (멱등성: 이미 있으면 스킵)
+            _thumb_abs = _post.get("thumbnail_path")
+            _thumb_src = _post.get("thumbnail_source")
+            if not _thumb_abs or not Path(_thumb_abs).exists():
+                from image.thumbnail import generate_thumbnail as _gen_thumb
+                _kw = _post.get("image_keyword") or slug
+                _res = _gen_thumb(title=title, keyword=_kw, slug=slug)
+                if _res:
+                    _thumb_abs, _thumb_src = _res
+                    if _post_id:
+                        _db_update_thumb(_post_id, str(_thumb_abs), _thumb_src)
+                else:
+                    logger.warning(f"[Hugo] 썸네일 생성 실패: {slug}")
+            else:
+                logger.info(f"[Hugo] thumbnail_path 이미 설정, 재생성 스킵: {_thumb_abs}")
+
+            # 썸네일을 assets_dir에 복사 (R2 업로드 대상)
+            if _thumb_abs and Path(_thumb_abs).exists():
+                shutil.copy2(Path(_thumb_abs), assets_dir / Path(_thumb_abs).name)
+
+            # Phase 8: content_image (chart 또는 photo)
+            if _post_id and not _post.get("content_image_path"):
+                # image_type not a DB column — infer from chart_type
+                _img_type = "chart" if _post.get("chart_type") else "none"
+                if _img_type == "chart":
+                    _chart_type = _post.get("chart_type")
+                    _chart_data_str = _post.get("chart_data")
+                    if _chart_type and _chart_data_str:
+                        try:
+                            import json as _json
+                            from pillow_chart import render_chart
+                            from mc_paths import load_config as _load_cfg
+                            _cfg = _load_cfg()
+                            _chart_data = _json.loads(_chart_data_str)
+                            _font_path = _cfg.get("chart", {}).get("font", "assets/fonts/NotoSansKR-Regular.otf")
+                            _chart_path, _chart_src = render_chart(
+                                chart_type=_chart_type,
+                                chart_data=_chart_data,
+                                title=title,
+                                slug=slug,
+                                font_path=_font_path,
+                                config=_cfg,
+                            )
+                            # DB 업데이트
+                            _conn2 = get_conn()
+                            _conn2.execute(
+                                "UPDATE chain_posts SET content_image_path=?, content_image_source=? WHERE id=?",
+                                (str(_chart_path), _chart_src, _post_id),
+                            )
+                            _conn2.commit()
+                            _conn2.close()
+                            # assets_dir에 복사
+                            shutil.copy2(_chart_path, assets_dir / Path(_chart_path).name)
+                        except FileNotFoundError as e:
+                            logger.error(f"Chart font missing: {e}. Fallback to photo.")
+                        except Exception as e:
+                            logger.error(f"Chart generation failed: {e}. Fallback to photo.")
+
             url_map = {}
             if r2_prefix and r2_domain:
                 url_map = upload_all_images(post_temp_dir, slug, r2_prefix, r2_domain)
-                if not url_map:
-                    logger.warning(f"[Hugo] R2 업로드 결과 없음: {slug} — 썸네일 누락 가능")
 
-            # 3. 포스트 번들 디렉토리 생성 및 복사
+            # R2 썸네일 URL 추출 (파일명 기반, 하드코딩 제거)
+            r2_thumb_url = None
+            if url_map:
+                for _ln, _ru in url_map.items():
+                    if "thumb" in _ln.lower():
+                        r2_thumb_url = _ru
+                        break
+                if not r2_thumb_url:
+                    r2_thumb_url = next(iter(url_map.values()), None)
+
+            if not r2_thumb_url:
+                logger.warning(f"[Hugo] R2 썸네일 URL 없음: {slug}")
+
+            # 3. 포스트 번들 디렉토리 생성
             target_dir = hugo_path / content_dir / slug
-            if target_dir.exists():
-                shutil.rmtree(target_dir)
             target_dir.mkdir(parents=True, exist_ok=True)
 
-            # 구형 평면 파일 정리 (동일 slug로 생성된 .md 파일)
+            # 구형 평면 파일 정리
             stale_flat = hugo_path / content_dir / f"{slug}.md"
             if stale_flat.exists():
                 stale_flat.unlink()
                 logger.info(f"[Hugo] 구형 평면 파일 제거: {stale_flat}")
 
-            # draft_md를 index.md로 복사
+            # draft_md를 index.md로 복사 (멱등성: 항상 덮어쓰기)
             index_md = target_dir / "index.md"
             index_md.write_text(draft_md, encoding="utf-8")
 
-            # 4. frontmatter 수정: draft:false, date 추가, cover.image R2 URL 교체
+            # 4. frontmatter 수정: draft:false, date, slug 추가, featureimage R2 URL 교체
             if index_md.exists():
                 text = index_md.read_text(encoding="utf-8")
                 text = re.sub(r"draft:\s*true", "draft: false", text)
 
-                # date 추가 (없으면 현재 시간) - CLOSING frontmatter delimiter
+                # slug 추가 (Hugo :slug permalink용)
+                if not re.search(r"^slug:", text, re.MULTILINE):
+                    text = re.sub(r"(\n---)", '\nslug: "' + slug + '"\n\\1', text, count=1)
+
+                # date 추가 (없으면 현재 시간)
                 if not re.search(r"^date:", text, re.MULTILINE):
                     date_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+09:00")
                     text = re.sub(r"(\n---)", rf"\ndate: {date_str}\n\1", text, count=1)
 
-                # 본문 이미지 경로를 R2 URL로 교체
-                if url_map:
-                    for local_name, r2_url in url_map.items():
-                        text = text.replace("assets/" + local_name, r2_url)
-                        if local_name.startswith("thumbnail") or local_name.startswith("cover"):
-                            text = text.replace(local_name, r2_url)
-
-                # R2 업로드 성공 시 cover.image를 R2 URL로 교체
-                r2_thumb_url = next(iter(url_map.values()), None) if url_map else None
-
+                # DB 기반 R2 URL로 frontmatter 교체 (하드코딩 제거)
                 if r2_thumb_url:
-                    # 테마별 cover frontmatter 형식 처리
-                    if re.search(r'^(cover:\s*\n\s+image:\s*)"([^"]*)"', text, re.MULTILINE):
+                    if re.search(r'^featureimage:\s*"', text, re.MULTILINE):
+                        text = re.sub(
+                            r'^(featureimage:\s*)"([^"]*)"',
+                            r'\1"' + r2_thumb_url + '"',
+                            text, count=1, flags=re.MULTILINE,
+                        )
+                    elif re.search(r'^(cover:\s*\n\s+image:\s*)"([^"]*)"', text, re.MULTILINE):
                         text = re.sub(
                             r'^(cover:\s*\n\s+image:\s*)"([^"]*)"',
                             r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE
+                            text, count=1, flags=re.MULTILINE,
                         )
                     elif re.search(r'^image:\s*"', text, re.MULTILINE):
                         text = re.sub(
                             r'^(image:\s*)"([^"]*)"',
                             r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE
-                        )
-                    elif re.search(r'^featureimage:\s*"', text, re.MULTILINE):
-                        text = re.sub(
-                            r'^(featureimage:\s*)"([^"]*)"',
-                            r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE
+                            text, count=1, flags=re.MULTILINE,
                         )
                     elif re.search(r'^thumbnail:\s*"', text, re.MULTILINE):
                         text = re.sub(
                             r'^(thumbnail:\s*)"([^"]*)"',
                             r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE
+                            text, count=1, flags=re.MULTILINE,
                         )
                     else:
-                        # cover/image/featureimage/thumbnail 모두 없으면 새로 추가
                         text = re.sub(
                             r"\n---\n",
-                            "\ncover:\n  image: \"" + r2_thumb_url + "\"\n  alt: \"\"\n  hidden: false\n---\n",
-                            text, count=1
+                            "\nfeatureimage: \"" + r2_thumb_url + "\"\n---\n",
+                            text, count=1,
                         )
-                    logger.info(f"[Hugo] cover.image → R2 URL: {r2_thumb_url}")
+                    logger.info(f"[Hugo] featureimage → R2 URL: {r2_thumb_url}")
+
+                # 본문 이미지 경로 R2 URL로 교체
+        if url_map:
+            for local_name, r2_url in url_map.items():
+                text = text.replace("assets/" + local_name, r2_url)
 
                 # 마크다운 본문 정제
                 text = _sanitize_markdown_body(text)

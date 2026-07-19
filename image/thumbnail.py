@@ -26,8 +26,19 @@ from mc_paths import load_config
 
 # ── 디렉토리 ──
 
-IMAGE_DIR = Path("static/images")
+IMAGE_DIR = Path("output/images")
 IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _infer_source_from_path(path: Path) -> str:
+    name = path.name.lower()
+    if "unsplash" in name:
+        return "unsplash"
+    if "pexels" in name:
+        return "pexels"
+    if "pollinations" in name:
+        return "pollinations"
+    return "unknown"
 
 FONT_PATH = Path("assets/fonts/NotoSansKR-Regular.otf")
 FONT_BOLD_PATH = Path("assets/fonts/NotoSansKR-Bold.otf")  # optional
@@ -326,73 +337,94 @@ def add_text_overlay(
 # ── 메인 오케스트레이터 ──
 
 def generate_thumbnail(
-    title: str,
-    keyword: str,
-    slug: str = "",
-    subtitle: Optional[str] = None,
-) -> Optional[Path]:
-    """
-    Generate a thumbnail photo with text overlay.
+  title: str,
+  keyword: str,
+  slug: str = "",
+  subtitle: Optional[str] = None,
+) -> Optional[tuple[Path, str]]:
+  """
+  Generate a thumbnail photo with text overlay.
 
-    Provider order:
-      1. Unsplash (real photo)
-      2. Pexels (real photo, fallback)
-      3. Pollinations (AI generated, fallback)
-      4. Krea (AI generated, fallback)
+  Provider order:
+  1. Unsplash (real photo)
+  2. Pexels (real photo, fallback)
+  3. Pollinations (AI generated, fallback)
+  4. Krea (AI generated, fallback)
 
-    Args:
-        title: Title text to overlay on the image.
-        keyword: Search keyword for photo lookup.
-        slug: Unique slug for filename.
-        subtitle: Optional sub-title line.
+  Args:
+    title: Title text to overlay on the image.
+    keyword: Search keyword for photo lookup.
+    slug: Unique slug for filename.
+    subtitle: Optional sub-title line.
 
-    Returns:
-        Path to the final thumbnail image, or None if all providers failed.
-    """
-    env = _load_env()
-    config = load_config()
-    thumb_cfg = config.get("thumbnail", {})
-    provider = thumb_cfg.get("provider", "auto")
-    fallback_chain = thumb_cfg.get("fallback_chain", ["pexels", "pollinations", "krea"])
-    target_size = tuple(thumb_cfg.get("target_size", [1024, 1024]))
+  Returns:
+    (path, source_name) tuple, or None if all providers failed.
+    source_name: 'unsplash' | 'pexels' | 'pollinations' | 'pillow_chart' | 'unknown'
+  """
+  # Idempotency: if file already exists at expected path, return it directly
+  if slug:
+    expected = IMAGE_DIR / f"thumb_{slug}.jpg"
+    if expected.exists():
+      print(f" [thumbnail] 파일 존재, 재사용: {expected}")
+      return (expected, _infer_source_from_path(expected))
 
-    downloaded: Optional[Path] = None
+  env = _load_env()
+  config = load_config()
+  thumb_cfg = config.get("thumbnail", {})
+  provider = thumb_cfg.get("provider", "auto")
+  fallback_chain = thumb_cfg.get("fallback_chain", ["pexels", "pollinations", "krea"])
+  target_size = tuple(thumb_cfg.get("target_size", [1024, 1024]))
 
-    # ── Provider 1: Unsplash ──
-    if provider in ("auto", "unsplash"):
-        unsplash = UnsplashProvider(env["unsplash_key"])
-        if results := unsplash.search(keyword):
-            photo = random.choice(results)
-            print(f"  [thumbnail] Unsplash → {photo['id']} by {photo['author']}")
-            downloaded = unsplash.download(photo)
-            if downloaded:
-                return add_text_overlay(downloaded, title, subtitle, target_size)
+  downloaded: Optional[Path] = None
+  source: str = "unknown"
 
-    # ── Fallback chain ──
-    for fallback_name in fallback_chain:
+  # ── Provider 1: Unsplash ──
+  if provider in ("auto", "unsplash"):
+    unsplash = UnsplashProvider(env["unsplash_key"])
+    if results := unsplash.search(keyword):
+      photo = random.choice(results)
+      print(f" [thumbnail] Unsplash → {photo['id']} by {photo['author']}")
+      downloaded = unsplash.download(photo)
+      if downloaded:
+        source = "unsplash"
+        result = add_text_overlay(downloaded, title, subtitle, target_size)
+        if result:
+          return (result, source)
+
+  # ── Fallback chain ──
+  for fallback_name in fallback_chain:
+    if downloaded:
+      break
+
+    if fallback_name == "pexels":
+      pexels = PexelsProvider(env["pexels_key"])
+      if results := pexels.search(keyword):
+        photo = random.choice(results)
+        print(f" [thumbnail] Pexels → {photo['id']} by {photo['author']}")
+        downloaded = pexels.download(photo)
         if downloaded:
-            break
+          source = "pexels"
+          result = add_text_overlay(downloaded, title, subtitle, target_size)
+          if result:
+            return (result, source)
 
-        if fallback_name == "pexels":
-            pexels = PexelsProvider(env["pexels_key"])
-            if results := pexels.search(keyword):
-                photo = random.choice(results)
-                print(f"  [thumbnail] Pexels → {photo['id']} by {photo['author']}")
-                downloaded = pexels.download(photo)
-                if downloaded:
-                    return add_text_overlay(downloaded, title, subtitle, target_size)
+    elif fallback_name == "pollinations":
+      print(f" [thumbnail] Pollinations fallback → {keyword}")
+      downloaded = _pollinations_fallback(keyword, slug or title)
+      if downloaded:
+        source = "pollinations"
+        result = add_text_overlay(downloaded, title, subtitle, target_size)
+        if result:
+          return (result, source)
 
-        elif fallback_name == "pollinations":
-            print(f"  [thumbnail] Pollinations fallback → {keyword}")
-            downloaded = _pollinations_fallback(keyword, slug or title)
-            if downloaded:
-                return add_text_overlay(downloaded, title, subtitle, target_size)
+    elif fallback_name == "krea":
+      print(f" [thumbnail] Krea fallback → {keyword}")
+      downloaded = _krea_fallback(keyword, slug or title)
+      if downloaded:
+        source = "krea"
+        result = add_text_overlay(downloaded, title, subtitle, target_size)
+        if result:
+          return (result, source)
 
-        elif fallback_name == "krea":
-            print(f"  [thumbnail] Krea fallback → {keyword}")
-            downloaded = _krea_fallback(keyword, slug or title)
-            if downloaded:
-                return add_text_overlay(downloaded, title, subtitle, target_size)
-
-    print(f"  [thumbnail] All providers failed for '{keyword}'")
-    return None
+  print(f" [thumbnail] All providers failed for '{keyword}'")
+  return None
