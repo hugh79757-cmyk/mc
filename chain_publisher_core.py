@@ -31,13 +31,14 @@ logger = logging.getLogger(__name__)
 
 def _sanitize_markdown_body(body: str) -> str:
     """발행 전 마크다운 본문의 흔한 문법 오류를 자동 교정"""
-    # 패턴 1: `]([[https://...]])` → `](https://...)`
-    # 링크 URL 주변의 불필요한 이중 대괄호 제거
     body = re.sub(
         r'\]\(\[\[(https?://[^\]]+)\]\]\)',
         r'](\1)',
         body
     )
+    # 헤딩 주변 공백 정규화: 제목 위에는 항상 빈 줄
+    body = re.sub(r'(?<=\S)\n(#+ )', r'\n\n\1', body)
+    body = re.sub(r'(#+ .+)\n(?=\S)', r'\1\n\n', body)
     return body
 
 
@@ -88,16 +89,18 @@ def _get_wrangler_cmd(args: list) -> list:
 def _run_wrangler(args: list, cwd: str = None, env: dict = None) -> tuple:
     """
     wrangler 명령 실행 → (returncode, stdout, stderr)
-    M4 Mac PATH 보완 포함. env를 넘기면 해당 환경변수 사용.
+    hugh79757 profile 강제 + 타 계정 env 변수 제거.
     """
-    # hugh79757 auth profile 강제 지정
     cmd = _get_wrangler_cmd(["--profile", "hugh79757"] + args)
 
     if env is None:
         env = os.environ.copy()
-    env.pop("CLOUDFLARE_API_TOKEN", None)
-    # M4 Mac: homebrew bin이 PATH에 누락되는 경우 보완
+    # 모든 Cloudflare 계정 관련 env 변수 제거 → hugh79757 profile만 사용
+    for _k in list(env.keys()):
+        if "CLOUDFLARE" in _k.upper() or "CF_" in _k.upper():
+            env.pop(_k, None)
     env["PATH"] = "/opt/homebrew/bin:/opt/homebrew/opt/node/bin:" + env.get("PATH", "")
+    logger.info(f"[Wrangler] profile=hugh79757 cmd={' '.join(cmd)}")
 
     result = subprocess.run(
         cmd,
@@ -337,7 +340,7 @@ class PublisherCore:
 
                 # 마크다운 본문 정제
                 text = _sanitize_markdown_body(text)
-                # 본문 이미지 placeholder 교체 (<!-- image: 설명 --> ← ![]())
+                # 본문 이미지 placeholder 교체: <!--todo:image--> / <!--todo:chart--> / <!-- image: desc -->
                 _content_img_url = None
                 if url_map:
                     for _ln, _ru in url_map.items():
@@ -351,6 +354,7 @@ class PublisherCore:
                         _d = m.group(1).strip() if m.lastindex else _alt_prefix
                         return f"![{_d}]({_content_img_url})"
                     text = re.sub(r"<!--\s*image:\s*(.*?)\s*-->", _img_repl, text)
+                    text = re.sub(r"<!--todo:image-->", f"![{_alt_prefix}]({_content_img_url})", text)
                     text = re.sub(r"<!--todo:chart-->", f"![{_alt_prefix}]({_content_img_url})", text)
                 index_md.write_text(text, encoding="utf-8")
 
