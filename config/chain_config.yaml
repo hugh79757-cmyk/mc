@@ -127,12 +127,23 @@ thumbnail:
     - unsplash
     - pexels
     - pollinations
-    - pillow_chart
+    - krea
   target_size: [1024, 1024]
   text_overlay:
     enabled: true
     font: assets/fonts/NotoSansKR-Regular.otf
     bg_alpha: 0.55
+
+# === KREA AI (Phase 9 — Pollinations 3rd fallback) ===
+krea:
+  enabled: true
+  api_base: https://api.krea.ai
+  model: krea/krea-2/medium
+  aspect_ratio: "1:1"
+  resolution: "1K"
+  creativity: medium
+  poll_interval_seconds: 2
+  poll_timeout_seconds: 90
 
 # === 차트 이미지 생성 (Phase 8) ===
 chart:

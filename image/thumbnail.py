@@ -182,12 +182,16 @@ def _pollinations_fallback(prompt: str, slug: str) -> Optional[Path]:
         return None
 
 
-# ── Krea Fallback (placeholder) ──
+# ── Krea Fallback ──
 
 def _krea_fallback(prompt: str, slug: str) -> Optional[Path]:
-    """Krea AI fallback (stub — no public API yet)."""
-    print("  [thumbnail] Krea fallback not implemented, returning None")
-    return None
+    """Krea AI fallback (async job pattern)."""
+    try:
+        from image.krea_client import generate_image
+        return generate_image(prompt, slug=slug)
+    except Exception as e:
+        print(f" [thumbnail] Krea fallback error: {e}")
+        return None
 
 
 # ── 텍스트 오버레이 ──
