@@ -243,6 +243,15 @@ class PublisherCore:
                         except Exception as e:
                             logger.error(f"Chart generation failed: {e}. Fallback to photo.")
 
+            # Phase 3/7: 본문 이미지(Pollinations)를 output/images/ → assets_dir 복사
+            _output_images = Path("output/images")
+            if _output_images.exists():
+                for _img_ref in re.findall(r'/images/([\w\-]+\.(?:jpg|jpeg|png|webp))', draft_md):
+                    _src = _output_images / _img_ref
+                    if _src.exists():
+                        shutil.copy2(_src, assets_dir / _img_ref)
+                        logger.info(f"[Hugo] 본문 이미지 복사: {_img_ref}")
+
             url_map = {}
             if r2_prefix and r2_domain:
                 url_map = upload_all_images(post_temp_dir, slug, r2_prefix, r2_domain)
@@ -270,93 +279,75 @@ class PublisherCore:
                 stale_flat.unlink()
                 logger.info(f"[Hugo] 구형 평면 파일 제거: {stale_flat}")
 
-            # draft_md를 index.md로 복사 (멱등성: 항상 덮어쓰기)
-            # frontmatter closer 보장: --- 가 라인 시작이고 뒤에 공백이다른 내용 없이 개행으로 끝나는지 확이
-            _fix = draft_md
-            if not _fix.lstrip().startswith("---"):
-                _fix = "---\ndraft: false\n---\n\n" + _fix
-            else:
-                _lines_all = _fix.splitlines()
-                _has_closer = any(l.strip() == "---" for l in _lines_all[1:])
-                if not _has_closer:
-                                _first = _lines_all[0]
-                                _rest = "\n".join(_lines_all[1:])
-                                _fix = _first + "\n---\ndraft: false\n\n" + _rest
-            index_md = target_dir / "index.md"
-            index_md.write_text(_fix, encoding="utf-8")
-
-            # 4. frontmatter 수정: draft:false, date, slug 추가, featureimage R2 URL 교체
-            if index_md.exists():
-                text = index_md.read_text(encoding="utf-8")
-                text = re.sub(r"draft:\s*true", "draft: false", text)
-
-                # slug 추가 (Hugo :slug permalink용)
-                if not re.search(r"^slug:", text, re.MULTILINE):
-                    text = re.sub(r"(\n---)", '\nslug: "' + slug + '"\n\\1', text, count=1)
-
-                # date 추가 (없으면 현재 시간)
-                if not re.search(r"^date:", text, re.MULTILINE):
-                    date_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+09:00")
-                    text = re.sub(r"(\n---)", rf"\ndate: {date_str}\n\1", text, count=1)
-
-                # DB 기반 R2 URL로 frontmatter 교체 (하드코딩 제거)
-                if r2_thumb_url:
-                    if re.search(r'^featureimage:\s*"', text, re.MULTILINE):
-                        text = re.sub(
-                            r'^(featureimage:\s*)"([^"]*)"',
-                            r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE,
-                        )
-                    elif re.search(r'^(cover:\s*\n\s+image:\s*)"([^"]*)"', text, re.MULTILINE):
-                        text = re.sub(
-                            r'^(cover:\s*\n\s+image:\s*)"([^"]*)"',
-                            r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE,
-                        )
-                    elif re.search(r'^image:\s*"', text, re.MULTILINE):
-                        text = re.sub(
-                            r'^(image:\s*)"([^"]*)"',
-                            r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE,
-                        )
-                    elif re.search(r'^thumbnail:\s*"', text, re.MULTILINE):
-                        text = re.sub(
-                            r'^(thumbnail:\s*)"([^"]*)"',
-                            r'\1"' + r2_thumb_url + '"',
-                            text, count=1, flags=re.MULTILINE,
-                        )
+            # 3. draft_md 파싱: frontmatter와 본문 분리 + fields 수정
+            _fm_fields = {}
+            _rest_body = draft_md
+            if draft_md.lstrip().startswith("---"):
+                _rest_after_opener = draft_md[3:].lstrip("\n")
+                _closer = re.search(r'^---\s*$', _rest_after_opener, re.MULTILINE)
+                _fm_lines = _rest_after_opener
+                if _closer:
+                    _fm_lines = _rest_after_opener[:_closer.start()]
+                    _rest_body = _rest_after_opener[_closer.end():].lstrip("\n")
+                # Parse FM key:value pairs + locate body start
+                _body_start = 0
+                _fm_raw_lines = _fm_lines.splitlines(True)
+                for _i, _raw_line in enumerate(_fm_raw_lines):
+                    _line = _raw_line.strip()
+                    if not _line or re.match(r'^[a-zA-Z_][\w]*\s*:', _line):
+                        _body_start = _i + 1
+                        if _line and ":" in _line:
+                            _k, _v = _line.split(":", 1)
+                            _fm_fields[_k.strip()] = _v.strip()
                     else:
-                        text = re.sub(
-                            r"\n---\n",
-                            "\nfeatureimage: \"" + r2_thumb_url + "\"\n---\n",
-                            text, count=1,
-                        )
-                    logger.info(f"[Hugo] featureimage → R2 URL: {r2_thumb_url}")
+                        break
+                if not _closer:
+                    _rest_body = "".join(_fm_raw_lines[_body_start:])
 
-                # 본문 이미지 경로 R2 URL로 교체
-        if url_map:
-            for local_name, r2_url in url_map.items():
-                text = text.replace("assets/" + local_name, r2_url)
+            # 수정: draft→false, slug, date, featureimage 강제
+            _fm_fields["draft"] = "false"
+            _fm_fields["slug"] = f'"{slug}"'
+            if "date" not in _fm_fields:
+                _fm_fields["date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+09:00")
+            if r2_thumb_url:
+                _fm_fields["featureimage"] = f'"{r2_thumb_url}"'
 
-                # 마크다운 본문 정제
-                text = _sanitize_markdown_body(text)
-                # 본문 이미지 placeholder 교체: <!--todo:image--> / <!--todo:chart--> / <!-- image: desc -->
-                _content_img_url = None
-                if url_map:
-                    for _ln, _ru in url_map.items():
-                        _low = _ln.lower()
-                        if "thumb" not in _low and _ln.endswith((".jpg", ".jpeg", ".png", ".webp")):
-                            _content_img_url = _ru
-                            break
-                if _content_img_url:
-                    _alt_prefix = (title or "image")[:30]
-                    def _img_repl(m):
-                        _d = m.group(1).strip() if m.lastindex else _alt_prefix
-                        return f"![{_d}]({_content_img_url})"
-                    text = re.sub(r"<!--\s*image:\s*(.*?)\s*-->", _img_repl, text)
-                    text = re.sub(r"<!--todo:image-->", f"![{_alt_prefix}]({_content_img_url})", text)
-                    text = re.sub(r"<!--todo:chart-->", f"![{_alt_prefix}]({_content_img_url})", text)
-                index_md.write_text(text, encoding="utf-8")
+            # frontmatter 재조립
+            _new_fm_lines = ["---"]
+            for _k, _v in _fm_fields.items():
+                _new_fm_lines.append(f"{_k}: {_v}")
+            _new_fm_lines.append("---")
+            _fixed = "\n".join(_new_fm_lines) + "\n\n" + _rest_body
+
+            index_md = target_dir / "index.md"
+            index_md.write_text(_fixed, encoding="utf-8")
+
+            # 4. 본문 이미지 경로 R2 URL로 교체
+            text = index_md.read_text(encoding="utf-8")
+            if url_map:
+                for local_name, r2_url in url_map.items():
+                    text = text.replace("/images/" + local_name, r2_url)
+                    text = text.replace("assets/" + local_name, r2_url)
+
+            # 마크다운 본문 정제
+            text = _sanitize_markdown_body(text)
+            # 본문 이미지 placeholder 교체: <!--todo:image--> / <!--todo:chart--> / <!-- image: desc -->
+            _content_img_url = None
+            if url_map:
+                for _ln, _ru in url_map.items():
+                    _low = _ln.lower()
+                    if "thumb" not in _low and _ln.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                        _content_img_url = _ru
+                        break
+            if _content_img_url:
+                _alt_prefix = (title or "image")[:30]
+                def _img_repl(m):
+                    _d = m.group(1).strip() if m.lastindex else _alt_prefix
+                    return f"![{_d}]({_content_img_url})"
+                text = re.sub(r"<!--\s*image:\s*(.*?)\s*-->", _img_repl, text)
+                text = re.sub(r"<!--todo:image-->", f"![{_alt_prefix}]({_content_img_url})", text)
+                text = re.sub(r"<!--todo:chart-->", f"![{_alt_prefix}]({_content_img_url})", text)
+            index_md.write_text(text, encoding="utf-8")
 
             # 5. Hugo 빌드
             hugo_bin = shutil.which("hugo") or "/opt/homebrew/bin/hugo"
