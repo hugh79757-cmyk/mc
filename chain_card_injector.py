@@ -15,15 +15,100 @@ Phase 5 변경:
 
 import re
 import os
+import json
 from datetime import datetime
 
 from mc_paths import load_config, CHAIN_CONFIG_PATH
 from chain_db import get_post
+from search_retriever import NaverSearchClient
 
 
 class CardInjector:
     def __init__(self, config: dict = None):
         self.config = config or load_config()
+        self.search_client = NaverSearchClient()
+
+    # ── 공식 안내 링크 동적 검색 (Naver API) ────────────────────────
+
+    OFFICIAL_QUERY_TEMPLATES = [
+        "{keyword} 공식 사이트",
+        "{keyword} 공식 홈페이지",
+        "{keyword} 예약 공식",
+        "{keyword} 안내 공식",
+        "{keyword} 공식 안내",
+    ]
+
+    def _domain(self, url: str) -> str:
+        return url.split("//", 1)[1].split("/", 1)[0] if "//" in url else url
+
+    def find_official_link(self, title: str = "", keyword: str = "", body: str = "") -> dict | None:
+        """Naver 검색으로 공신력 있는 공식 사이트 1개 찾기.
+        공공기관 도메인 우선, 블로그/뉴스/하위페이지는 제외.
+        """
+        search_text = keyword or title
+        if not search_text:
+            return None
+        public_domains = (".go.kr", ".or.kr", ".gov.kr", ".co.kr")
+        skip_domains = (
+            "naver.com", "blog.naver.com", "brunch.co.kr", "tistory.com",
+            "velog.io", "medium.com", "news.naver.com", "dispatch.co.kr",
+        )
+        skip_paths = (
+            "/board/", "/faq", "/customer", "/bbs/", "/menu/",
+            "/cruiseinfo/", "/useinfo/", "/terms/", "/?type=",
+        )
+        for template in self.OFFICIAL_QUERY_TEMPLATES:
+            query = template.format(keyword=search_text)
+            ok, data = self.search_client.search(query, endpoint="webkr", display=10)
+            if not ok:
+                continue
+            try:
+                results = json.loads(data).get("items", [])
+                public_first = None
+                fallback = None
+                for item in results:
+                    link = item.get("link", "")
+                    domain = self._domain(link)
+                    if any(sk in domain for sk in skip_domains):
+                        continue
+                    if any(s in link for s in skip_paths):
+                        continue
+                    clean_title = item.get("title", "").replace("<b>", "").replace("</b>", "")
+                    clean_desc = item.get("description", "").replace("<b>", "").replace("</b>", "")[:60]
+                    entry = {
+                        "title": f"공식 {clean_title[:30]}" if clean_title else "공식 안내",
+                        "url": link,
+                        "label": clean_desc or domain,
+                    }
+                    if any(domain.endswith(d) for d in public_domains):
+                        return entry
+                    if fallback is None:
+                        fallback = entry
+                if fallback:
+                    return fallback
+            except json.JSONDecodeError:
+                continue
+        return None
+
+    def build_official_card_html(self, link: dict) -> str:
+        """공식 안내 링크 카드 HTML."""
+        if not link:
+            return ""
+        title = link.get("title", "공식 안내")
+        url = link.get("url", "https://www.gov.kr")
+        label = link.get("label", "공식 사이트")
+        return (
+            '<div style="padding:1em;margin:2em 0;border:1px solid #e5e7eb;'
+            'border-radius:8px;background:#f0fdf4;text-align:center;">\n'
+            f'  <p style="font-size:0.85em;color:#166534;font-weight:600;">{title}</p>\n'
+            f'  <p style="font-size:0.9em;color:#15803d;margin:0.5em 0;">{label}</p>\n'
+            f'  <a href="{url}" target="_blank" rel="noopener noreferrer" '
+            'style="display:inline-block;padding:0.5em 1.5em;'
+            'background:#16a34a;color:#fff;border-radius:4px;text-decoration:none;">\n'
+            f'    공식 사이트 바로가기 →\n'
+            '  </a>\n'
+            "</div>"
+        )
 
     # ── CTA 조회 ──────────────────────────────────────────────
 
@@ -104,17 +189,25 @@ class CardInjector:
         next_url: str,
         blog_key: str,
         direction: str,
+        post_title: str = "",
+        post_keyword: str = "",
+        post_body: str = "",
     ) -> str:
         """
-        draft_md (frontmatter + body)에 next_post 카드 주입.
+        draft_md (frontmatter + body)에 다음 글 카드 + 공식 안내 링크 카드 주입.
         frontmatter 보존, body에만 카드 삽입.
+
+        삽입 순서 (하단에서 위로):
+          1. 공식 안내 링크 카드 (맨 마지막)
+          2. 다음 글 카드 (공식 카드 위)
+          3. 중간 관련 카드 (H2 >= 3일 때 2번째 H2 직후)
         """
         # frontmatter 분리
         if draft_md.startswith("---"):
             end = draft_md.find("---", 3)
             if end != -1:
-                fm = draft_md[:end + 3]
-                body = draft_md[end + 3:].lstrip()
+                fm = draft_md[: end + 3]
+                body = draft_md[end + 3 :].lstrip()
             else:
                 fm = ""
                 body = draft_md
@@ -123,13 +216,19 @@ class CardInjector:
             body = draft_md
 
         cta = self.get_cta(blog_key, direction)
-        card_html = self.build_card_html(next_title, next_url, cta)
-        body = self.inject_bottom_card(body, card_html)
+        next_card = self.build_card_html(next_title, next_url, cta)
+        body = self.inject_bottom_card(body, next_card)
         if self.should_inject_middle_card(body):
-            middle_card_html = self.build_card_html(
+            middle_card = self.build_card_html(
                 next_title, next_url, cta + " (관련)"
             )
-            body = self.inject_middle_card(body, middle_card_html)
+            body = self.inject_middle_card(body, middle_card)
+
+        # 공식 안내 링크 카드 (맨 마지막)
+        official_link = self.find_official_link(post_title, post_keyword, body)
+        official_card = self.build_official_card_html(official_link)
+        if official_card:
+            body = self.inject_bottom_card(body, official_card)
 
         return fm + "\n\n" + body if fm else body
 
@@ -151,8 +250,19 @@ class CardInjector:
         if not post or not post.get("draft_md"):
             return False
 
+        post_title = post.get("title", "")
+        post_keyword = post.get("target_keyword", "")
+        post_body = post.get("draft_md", "")
+
         updated_md = self.inject_cards_into_draft(
-            post["draft_md"], next_title, next_url, blog_key, direction
+            post["draft_md"],
+            next_title,
+            next_url,
+            blog_key,
+            direction,
+            post_title=post_title,
+            post_keyword=post_keyword,
+            post_body=post_body,
         )
 
         # 기존 파일에서 frontmatter 보존 (publish 시 적용된 draft:false, date, featureimage 등)
