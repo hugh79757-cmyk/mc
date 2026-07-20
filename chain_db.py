@@ -68,15 +68,7 @@ CREATE TABLE IF NOT EXISTS chain_posts (
   category_guess TEXT,
   bridge_logic TEXT,
   image_prompt TEXT,
-  image_keyword TEXT,
-  image_url TEXT,  -- DEPRECATED: Phase 7 이전 Pollinations URL 저장용. 신규 로직은 thumbnail_path 사용.
-  thumbnail_path TEXT,  -- Phase 7: static/images/thumb_{slug}.jpg 또는 NULL
-  thumbnail_source TEXT,  -- Phase 7: 'unsplash'|'pexels'|'pollinations'|'pillow_chart' 또는 NULL
-  content_image_path TEXT,  -- Phase 7: output/images/content_{slug}.jpg 또는 NULL
-  content_image_source TEXT,  -- Phase 7: 'pexels'|'pollinations'|'pillow_chart' 또는 NULL
-  chart_type TEXT,  -- Phase 8: 'bar'|'timeline'|'comparison' 또는 NULL
-  chart_data TEXT,  -- Phase 8: JSON string (ensure_ascii=False)
-  image_reason TEXT,  -- Phase 8: LLM의 image_type 선택 근거
+  image_url TEXT,
   draft_md TEXT,
   slug TEXT,
   hugo_file_path TEXT, -- published hugo file
@@ -125,16 +117,7 @@ MIGRATIONS_SQL = [
 "ALTER TABLE chain_posts ADD COLUMN card_injected INTEGER DEFAULT 0",
 "ALTER TABLE chain_posts ADD COLUMN card_injected_at TEXT",
 "ALTER TABLE chain_posts ADD COLUMN publish_method TEXT",
-# Phase 7: Image integration
-"ALTER TABLE chain_posts ADD COLUMN thumbnail_path TEXT",
-"ALTER TABLE chain_posts ADD COLUMN thumbnail_source TEXT",
-"ALTER TABLE chain_posts ADD COLUMN content_image_path TEXT",
-"ALTER TABLE chain_posts ADD COLUMN content_image_source TEXT",
-# Phase 8: Chart generation
-"ALTER TABLE chain_posts ADD COLUMN chart_type TEXT",
-"ALTER TABLE chain_posts ADD COLUMN chart_data TEXT",
-"ALTER TABLE chain_posts ADD COLUMN image_reason TEXT",
-# Phase 10: ImageMeta consolidation
+    # Phase 10: ImageMeta consolidation (legacy columns removed in v1 migration)
 "ALTER TABLE chain_posts ADD COLUMN image_meta TEXT",
 ]
 
@@ -168,6 +151,31 @@ def init_db():
     conn.commit()
     conn.close()
     _run_migrations()
+    _run_migrate_drop_legacy_image_columns()
+
+
+def _run_migrate_drop_legacy_image_columns():
+    """Wrapper that checks user_version and runs drop migration if needed."""
+    conn = get_conn()
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version >= 1:
+        conn.close()
+        return
+
+    # Check if legacy columns exist before attempting migration
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(chain_posts)")}
+    conn.close()
+
+    has_legacy = {"image_keyword", "chart_type", "thumbnail_path"} & cols
+    if has_legacy:
+        migrate_image_columns()
+        migrate_drop_legacy_image_columns()
+    else:
+        # New database — just bump version
+        conn = get_conn()
+        conn.execute("PRAGMA user_version = 1")
+        conn.commit()
+        conn.close()
 
 
 def migrate_image_columns():
@@ -218,12 +226,89 @@ def migrate_image_columns():
     conn.close()
     print(f"  [migrate] image_meta 마이그레이션 완료: {migrated}개 생성, {skipped}개 스킵 (이미 존재)")
     return migrated
-    """Create tables if they don't exist + run migrations."""
+
+
+_LEGACY_IMAGE_COLUMNS = [
+    "image_keyword",
+    "chart_type",
+    "chart_data",
+    "image_reason",
+    "thumbnail_path",
+    "thumbnail_source",
+    "content_image_path",
+    "content_image_source",
+]
+
+
+def migrate_drop_legacy_image_columns():
+    """Backfill NULL image_meta from legacy columns, then DROP legacy image columns.
+
+    Prerequisite: all image_meta IS NULL records must be backfillable from
+    legacy columns. Caller should check first with:
+        SELECT COUNT(*) FROM chain_posts
+        WHERE (image_meta IS NULL OR image_meta = '')
+          AND (image_keyword IS NOT NULL OR ...);
+    If > 0, backfill with {} (no image data).
+    """
     conn = get_conn()
-    conn.executescript(SCHEMA_SQL)
+    cursor = conn.execute("PRAGMA user_version")
+    current_version = cursor.fetchone()[0]
+    _TARGET_VERSION = 1
+
+    if current_version >= _TARGET_VERSION:
+        conn.close()
+        return
+
+    # Step 1: Backfill NULL image_meta
+    conn.row_factory = sqlite3.Row
+    missing = conn.execute(
+        "SELECT id, image_keyword, chart_type, chart_data, image_reason, "
+        "thumbnail_path, thumbnail_source, content_image_path, "
+        "content_image_source FROM chain_posts "
+        "WHERE image_meta IS NULL OR image_meta = ''"
+    ).fetchall()
+
+    from chain_models import ImageMeta as ImageMetaDB
+
+    for row in missing:
+        populated = any(row[c] for c in _LEGACY_IMAGE_COLUMNS)
+        if populated:
+            meta = ImageMetaDB(
+                image_keyword=row["image_keyword"],
+                thumbnail_path=row["thumbnail_path"],
+                thumbnail_source=row["thumbnail_source"],
+                content_image_path=row["content_image_path"],
+                content_image_source=row["content_image_source"],
+                chart_type=row["chart_type"],
+                chart_data=json.loads(row["chart_data"]) if row["chart_data"] else None,
+                image_reason=row["image_reason"],
+            )
+            if row["chart_type"]:
+                meta.image_type = "chart"
+            elif row["image_keyword"]:
+                meta.image_type = "photo"
+            else:
+                meta.image_type = "none"
+        else:
+            meta = ImageMetaDB()
+        conn.execute(
+            "UPDATE chain_posts SET image_meta=? WHERE id=?",
+            (meta.model_dump_json(), row["id"]),
+        )
+
+    conn.commit()
+
+    # Step 2: DROP legacy columns
+    for col in _LEGACY_IMAGE_COLUMNS:
+        try:
+            conn.execute(f"ALTER TABLE chain_posts DROP COLUMN {col}")
+        except sqlite3.OperationalError as e:
+            print(f"  [migrate] DROP COLUMN {col} 스킵: {e}")
+
+    conn.execute(f"PRAGMA user_version = {_TARGET_VERSION}")
     conn.commit()
     conn.close()
-    _run_migrations()
+    print(f"  [migrate] 레거시 {len(_LEGACY_IMAGE_COLUMNS)}개 컬럼 DROP 완료 (version {_TARGET_VERSION})")
 
 
 # ── Chain CRUD ──
@@ -277,7 +362,6 @@ def create_chain_post(chain_id: int, depth: int, title: str,
                       target_keyword: str = None,
                       key_points: list = None,
                       image_prompt: str = None,
-                      image_keyword: str = None,
                       step: int = None,
                       chain_type: str = None,
                       angle: str = None,
@@ -288,13 +372,13 @@ def create_chain_post(chain_id: int, depth: int, title: str,
     cur = conn.execute(
         """INSERT INTO chain_posts
            (chain_id, depth, step, chain_type, title, target_keyword, key_points,
-            angle, category_guess, bridge_logic, image_prompt, image_keyword,
+            angle, category_guess, bridge_logic, image_prompt,
             status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'derived', ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'derived', ?, ?)""",
         (chain_id, depth, step or depth + 1, chain_type or "depth", title,
          target_keyword,
          json.dumps(key_points, ensure_ascii=False) if key_points else None,
-         angle, category_guess, bridge_logic, image_prompt, image_keyword,
+         angle, category_guess, bridge_logic, image_prompt,
          now, now),
     )
     conn.commit()
@@ -364,16 +448,6 @@ def update_post_image(post_id: int, image_url: str):
     conn.close()
 
 
-def update_image_keyword(post_id: int, image_keyword: str):
-    conn = get_conn()
-    conn.execute(
-        "UPDATE chain_posts SET image_keyword = ? WHERE id = ?",
-        (image_keyword, post_id),
-    )
-    conn.commit()
-    conn.close()
-
-
 from chain_models import ImageMeta as ImageMetaDB
 
 def update_image_meta(post_id: int, image_meta: ImageMetaDB):
@@ -381,16 +455,8 @@ def update_image_meta(post_id: int, image_meta: ImageMetaDB):
     meta_json = image_meta.model_dump_json()
     conn = get_conn()
     conn.execute(
-        "UPDATE chain_posts SET image_meta=?, image_keyword=?, chart_type=?, chart_data=?, image_reason=?, updated_at=? WHERE id=?",
-        (
-            meta_json,
-            image_meta.image_keyword,
-            image_meta.chart_type,
-            json.dumps(image_meta.chart_data, ensure_ascii=False) if image_meta.chart_data else None,
-            image_meta.image_reason,
-            now,
-            post_id,
-        ),
+        "UPDATE chain_posts SET image_meta=?, updated_at=? WHERE id=?",
+        (meta_json, now, post_id),
     )
     conn.commit()
     conn.close()
@@ -432,42 +498,52 @@ def update_post_published(post_id: int, hugo_file_path: str):
 
 # ── Phase 7: Thumbnail / Content Image helpers ────────────────────
 
-def update_thumbnail(post_id: int, path: str, source: str):
-  """Save thumbnail path + source. Does NOT overwrite if already set (idempotent)."""
-  now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-  conn = get_conn()
-  conn.execute(
-    "UPDATE chain_posts SET thumbnail_path = ?, thumbnail_source = ?, updated_at = ? "
-    "WHERE id = ? AND thumbnail_path IS NULL",
-    (path, source, now, post_id),
-  )
-  conn.commit()
-  conn.close()
-
-def update_content_image(post_id: int, path: str, source: str):
-  """Save content image path + source. Overwrites existing (chart regeneration possible)."""
-  now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-  conn = get_conn()
-  conn.execute(
-    "UPDATE chain_posts SET content_image_path = ?, content_image_source = ?, updated_at = ? "
-    "WHERE id = ?",
-    (path, source, now, post_id),
-  )
-  conn.commit()
-  conn.close()
-
-# ── Phase 8: Chart helpers ────────────────────────────────────────
-
-def update_chart(post_id: int, chart_type: str, chart_data: str):
-    """Save chart_type + chart_data (JSON string)."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def _merge_image_meta(post_id: int, updates: dict) -> bool:
+    """Read current image_meta JSON, merge updates, write back."""
     conn = get_conn()
+    row = conn.execute("SELECT image_meta FROM chain_posts WHERE id=?", (post_id,)).fetchone()
+    if not row:
+        conn.close()
+        return False
+    meta = json.loads(row["image_meta"]) if row["image_meta"] else {}
+    meta.update(updates)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn.execute(
-        "UPDATE chain_posts SET chart_type = ?, chart_data = ?, updated_at = ? WHERE id = ?",
-        (chart_type, chart_data, now, post_id),
+        "UPDATE chain_posts SET image_meta=?, updated_at=? WHERE id=?",
+        (json.dumps(meta, ensure_ascii=False), now, post_id),
     )
     conn.commit()
     conn.close()
+    return True
+
+def update_thumbnail(post_id: int, path: str, source: str):
+    """Save thumbnail path + source to image_meta JSON. Idempotent (skips if already set)."""
+    conn = get_conn()
+    row = conn.execute("SELECT image_meta FROM chain_posts WHERE id=?", (post_id,)).fetchone()
+    if not row:
+        conn.close()
+        return
+    meta = json.loads(row["image_meta"]) if row["image_meta"] else {}
+    if meta.get("thumbnail_path"):
+        conn.close()
+        return
+    meta["thumbnail_path"] = path
+    meta["thumbnail_source"] = source
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute(
+        "UPDATE chain_posts SET image_meta=?, updated_at=? WHERE id=?",
+        (json.dumps(meta, ensure_ascii=False), now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+def update_content_image(post_id: int, path: str, source: str):
+    """Save content image path + source to image_meta JSON."""
+    _merge_image_meta(post_id, {"content_image_path": path, "content_image_source": source})
+
+def update_chart(post_id: int, chart_type: str, chart_data: str):
+    """Save chart_type + chart_data to image_meta JSON."""
+    _merge_image_meta(post_id, {"chart_type": chart_type, "chart_data": chart_data})
 
 # ── Phase 3: 발행 URL 관리 ──
 

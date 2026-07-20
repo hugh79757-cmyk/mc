@@ -90,7 +90,6 @@ def derive_chain(seed: str, chain_type: str = None,
             category_guess=post.get("category_guess", ""),
             bridge_logic=post.get("bridge_logic", ""),
             image_prompt=post.get("image_prompt", ""),
-            image_keyword=post.get("image_keyword", ""),
         )
 
     print(f"\n[mc] ✅ Chain #{chain_id} saved with {len(posts_data)} posts ({resolved_type})")

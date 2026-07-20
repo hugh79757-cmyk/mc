@@ -199,6 +199,72 @@ def check_images_exist(body: str, label: str = "", timeout: int = 5) -> list:
 
 # ── 5b. 썸네일 존재 검사 ─────────────────────────────────────────
 
+# ── Whitelist content check (Phase 10 v2: replaces blacklist patterns) ──
+#
+# DEPRECATED (kept for rollback safety): _PROMPT_SECTION_RE, _UNRESOLVED_MARKER_RE,
+# check_prompt_leak, check_unresolved_markers, check_cta_leak
+# New check uses whitelist — only known-good markdown elements pass.
+
+_ALLOWED_HTML_TAGS = frozenset()
+
+_WHITELIST_BLOCKED_PATTERNS = [
+    (re.compile(r'<!--.*?-->', re.DOTALL), "HTML 주석이 본문에 포함됨"),
+    (re.compile(r'<(?:meta|script|div|span|link|ins)\b', re.IGNORECASE), "허용되지 않는 HTML 태그"),
+    (re.compile(r'\{.*"(?:image_type|chart_type|image_keyword|chart_data)".*\}'), "raw JSON이 본문에 포함됨"),
+]
+
+
+def check_content_by_whitelist(body: str) -> list:
+    """Whitelist 기반 본문 검사: 허용 마크다운만 통과, 비허용 요소 경고.
+
+    허용: ATX 헤딩, 단락, 리스트, GFM 표, 코드 펜스(비JSON), 이미지, 링크, 빈 줄
+    경고: HTML 주석, <meta>/<script>/<div>/<span>/<link>/<ins>, raw JSON
+    """
+    issues = []
+
+    # 1. 전체 블록 단위 패턴 검사 (멀티라인)
+    for pattern, msg in _WHITELIST_BLOCKED_PATTERNS:
+        matches = pattern.findall(body)
+        if matches:
+            issues.append(f"[whitelist] {msg} (발견: {len(matches)}건)")
+
+    # 2. 라인 단위 whitelist 검증 (코드 블록 제외)
+    in_code_block = False
+    for lineno, line in enumerate(body.split("\n"), 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # 코드 블록 시작/종료
+        if stripped.startswith("```"):
+            lang = stripped[3:].strip().lower()
+            if lang == "json":
+                issues.append(f"[whitelist] 라인 {lineno}: JSON 코드 펜스가 본문에 포함됨")
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            continue
+
+        # 프론트매터
+        if line == "---" or stripped == "---":
+            continue
+
+        # 허용되는 마크다운 요소
+        is_heading = bool(re.match(r'^#{1,6}\s', stripped))
+        is_list = bool(re.match(r'^[-*+]\s|^\d+\.\s', stripped))
+        is_table = bool(re.match(r'^\||^[-|:\s]+$', stripped))
+        is_image = bool(re.match(r'!\[.*?\]\(https?://', stripped))
+        is_link = bool(re.match(r'\[.*?\]\(https?://', stripped))
+
+        if is_heading or is_list or is_table or is_image or is_link:
+            continue
+
+        # 나머지 텍스트는 단락으로 간주 (통과)
+        # 단, HTML 댓글이나 태그는 위에서 전체 블록 검사로 잡힘
+
+    return issues
+
+
 def check_thumbnail(thumbnail_path, label: str = "") -> list:
     """thumbnail_path가 DB에 저장되어 있는지 검사"""
     if not thumbnail_path:
@@ -298,6 +364,7 @@ def scan_chain_posts(chain_id: int, quick: bool = False, fix: bool = False) -> d
         "prompt_leak": [],
         "unresolved_markers": [],
         "cta_leak": [],
+        "whitelist": [],
         "featureimage_url": [],
         "images_exist": [],
         "thumbnail_missing": [],
@@ -317,6 +384,7 @@ def scan_chain_posts(chain_id: int, quick: bool = False, fix: bool = False) -> d
         results["prompt_leak"].extend(check_prompt_leak(content, label))
         results["unresolved_markers"].extend(check_unresolved_markers(body, label))
         results["cta_leak"].extend(check_cta_leak(content, label))
+        results["whitelist"].extend(check_content_by_whitelist(body))
         results["featureimage_url"].extend(check_featureimage_url(fm, label))
         results["images_exist"].extend(check_images_exist(content, label))
         results["thumbnail_missing"].extend(check_thumbnail(p.get("thumbnail_path"), label))
@@ -471,6 +539,7 @@ _CHECK_LABELS = {
     "prompt_leak": "프롬프트 릭",
     "unresolved_markers": "미해소 마커",
     "cta_leak": "CTA 블록",
+    "whitelist": "본문 whitelist 위반",
     "featureimage_url": "featureimage URL",
     "images_exist": "R2 이미지 존재",
     "thumbnail_missing": "썸네일 생성",

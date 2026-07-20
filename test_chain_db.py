@@ -180,8 +180,9 @@ class TestChainDB:
         assert updated["published_url"] == "https://example.com/post"
 
     def test_update_thumbnail(self, temp_db_path):
-        """Test thumbnail path update."""
+        """Test thumbnail path stored in image_meta JSON."""
         from chain_db import create_chain, create_chain_post, update_thumbnail, get_chain_posts
+        import json
 
         chain_id = create_chain("테스트", chain_type="depth")
         create_chain_post(chain_id, 0, "테스트", target_keyword="키워드")
@@ -190,8 +191,9 @@ class TestChainDB:
 
         update_thumbnail(post_id, "/path/to/thumb.webp", "unsplash")
         updated = get_chain_posts(chain_id)[0]
-        assert updated["thumbnail_path"] == "/path/to/thumb.webp"
-        assert updated["thumbnail_source"] == "unsplash"
+        meta = json.loads(updated["image_meta"])
+        assert meta["thumbnail_path"] == "/path/to/thumb.webp"
+        assert meta["thumbnail_source"] == "unsplash"
 
     def test_loop_chain_operations(self, temp_db_path):
         """Test loop chain CRUD."""
@@ -212,6 +214,111 @@ class TestChainDB:
         assert loop["status"] == "hub_published"
 
     def test_card_injection_tracking(self, temp_db_path):
+        """Test card injection status tracking."""
+        from chain_db import create_chain, create_chain_post, update_card_injected, get_chain_posts
+
+        chain_id = create_chain("테스트", chain_type="depth")
+        create_chain_post(chain_id, 0, "1단계", target_keyword="k1")
+        create_chain_post(chain_id, 1, "2단계", target_keyword="k2")
+
+        posts = get_chain_posts(chain_id)
+        post1_id = posts[0]["id"]
+        post2_id = posts[1]["id"]
+
+        assert get_chain_posts(chain_id)[0].get("card_injected") != 1
+        update_card_injected(post1_id)
+
+        posts = get_chain_posts(chain_id)
+        assert posts[0]["card_injected"] == 1
+
+
+class TestImageMetaMigration:
+    """image_meta 단일 컬럼 전환 + 레거시 컬럼 DROP 마이그레이션 검증."""
+
+    def test_update_image_meta_writes_only_image_meta_column(self, monkeypatch):
+        """update_image_meta() SQL에 레거시 컬럼(image_keyword/chart_type 등) 미포함."""
+        from chain_db import update_image_meta
+        from chain_models import ImageMeta
+
+        captured_sql = []
+
+        class _MockCursor:
+            def execute(self, sql, params=None):
+                captured_sql.append(sql)
+                return self
+            def fetchone(self):
+                return None
+            def close(self):
+                pass
+
+        class _MockConn:
+            def execute(self, sql, params=None):
+                captured_sql.append(sql)
+                return _MockCursor()
+            def commit(self):
+                pass
+            def close(self):
+                pass
+
+        monkeypatch.setattr("chain_db.get_conn", lambda: _MockConn())
+
+        update_image_meta(1, ImageMeta(image_type="photo", image_keyword="cat"))
+
+        assert len(captured_sql) > 0
+        for sql in captured_sql:
+            assert "image_keyword" not in sql, f"레거시 컬럼 참조: {sql}"
+            assert "chart_type" not in sql, f"레거시 컬럼 참조: {sql}"
+            assert "chart_data" not in sql, f"레거시 컬럼 참조: {sql}"
+            assert "image_reason" not in sql, f"레거시 컬럼 참조: {sql}"
+            assert "thumbnail_path" not in sql, f"레거시 컬럼 참조: {sql}"
+            assert "thumbnail_source" not in sql, f"레거시 컬럼 참조: {sql}"
+            assert "content_image_path" not in sql, f"레거시 컬럼 참조: {sql}"
+            assert "content_image_source" not in sql, f"레거시 컬럼 참조: {sql}"
+
+    def test_legacy_columns_dropped_from_schema(self, temp_db_path):
+        """레거시 7개 이미지 컬럼이 PRAGMA table_info에서 사라짐."""
+        from chain_db import migrate_drop_legacy_image_columns
+
+        migrate_drop_legacy_image_columns()
+
+        conn = sqlite3.connect(temp_db_path)
+        cursor = conn.execute("PRAGMA table_info(chain_posts)")
+        columns = {row[1] for row in cursor.fetchall()}
+        conn.close()
+
+        legacy = {"image_keyword", "chart_type", "chart_data", "image_reason",
+                   "thumbnail_path", "thumbnail_source",
+                   "content_image_path", "content_image_source"}
+        still_present = legacy & columns
+        assert len(still_present) == 0, f"DROP 되지 않은 레거시 컬럼: {still_present}"
+        assert "image_meta" in columns, "image_meta 컬럼이 유지되어야 함"
+        assert "id" in columns
+        assert "slug" in columns
+
+    def test_select_after_drop_still_works(self, temp_db_path):
+        """레거시 컬럼 DROP 후 SELECT id, image_meta 정상 동작."""
+        from chain_db import create_chain, create_chain_post, migrate_drop_legacy_image_columns
+        from chain_models import ImageMeta
+        import chain_db as db_mod
+
+        chain_id = create_chain("DROP 검증", chain_type="depth")
+        post_id = create_chain_post(chain_id, 0, "DROP 테스트", target_keyword="k1")
+
+        meta = ImageMeta(image_type="none")
+        db_mod.update_image_meta(post_id, meta)
+
+        migrate_drop_legacy_image_columns()
+
+        conn = sqlite3.connect(temp_db_path)
+        row = conn.execute(
+            "SELECT id, image_meta FROM chain_posts WHERE id = ?",
+            (post_id,)
+        ).fetchone()
+        conn.close()
+
+        assert row is not None, "SELECT 결과가 있어야 함"
+        assert row[0] == post_id, "id가 일치해야 함"
+        assert row[1] is not None, "image_meta가 NULL이 아니어야 함"
         """Test card injection status tracking."""
         from chain_db import create_chain, create_chain_post, update_card_injected, get_chain_posts
 
