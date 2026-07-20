@@ -110,6 +110,55 @@ draft: true
         assert "그냥 본문만 있는 경우" in result.body
 
 
+class TestAIOutputValidation:
+    """AIOutput/AIOutputMeta 스키마 검증 — 계약 1 독립 검증."""
+
+    def test_aioutput_rejects_extra_fields(self):
+        """AIOutput에 정의되지 않은 필드 전달 시 ValidationError."""
+        from pydantic import ValidationError
+        from chain_models import AIOutput
+
+        with pytest.raises(ValidationError):
+            AIOutput(body="test body", unknown_field="should_not_be_allowed")
+
+    def test_aioutput_meta_rejects_extra_fields(self):
+        """AIOutputMeta에 정의되지 않은 필드 전달 시 ValidationError."""
+        from pydantic import ValidationError
+        from chain_models import AIOutputMeta
+
+        with pytest.raises(ValidationError):
+            AIOutputMeta(image_type="photo", image_keyword="cat", extra_bad="reject")
+
+    def test_aioutput_requires_keyword_for_photo(self):
+        """image_type='photo' + image_keyword='' → ValidationError."""
+        from pydantic import ValidationError
+        from chain_models import AIOutputMeta
+
+        with pytest.raises(ValidationError, match="image_keyword"):
+            AIOutputMeta(image_type="photo", image_keyword="")
+
+    def test_aioutput_requires_chart_data_for_chart(self):
+        """image_type='chart' + chart_data=None → ValidationError."""
+        from pydantic import ValidationError
+        from chain_models import AIOutputMeta
+
+        with pytest.raises(ValidationError, match="chart_data"):
+            AIOutputMeta(image_type="chart", chart_type="bar", chart_data=None)
+
+    def test_parse_ai_output_removes_json_fence_from_body(self):
+        """parse_ai_output 결과 body에 JSON 코드블록이 없어야 함."""
+        from chain_models import parse_ai_output
+
+        text = "본문 시작입니다.\n\n```json\n{\"image_type\": \"photo\", \"image_keyword\": \"test\"}\n```\n\n본문 끝입니다."
+        result = parse_ai_output(text)
+
+        assert "```json" not in result.body
+        assert "image_type" not in result.body
+        assert "image_keyword" not in result.body
+        assert "본문 시작입니다" in result.body
+        assert "본문 끝입니다" in result.body
+
+
 class TestDraftChain:
     """draft_chain 통합 테스트."""
 
