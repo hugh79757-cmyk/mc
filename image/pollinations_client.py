@@ -41,18 +41,15 @@ def generate_image(
     model: str = "flux",
     seed: int = None,
     retries: int = 3,
-) -> Path | None:
+):
     """
     Pollinations.ai flux 호출 → 로컬 파일 저장.
-    Returns: 저장된 이미지 Path (실패 시 None)
-
-    Args:
-        prompt: 영문 이미지 생성 프롬프트
-        slug:  파일명 식별자
-        width/height: 해상도 (기본 1:1)
-        model: "flux" (기본)
-        seed:  고정 시드 (None=랜덤)
+    Returns: Result(Path) — 성공 시 value=Path, 실패 시 error=Error
     """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from chain_models import Result, ErrorCategory
+
     params = {
         "width": str(width),
         "height": str(height),
@@ -61,13 +58,13 @@ def generate_image(
     if seed is not None:
         params["seed"] = str(seed)
 
-    # 프롬프트 URL 인코딩
     encoded = urllib.parse.quote(prompt)
     query = urllib.parse.urlencode(params)
     url = f"{POLLINATIONS_BASE.format(encoded=encoded)}?{query}"
 
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
+    last_error = ""
     for attempt in range(retries):
         try:
             print(f"  [image] 요청: {url[:120]}...")
@@ -76,7 +73,8 @@ def generate_image(
                 image_bytes = resp.read()
 
             if len(image_bytes) < 1000:
-                print(f"  [image] ⚠️ 응답이 너무 작음 ({len(image_bytes)} bytes), 재시도...")
+                last_error = f"응답 너무 작음 ({len(image_bytes)} bytes)"
+                print(f"  [image] ⚠️ {last_error}, 재시도...")
                 continue
 
             filename = f"{slug}_{width}x{height}.webp"
@@ -84,19 +82,35 @@ def generate_image(
             img = Image.open(BytesIO(image_bytes)).convert("RGB")
             img.save(dest, "WEBP", quality=85)
             print(f"  [image] ✅ 저장: {dest} ({dest.stat().st_size:,} bytes, WebP)")
-            return dest
+            return Result.success(dest)
 
         except urllib.error.HTTPError as e:
-            print(f"  [image] ⚠️ HTTP {e.code} (attempt {attempt+1}/{retries})")
-            if attempt < retries - 1:
-                time.sleep(5)
+            if e.code == 429:
+                last_error = f"Rate limit (HTTP {e.code})"
+                print(f"  [image] ⚠️ {last_error} (attempt {attempt+1}/{retries})")
+                if attempt < retries - 1:
+                    time.sleep(10 * (attempt + 1))
+                    continue
+                return Result.failure(ErrorCategory.RATE_LIMITED, last_error, "pollinations")
+            else:
+                last_error = f"HTTP {e.code}"
+                print(f"  [image] ⚠️ {last_error} (attempt {attempt+1}/{retries})")
+                if attempt < retries - 1:
+                    time.sleep(5)
+                    continue
+                return Result.failure(ErrorCategory.TRANSIENT, last_error, "pollinations")
         except urllib.error.URLError as e:
-            print(f"  [image] ⚠️ URL Error: {e.reason} (attempt {attempt+1}/{retries})")
+            last_error = f"URL Error: {e.reason}"
+            print(f"  [image] ⚠️ {last_error} (attempt {attempt+1}/{retries})")
             if attempt < retries - 1:
                 time.sleep(10)
+                continue
+            return Result.failure(ErrorCategory.TRANSIENT, last_error, "pollinations")
+        except Exception as e:
+            last_error = str(e)
+            return Result.failure(ErrorCategory.PERMANENT, last_error, "pollinations")
 
-    print(f"  [image] ❌ {retries}회 재시도 실패")
-    return None
+    return Result.failure(ErrorCategory.PERMANENT, f"{retries}회 재시도 실패: {last_error}", "pollinations")
 
 
 # ── CLI test ──

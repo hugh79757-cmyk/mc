@@ -134,6 +134,8 @@ MIGRATIONS_SQL = [
 "ALTER TABLE chain_posts ADD COLUMN chart_type TEXT",
 "ALTER TABLE chain_posts ADD COLUMN chart_data TEXT",
 "ALTER TABLE chain_posts ADD COLUMN image_reason TEXT",
+# Phase 10: ImageMeta consolidation
+"ALTER TABLE chain_posts ADD COLUMN image_meta TEXT",
 ]
 
 
@@ -160,6 +162,62 @@ def _run_migrations():
 
 
 def init_db():
+    """Create tables if they don't exist + run migrations."""
+    conn = get_conn()
+    conn.executescript(SCHEMA_SQL)
+    conn.commit()
+    conn.close()
+    _run_migrations()
+
+
+def migrate_image_columns():
+    from chain_models import ImageMeta as ImageMetaDB
+
+    conn = get_conn()
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """SELECT id, image_keyword, image_url, thumbnail_path, thumbnail_source,
+                  content_image_path, content_image_source,
+                  chart_type, chart_data, image_reason, image_meta
+           FROM chain_posts"""
+    ).fetchall()
+
+    migrated = 0
+    skipped = 0
+    for row in rows:
+        if row["image_meta"]:
+            skipped += 1
+            continue
+
+        meta = ImageMetaDB(
+            image_keyword=row["image_keyword"],
+            image_url=row["image_url"],
+            thumbnail_path=row["thumbnail_path"],
+            thumbnail_source=row["thumbnail_source"],
+            content_image_path=row["content_image_path"],
+            content_image_source=row["content_image_source"],
+            chart_type=row["chart_type"],
+            chart_data=json.loads(row["chart_data"]) if row["chart_data"] else None,
+            image_reason=row["image_reason"],
+        )
+
+        if row["chart_type"]:
+            meta.image_type = "chart"
+        elif row["image_keyword"]:
+            meta.image_type = "photo"
+        else:
+            meta.image_type = "none"
+
+        conn.execute(
+            "UPDATE chain_posts SET image_meta=? WHERE id=?",
+            (meta.model_dump_json(), row["id"]),
+        )
+        migrated += 1
+
+    conn.commit()
+    conn.close()
+    print(f"  [migrate] image_meta 마이그레이션 완료: {migrated}개 생성, {skipped}개 스킵 (이미 존재)")
+    return migrated
     """Create tables if they don't exist + run migrations."""
     conn = get_conn()
     conn.executescript(SCHEMA_SQL)
@@ -304,6 +362,50 @@ def update_post_image(post_id: int, image_url: str):
     )
     conn.commit()
     conn.close()
+
+
+def update_image_keyword(post_id: int, image_keyword: str):
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET image_keyword = ? WHERE id = ?",
+        (image_keyword, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+from chain_models import ImageMeta as ImageMetaDB
+
+def update_image_meta(post_id: int, image_meta: ImageMetaDB):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    meta_json = image_meta.model_dump_json()
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET image_meta=?, image_keyword=?, chart_type=?, chart_data=?, image_reason=?, updated_at=? WHERE id=?",
+        (
+            meta_json,
+            image_meta.image_keyword,
+            image_meta.chart_type,
+            json.dumps(image_meta.chart_data, ensure_ascii=False) if image_meta.chart_data else None,
+            image_meta.image_reason,
+            now,
+            post_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_image_meta(post_id: int) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT image_meta FROM chain_posts WHERE id=?", (post_id,)).fetchone()
+    conn.close()
+    if row and row["image_meta"]:
+        try:
+            return json.loads(row["image_meta"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return None
 
 
 def update_post_draft(post_id: int, draft_md: str, slug: str):

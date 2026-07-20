@@ -18,6 +18,8 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
+from chain_models import parse_ai_output, AIParseError, AIOutput
+
 import mc_paths  # noqa: F401 — side effect: sys.path + 5000 주입
 from mc_paths import (
     PROMPTS_PATH, CHAIN_CONFIG_PATH, DRAFTS_DIR,
@@ -127,6 +129,34 @@ def _insert_chart_marker(draft_md: str) -> str:
     return draft_md
 
 
+def _validate_draft_frontmatter(draft_md: str) -> None:
+    """Validate frontmatter to catch common YAML issues before publishing.
+
+    Raises ValueError with Korean message if validation fails.
+    """
+    if not draft_md.startswith("---"):
+        return
+    end = draft_md.find("---", 3)
+    if end == -1:
+        return
+    fm_text = draft_md[3:end].strip()
+
+    for line in fm_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("title:"):
+            val = stripped.split("title:", 1)[1].strip().strip('"').strip("'")
+            if ":" in val:
+                raise ValueError(f"제목에 콜론(:)이 포함되어 있습니다: {val}")
+
+    for field in ("tags", "categories"):
+        lines = fm_text.splitlines()
+        for i, l in enumerate(lines):
+            if l.strip().startswith(f"{field}:"):
+                if i + 1 < len(lines) and lines[i + 1].strip().startswith("-"):
+                    raise ValueError(f"{field}가 여러 줄로 작성되었습니다 (한 줄 배열 필요)")
+                break
+
+
 # ── 단일 포스트 초안 생성 ──────────────────────────────────────────
 
 def draft_single_post(
@@ -199,58 +229,22 @@ def draft_single_post(
     result = generate(system_prompt, user_prompt, tier="default", temperature=0.85)
     raw_output = result["content"]
 
-    # Parse chart JSON from GPT output
-    meta = {"image_type": "none", "image_keyword": "", "image_reason": "", "chart_type": None, "chart_data": None}
-    draft_md = raw_output
-
-    def _parse_meta(text: str, pos: int) -> tuple[str, dict]:
-        try:
-            j = json.loads(text[pos:])
-            if isinstance(j, dict):
-                meta["image_type"] = j.get("image_type", "none")
-                meta["image_keyword"] = j.get("image_keyword", "")
-                meta["image_reason"] = j.get("image_reason", "")
-                meta["chart_type"] = j.get("chart_type")
-                meta["chart_data"] = j.get("chart_data")
-                return text[:pos].rstrip(), meta
-        except (json.JSONDecodeError, TypeError):
-            pass
-        return text, meta
-
-    json_match = re.search(r'```json\s*\n(.*?)\n```', raw_output, re.DOTALL)
-    if not json_match:
-        json_match = re.search(r'```json\s*\n(.*?)$', raw_output, re.DOTALL)
-    if json_match:
-        draft_md, meta = _parse_meta(raw_output, json_match.start())
-        if draft_md != raw_output:
-            print(f"  [drafter] ```json 블록에서 메타 추출 완료")
-    else:
-        code_match = re.search(r'```\s*\n(.*?)\n```', raw_output, re.DOTALL)
-        if code_match:
-            try:
-                j = json.loads(code_match.group(1))
-                if isinstance(j, dict):
-                    draft_md, meta = _parse_meta(raw_output, code_match.start())
-                    print(f"  [drafter] 일반 코드블록 메타 추출 완료")
-            except (json.JSONDecodeError, TypeError):
-                pass
-        if draft_md == raw_output:
-            for p in range(len(raw_output) - 1, -1, -1):
-                if raw_output[p] == '}':
-                    depth = 0
-                    for q in range(p, -1, -1):
-                        if raw_output[q] == '}':
-                            depth += 1
-                        elif raw_output[q] == '{':
-                            depth -= 1
-                            if depth == 0:
-                                candidate, meta = _parse_meta(raw_output, q)
-                                if candidate != raw_output:
-                                    draft_md = candidate
-                                    print(f"  [drafter] 끝부분 raw JSON 추출 완료")
-                                break
-                    if draft_md != raw_output:
-                        break
+    # Parse JSON metadata + extract clean body via single entry point
+    try:
+        ai_output = parse_ai_output(raw_output)
+        draft_md = ai_output.body
+        meta = {
+            "image_type": ai_output.meta.image_type,
+            "image_keyword": ai_output.meta.image_keyword or "",
+            "image_reason": ai_output.meta.image_reason or "",
+            "chart_type": ai_output.meta.chart_type,
+            "chart_data": ai_output.meta.chart_data,
+        }
+        print(f"  [drafter] AI 출력 파싱 완료 (image_type={meta['image_type']})")
+    except AIParseError as e:
+        print(f"  [drafter] ⚠️ AI 출력 파싱 실패, 본문만 추출: {e}")
+        meta = {"image_type": "none", "image_keyword": "", "image_reason": "", "chart_type": None, "chart_data": None}
+        draft_md = raw_output
 
     draft_md = _strip_prompt_leak(draft_md)
 
@@ -270,9 +264,6 @@ _PROMPT_LEAK_RE = re.compile(
     r"## tags 규칙|"
     r"## categories 규칙|"
     r"# Content Structure|"
-    r"## 서론|"
-    r"## 본론|"
-    r"## 결론|"
     r"# Formatting Rules|"
     r"## 절대 금지|"
     r"## 링크|"
@@ -282,19 +273,57 @@ _PROMPT_LEAK_RE = re.compile(
     r"# Chain Context|"
     r"# 이미지 플레이스홀더|"
     r"# 이미지 유형 판단|"
-    r"image_type 결정 기준)"
+    r"image_type 결정 기준|"
+    r"이전 포스트 \(|"
+    r"다음 포스트 \()"
 )
 
 def _strip_prompt_leak(text: str) -> str:
+    """
+    Remove prompt leak patterns from AI-generated text.
+
+    Properly tracks frontmatter boundaries (--- markers) so prompt-leak
+    patterns inside YAML frontmatter are never touched.
+
+    For prompt leaks that look like section headers (start with #),
+    the entire section block is removed until the next non-prompt
+    header. For inline patterns (e.g. "이전 포스트 ("), only the
+    matching line is removed.
+    """
     lines = text.splitlines(keepends=True)
     out = []
-    skip = True
+    in_frontmatter = False
+    past_frontmatter = False
+    skip_block = False
+
     for ln in lines:
         stripped = ln.strip()
-        if skip and (not stripped or _PROMPT_LEAK_RE.match(stripped)):
+        if stripped == "---":
+            if not in_frontmatter and not past_frontmatter:
+                in_frontmatter = True
+            elif in_frontmatter:
+                in_frontmatter = False
+                past_frontmatter = True
+            out.append(ln)
+            skip_block = False
             continue
-        skip = False
+        if in_frontmatter or not past_frontmatter:
+            out.append(ln)
+            continue
+
+        if skip_block:
+            if stripped.startswith("#") and not _PROMPT_LEAK_RE.match(stripped):
+                skip_block = False
+                out.append(ln)
+            continue
+
+        if _PROMPT_LEAK_RE.match(stripped):
+            if stripped.startswith("#"):
+                skip_block = True
+            continue
+
         out.append(ln)
+
     return "".join(out)
 
 
@@ -322,8 +351,8 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> 
         image_type = meta.get("image_type", "none")
         if image_type == "chart":
             if not meta.get("chart_type") or not meta.get("chart_data"):
-                print(f"  [drafter] ⚠️ image_type=chart but chart_type/chart_data missing. Fallback to photo.")
-                image_type = "photo"
+                print(f"  [drafter] ⚠️ image_type=chart but chart_type/chart_data missing. Setting to none.")
+                image_type = "none"
 
         # Phase 7: placeholder insertion
         draft_md = _ensure_featureimage(draft_md)
@@ -336,19 +365,18 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> 
         slug = _build_slug(post["title"], seed_keyword)
         slug = f"{slug}-s{post.get('step', post['depth'] + 1)}"
 
-        # DB 업데이트
         update_post_draft(post["id"], draft_md, slug)
 
-        # Phase 8: DB에 chart 데이터 저장
-        if image_type == "chart":
-            from chain_db import update_chart
-            update_chart(post["id"], meta["chart_type"], json.dumps(meta["chart_data"], ensure_ascii=False))
-        if meta.get("image_keyword"):
-            from chain_db import update_post_image
-            update_post_image(post["id"], meta["image_keyword"])
-        if meta.get("image_reason"):
-            from chain_db import update_post_context
-            update_post_context(post["id"], meta["image_reason"])
+        from chain_db import ImageMetaDB
+        _image_meta = ImageMetaDB(
+            image_type=image_type,
+            image_keyword=meta.get("image_keyword") or None,
+            image_reason=meta.get("image_reason") or None,
+            chart_type=meta.get("chart_type"),
+            chart_data=meta.get("chart_data"),
+        )
+        from chain_db import update_image_meta
+        update_image_meta(post["id"], _image_meta)
 
         # 파일 저장
         step = post.get("step", post["depth"] + 1)

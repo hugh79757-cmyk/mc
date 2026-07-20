@@ -8,6 +8,7 @@ blog_key의 publisher_type에 따라 Hugo/Blogger/Manual 분기 처리.
 import os
 import re
 import shutil
+import json
 import subprocess
 import tempfile
 import logging
@@ -19,32 +20,173 @@ from mc_paths import ensure_mde2_on_path, load_config, CHAIN_CONFIG_PATH
 
 ensure_mde2_on_path()
 
-# mde2 모듈 import (패턴 적용)
 from app.services.r2_uploader import get_r2_config, upload_all_images, HUGO_R2_DOMAINS
 from chain_db import check_duplicate, log_publish
+from chain_models import (
+    CleanedDraft, DeployValidationError, BodyExtractionError,
+    ImageGenerationError, Result, ErrorCategory,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
-# ── 마크다운 본문 문법 교정 ────────────────────────────────────────────────
+R2_IMAGE_DOMAINS = ("r2.dev", "img.")
 
-def _sanitize_markdown_body(body: str) -> str:
-    """발행 전 마크다운 본문의 흔한 문법 오류를 자동 교정"""
-    body = re.sub(
-        r'\]\(\[\[(https?://[^\]]+)\]\]\)',
-        r'](\1)',
-        body
-    )
-    # 헤딩 주변 공백 정규화: 제목 위에는 항상 빈 줄
-    body = re.sub(r'(?<=\S)\n(#+ )', r'\n\n\1', body)
-    body = re.sub(r'(#+ .+)\n(?=\S)', r'\1\n\n', body)
-    body = re.sub(r'^-([|].+)$', r'\1', body, flags=re.MULTILINE)
-    body = re.sub(r'^([|][-|:\s]+)$', r'\1', body, flags=re.MULTILINE)
-    # prompt leak 잔해 제거: 썸네일/이미지 플레이스홀더가 해소되지 않았으면 삭제
-    body = re.sub(r'<!--\s*(thumbnail|image)\s*:\s*.*?-->', '', body)
-    body = re.sub(r'<!--\s*todo:\s*(image|chart)\s*-->', '', body)
-    return body
+
+def _extract_clean_body(raw: str) -> CleanedDraft:
+    """
+    흰색 목록(whitelist) 방식: 유효한 마크다운 요소만 추출.
+    frontmatter와 body를 분리하여 반환.
+    허용: ATX 헤딩, 단락, 리스트, 표, 코드 펜스(非JSON), 이미지, 링크
+    거부: HTML 주석, <meta>/<script>/<div>, raw JSON, CTA 블록
+    """
+    frontmatter = ""
+    body = raw
+
+    if raw.lstrip().startswith("---"):
+        rest = raw[3:].lstrip("\n")
+        closer = re.search(r'^---\s*$', rest, re.MULTILINE)
+        if closer:
+            frontmatter = rest[:closer.start()]
+            body = rest[closer.end():].lstrip("\n")
+
+    allowed_lines = []
+    in_code_block = False
+
+    for line in body.split("\n"):
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            lang = stripped[3:].strip()
+            if lang.lower() == "json":
+                try:
+                    code_content = ""
+                    temp_lines = []
+                    for inner_line in body.split("\n"):
+                        temp_lines.append(inner_line)
+                    raise BodyExtractionError(
+                        "JSON 코드 펜스는 본문에서 허용되지 않습니다. "
+                        "AI 메타데이터는 parse_ai_output()에서 이미 추출되어야 합니다."
+                    )
+                except BodyExtractionError:
+                    in_code_block = not in_code_block
+                    continue
+            else:
+                in_code_block = not in_code_block
+                allowed_lines.append(line)
+                continue
+
+        if in_code_block:
+            allowed_lines.append(line)
+            continue
+
+        if not stripped:
+            allowed_lines.append("")
+            continue
+
+        is_heading = bool(re.match(r'^#{1,6}\s', stripped))
+        is_list = bool(re.match(r'^[-*+]\s|^\d+\.\s', stripped))
+        is_table = bool(re.match(r'^\||^[-|:\s]+$', stripped))
+        is_image = bool(re.match(r'!\[.*?\]\(https?://', stripped))
+        is_link = bool(re.match(r'\[.*?\]\(https?://', stripped))
+        is_html_comment = stripped.startswith("<!--")
+        is_html_tag = bool(re.match(r'<(?:div|span|meta|script|ins|link)', stripped))
+        is_raw_json = stripped.startswith("{") and ("image_type" in stripped or "chart_type" in stripped)
+
+        if is_html_comment or is_html_tag or is_raw_json:
+            continue
+
+        if is_heading or is_list or is_table or is_image or is_link:
+            allowed_lines.append(line)
+            continue
+
+        allowed_lines.append(line)
+
+    clean_body = "\n".join(allowed_lines)
+    clean_body = re.sub(r'\n{3,}', '\n\n', clean_body).strip()
+
+    if not clean_body:
+        raise BodyExtractionError("본문에서 유효한 마크다운 요소를 찾을 수 없습니다")
+
+    return CleanedDraft(frontmatter=frontmatter, body=clean_body)
+
+
+def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -> None:
+    """
+    2단계 검증 게이트:
+      1단계: 소스 index.md 검증 (JSON/HTML주석/CTA/featureimage/chart데이터)
+      2단계: Hugo 빌드 산출물 HTML 검증 (광고 수/깨진 이미지/오염 태그)
+    검증 실패 시 DeployValidationError 발생 → 배포 중단.
+    """
+    target_dir = hugo_path / "content" / "posts" / slug
+    index_md = target_dir / "index.md"
+
+    if not index_md.exists():
+        raise DeployValidationError(f"index.md 없음: {index_md}")
+
+    content = index_md.read_text(encoding="utf-8")
+
+    json_fence = re.search(r'```json\s*\n?\{', content)
+    if json_fence:
+        raise DeployValidationError("index.md에 JSON 코드 펜스 잔류")
+
+    html_comment = re.search(r'<!--.*?-->', content, re.DOTALL)
+    if html_comment:
+        raise DeployValidationError(
+            f"index.md에 HTML 주석 잔류: {html_comment.group()[:60]}"
+        )
+
+    featureimage_match = re.search(r'^featureimage:\s*["\']?(.*?)["\']?\s*$', content, re.MULTILINE)
+    if featureimage_match:
+        fi_url = featureimage_match.group(1).strip()
+        if not fi_url:
+            raise DeployValidationError("featureimage가 빈 값")
+        if not fi_url.startswith("http"):
+            raise DeployValidationError(f"featureimage가 유효한 URL이 아님: {fi_url}")
+
+    if image_meta:
+        if image_meta.get("chart_type") and not image_meta.get("chart_data"):
+            raise DeployValidationError("chart_type 설정됨 but chart_data 비어있음")
+
+    logger.info(f"[verify] 소스 검증 통과: {slug}")
+
+    html_output = hugo_path / "public" / "posts" / slug / "index.html"
+    if not html_output.exists():
+        alt_path = hugo_path / "public" / slug / "index.html"
+        if alt_path.exists():
+            html_output = alt_path
+        else:
+            logger.warning(f"[verify] Hugo 빌드 산출물 없음, 산출물 검증 스킵: {html_output}")
+            return
+
+    rendered = html_output.read_text(encoding="utf-8")
+
+    ad_slot_count = len(re.findall(r'class=["\']ad-(?:incontent|bottom|slot)', rendered))
+    if ad_slot_count > 3:
+        raise DeployValidationError(
+            f"Hugo 산출물에 광고 슬롯 {ad_slot_count}개 — 허용치(3개) 초과"
+        )
+
+    image_refs = re.findall(r'src=["\']([^"\']+)["\']', rendered)
+    broken_count = 0
+    for ref in image_refs:
+        if ref.startswith("http") or ref.startswith("data:"):
+            continue
+        ref_path = hugo_path / "public" / ref.lstrip("/")
+        if not ref_path.exists():
+            broken_count += 1
+            logger.warning(f"[verify] 깨진 이미지 참조: {ref}")
+    if broken_count > 0:
+        raise DeployValidationError(f"산출물에 깨진 이미지 참조 {broken_count}개")
+
+    json_residue = re.search(r'```json|image_type|chart_type|"image_keyword"', rendered)
+    if json_residue:
+        raise DeployValidationError(
+            f"Hugo 산출물에 JSON 잔류: {json_residue.group()[:40]}"
+        )
+
+    logger.info(f"[verify] 산출물 검증 통과: {slug}")
 
 
 # ── Wrangler 실행 헬퍼 ───────────────────────────────────────────────────────
@@ -179,30 +321,45 @@ class PublisherCore:
             assets_dir = post_temp_dir / "assets"
             assets_dir.mkdir(parents=True, exist_ok=True)
 
-            # DB에서 post 조회 (thumbnail_path, image_keyword)
+            # DB에서 post 조회 (image_meta JSON으로 통합)
             from chain_db import get_conn, update_thumbnail as _db_update_thumb
             _conn = get_conn()
             _row = _conn.execute(
-                "SELECT id, thumbnail_path, thumbnail_source, image_keyword, chart_type, chart_data, content_image_path FROM chain_posts WHERE slug = ?",
+                "SELECT id, image_meta FROM chain_posts WHERE slug = ?",
                 (slug,),
             ).fetchone()
             _conn.close()
-            _post = dict(_row) if _row else {}
-            _post_id = _post.get("id")
+
+            if not _row:
+                raise DeployValidationError(f"chain_posts에 slug 없음: {slug}")
+            _post_id = _row["id"]
+            _image_meta_raw = _row["image_meta"]
+            if not _image_meta_raw:
+                raise DeployValidationError(f"image_meta 누락: slug={slug}")
+            _image_meta = json.loads(_image_meta_raw)
+
+            # image_meta JSON에서 모든 값 추출 (레거시 개별 컬럼 대체)
+            _thumb_abs = _image_meta.get("thumbnail_path")
+            _thumb_src = _image_meta.get("thumbnail_source")
+            _kw = _image_meta.get("image_keyword")
+            _has_content_image = bool(_image_meta.get("content_image_path"))
+            _img_type = _image_meta.get("image_type", "none")
+            _chart_type = _image_meta.get("chart_type")
+            _img_keyword = _image_meta.get("image_keyword")
 
             # Phase 7: thumbnail_path 없으면 생성 (멱등성: 이미 있으면 스킵)
-            _thumb_abs = _post.get("thumbnail_path")
-            _thumb_src = _post.get("thumbnail_source")
             if not _thumb_abs or not Path(_thumb_abs).exists():
-                from image.thumbnail import generate_thumbnail as _gen_thumb
-                _kw = _post.get("image_keyword") or slug
-                _res = _gen_thumb(title=title, keyword=_kw, slug=slug)
-                if _res:
-                    _thumb_abs, _thumb_src = _res
-                    if _post_id:
-                        _db_update_thumb(_post_id, str(_thumb_abs), _thumb_src)
+                if not _kw:
+                    logger.warning(f"[Hugo] image_keyword 없음, 썸네일 생성 스킵: {slug}")
                 else:
-                    logger.warning(f"[Hugo] 썸네일 생성 실패: {slug}")
+                    from image.thumbnail import generate_thumbnail as _gen_thumb
+                    _res = _gen_thumb(title=title, keyword=_kw, slug=slug)
+                    if _res:
+                        _thumb_abs, _thumb_src = _res
+                        if _post_id:
+                            _db_update_thumb(_post_id, str(_thumb_abs), _thumb_src)
+                    else:
+                        logger.warning(f"[Hugo] 썸네일 생성 실패: {slug}")
             else:
                 logger.info(f"[Hugo] thumbnail_path 이미 설정, 재생성 스킵: {_thumb_abs}")
 
@@ -210,13 +367,10 @@ class PublisherCore:
             if _thumb_abs and Path(_thumb_abs).exists():
                 shutil.copy2(Path(_thumb_abs), assets_dir / Path(_thumb_abs).name)
 
-            # Phase 8: content_image (chart 또는 photo)
-            if _post_id and not _post.get("content_image_path"):
-                # image_type not a DB column — infer from chart_type
-                _img_type = "chart" if _post.get("chart_type") else "none"
+            # Phase 8: content_image (chart 또는 photo) — image_meta JSON 기반
+            if _post_id and not _has_content_image:
                 if _img_type == "chart":
-                    _chart_type = _post.get("chart_type")
-                    _chart_data_str = _post.get("chart_data")
+                    _chart_data_str = _image_meta.get("chart_data")
                     if _chart_type and _chart_data_str:
                         try:
                             import json as _json
@@ -247,6 +401,28 @@ class PublisherCore:
                             logger.error(f"Chart font missing: {e}. Fallback to photo.")
                         except Exception as e:
                             logger.error(f"Chart generation failed: {e}. Fallback to photo.")
+
+                elif _img_type == "photo":
+                    from image.pollinations_client import generate_image as _gen_photo
+                    _photo_result = _gen_photo(_img_keyword, slug=slug)
+                    if not _photo_result.ok:
+                        _err = _photo_result.error
+                        if _err.category in (ErrorCategory.TRANSIENT, ErrorCategory.RATE_LIMITED):
+                            logger.warning(f"[Hugo] Photo 생성 일시적 실패 (재시도 대상): {_err.message}")
+                        raise ImageGenerationError(
+                            f"Photo 생성 실패: {slug} (image_keyword={_img_keyword}, error={_err.message})"
+                        )
+                    _photo_path = _photo_result.value
+                    if Path(_photo_path).exists():
+                        _conn3 = get_conn()
+                        _conn3.execute(
+                            "UPDATE chain_posts SET content_image_path=?, content_image_source=? WHERE id=?",
+                            (str(_photo_path), "pollinations", _post_id),
+                        )
+                        _conn3.commit()
+                        _conn3.close()
+                        shutil.copy2(_photo_path, assets_dir / Path(_photo_path).name)
+                        logger.info(f"[Hugo] photo content_image 생성: {_photo_path}")
 
             # Phase 3/7: 본문 이미지(Pollinations)를 output/images/ → assets_dir 복사
             _output_images = Path("output/images")
@@ -356,8 +532,12 @@ class PublisherCore:
                 text = re.sub(r"<!--todo:image-->", f"![{_alt_prefix}]({_content_img_url})", text)
                 text = re.sub(r"<!--todo:chart-->", f"![{_alt_prefix}]({_content_img_url})", text)
 
-            # 마크다운 본문 정제 (이미지 교체 후 — 남은 미해소 마커 제거)
-            text = _sanitize_markdown_body(text)
+            try:
+                cleaned = _extract_clean_body(text)
+                text = cleaned.body
+            except BodyExtractionError as e:
+                logger.error(f"본문 추출 실패: {e}")
+                return ("", "hugo", "")
             index_md.write_text(text, encoding="utf-8")
 
             # 5. Hugo 빌드
@@ -381,6 +561,12 @@ class PublisherCore:
             )
             if build.returncode != 0:
                 logger.error(f"Hugo 빌드 실패: {build.stderr[:300]}")
+                return ("", "hugo", "")
+
+            try:
+                _verify_before_deploy(hugo_path, slug, _image_meta)
+            except DeployValidationError as e:
+                logger.error(f"배포 검증 실패: {e}")
                 return ("", "hugo", "")
 
             # 6. Wrangler 배포
@@ -418,7 +604,12 @@ class PublisherCore:
 
         # 2. 마크다운 본문 추출 및 정제
         body = self._strip_frontmatter(draft_md)
-        body = _sanitize_markdown_body(body)
+        try:
+            cleaned = _extract_clean_body(body)
+            body = cleaned.body
+        except BodyExtractionError as e:
+            logger.error(f"Blogger 본문 추출 실패: {e}")
+            return ("", "blogger", "")
 
         # 3. R2 이미지 업로드 (재시도 3회)
         r2_prefix = blog_cfg.get("r2_prefix")

@@ -1,0 +1,55 @@
+- generic [active] [ref=f3e1]:
+  - link "↓ 본문으로 건너뛰기" [ref=f3e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f3e6]:
+    - link "rotcha" [ref=f3e7] [cursor=pointer]:
+      - /url: https://rotcha.kr/
+    - generic [ref=f3e8]:
+      - navigation [ref=f3e10]:
+        - link "글목록" [ref=f3e11] [cursor=pointer]:
+          - /url: https://rotcha.kr/archives/
+        - link "자격증시험" [ref=f3e12] [cursor=pointer]:
+          - /url: https://rotcha.kr/categories/%EC%9E%90%EA%B2%A9%EC%A6%9D%EC%8B%9C%ED%97%98/
+        - link "검색" [ref=f3e13] [cursor=pointer]:
+          - /url: ""
+        - button "Search" [ref=f3e14]
+        - button "다크 모드로 전환" [ref=f3e17]
+      - generic [ref=f3e21]:
+        - button "Search" [ref=f3e22]
+        - button "다크 모드로 전환" [ref=f3e24]
+        - checkbox [ref=f3e27]
+        - dialog [ref=f3e32]:
+          - navigation [ref=f3e37]:
+            - link "글목록" [ref=f3e39] [cursor=pointer]:
+              - /url: https://rotcha.kr/archives/
+            - link "자격증시험" [ref=f3e41] [cursor=pointer]:
+              - /url: https://rotcha.kr/categories/%EC%9E%90%EA%B2%A9%EC%A6%9D%EC%8B%9C%ED%97%98/
+            - link "검색" [ref=f3e43] [cursor=pointer]:
+              - /url: ""
+  - generic [ref=f3e44]:
+    - main [ref=f3e45]:
+      - generic [ref=f3e47]:
+        - heading "404" [level=1] [ref=f3e48]
+        - heading "페이지를 찾을 수 없습니다 😕" [level=2] [ref=f3e49]
+        - paragraph [ref=f3e50]: 요청하신 페이지를 찾을 수 없습니다.
+        - generic [ref=f3e51]:
+          - link "홈으로 가기" [ref=f3e52] [cursor=pointer]:
+            - /url: https://rotcha.kr/
+          - link "글 목록 보기" [ref=f3e53] [cursor=pointer]:
+            - /url: https://rotcha.kr/posts
+      - link "맨 위로 스크롤" [ref=f3e55] [cursor=pointer]:
+        - /url: "#the-top"
+        - text: ↑
+    - contentinfo [ref=f3e56]:
+      - navigation [ref=f3e57]:
+        - list [ref=f3e58]:
+          - listitem [ref=f3e59]:
+            - link "Privacy" [ref=f3e60] [cursor=pointer]:
+              - /url: https://rotcha.kr/privacy
+      - paragraph [ref=f3e62]: © 2026 rotcha
+    - generic [ref=f3e64]:
+      - banner [ref=f3e65]:
+        - searchbox "검색" [ref=f3e71]
+        - button "닫기 (Esc)" [ref=f3e72]
+      - generic:
+        - list

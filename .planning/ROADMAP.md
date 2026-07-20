@@ -118,7 +118,7 @@
 | 7 | Search-Augmented Drafting (Naver API) | 7 | ✅ Complete |
 | 8 | Chart Generation (pillow_chart.py) | 7 | ✅ Complete |
 | 9 | Publish Quality Fix | 8 | ◆ Planning |
-| 10 | KREA AI Fallback | 5 | ○ Pending |
+| 10 | Phase 9 Aftermath — 회귀 방지 + 잔여 이슈 | 5 | ○ Pending |
 | **Total** | | **53** | |
 
 ---
@@ -147,14 +147,36 @@
 
 ---
 
-*Last updated: 2026-07-20 — Phase 9 planned (Publish Quality Fix)*
+## Phase 10: Phase 9 Aftermath — 회귀 방지 및 잔여 이슈 해결
+
+**Goal:** Phase 9에서 발견·수정된 모든 fix의 회귀를 방지하고, 3개 사이트에 CSS/SRI 수정을 전파하며, R2 썸네일 업로드 실패의 근본 원인을 수정한다.
+
+**Plans:**
+1. **R2 썸네일 업로드 실패 수정** — `get_r2_client()` credentials 누락 원인 규명 및 수정, `upload_all_images()` 호출 체인 검증
+2. **3개 사이트 CSS/SRI 일괄 적용** — informationhot, techpawz에도 `head.html` + `fixed-fill-blur.html` SRI/CORS 수정 전파
+3. **회귀 방지 audit 체계** — `audit_posts.py` 전수검사 (프롬프트 릭, 이미지 마커, CTA 블록, CSS 렌더링)
+4. **E2E 검증 + 3사이트 재배포** — Hugo 빌드 + CF Pages 배포, HTTP 200 확인
+
+**Requirements covered:** 품질 (회귀 방지, R2 업로드, CSS/SRI 일괄 적용)
+
+**Verification criteria:**
+- 신규 체인 생성 → 모든 썸네일이 R2에 정상 업로드됨
+- 3개 사이트 모두 CSS SRI/CORS 경고 없이 렌더링
+- `audit/audit_chain.py` 전수검사 0건 (프롬프트 릭, 미해소 마커, CTA 블록 0)
+- `python chain_publisher.py --chain-id N --publish` E2E 통과
+
+**Plan file:** `.planning/phases/phase-10/PLAN.md`
+
+---
+
+*Last updated: 2026-07-20 — Phase 9 → Phase 10 Aftermath*
 
 | Phase 1-8 core pipeline 완료. v2 요구사항 중 미구현 항목 + 품질 수정:
 
 | Candidate | Requirement | Value | Effort |
 |-----------|-------------|-------|--------|
 | Phase 9: Publish Quality Fix | 품질 | 프롬프트 릭·이미지 미삽입·썸네일 가독성 일괄 수정 | Medium |
-| Phase 10: KREA Fallback | IMG-v2-03 | Pollinations 실패 시 KREA AI 대체 | Low |
+| Phase 10: 회귀 방지 + 잔여 이슈 | 품질 | R2 업로드·CSS/SRI·audit 체계 | Medium |
 | Phase 11: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
 | Phase 12: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
 | Phase 13: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |

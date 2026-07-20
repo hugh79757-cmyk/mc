@@ -7,7 +7,7 @@
 See: .planning/PROJECT.md (updated 2026-07-18)
 
 **Core value:** One random keyword → 3 interconnected blog posts on 3 different domains, each going deeper than the last, with images and cross-links — fully automated.
-**Current focus:** Phase 9 — Publish Quality Fix (프롬프트 릭·이미지 미삽입·썸네일 가독성)
+**Current focus:** Phase 10 — Phase 9 Aftermath (회귀 방지 + 잔여 이슈)
 
 ## Phase Status
 
