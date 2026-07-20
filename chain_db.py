@@ -553,7 +553,7 @@ def update_published_url(post_id: int, url: str, method: str):
     conn = get_conn()
     conn.execute(
         "UPDATE chain_posts SET published_url = ?, publish_method = ?, "
-        "published_at = ?, status = 'published', updated_at = ? WHERE id = ?",
+        "published_at = ?, status = 'published', error_log = '', updated_at = ? WHERE id = ?",
         (url, method, now, now, post_id),
     )
     conn.commit()
