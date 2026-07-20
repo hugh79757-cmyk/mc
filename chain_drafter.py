@@ -95,8 +95,28 @@ def _build_slug(title: str, keyword: str) -> str:
 
 # ── frontmatter 유틸 ──────────────────────────────────────────────────
 
+def _ensure_frontmatter_closer(draft_md: str) -> str:
+  """frontmatter closer가 없으면 보정."""
+  if not draft_md.startswith("---"):
+    return draft_md
+  end = draft_md.find("---", 3)
+  if end != -1:
+    return draft_md
+  # closer 없음: 첫 빈 줄 앞에 closer 삽입
+  rest = draft_md[3:].lstrip("\n")
+  lines = rest.split("\n")
+  for i, line in enumerate(lines):
+    if not line.strip():
+      fm = "\n".join(lines[:i])
+      body = "\n".join(lines[i:])
+      return "---\n" + fm + "\n---\n" + body
+  # 빈 줄 없으면 전체를 frontmatter로 간주
+  return "---\n" + rest + "\n---\n"
+
+
 def _ensure_featureimage(draft_md: str) -> str:
   """frontmatter에 featureimage: "" 필드를 항상 포함시킴 (빈칸 → publisher가 채움)."""
+  draft_md = _ensure_frontmatter_closer(draft_md)
   if not draft_md.startswith("---"):
     return "---\nfeatureimage: \"\"\n---\n\n" + draft_md
   end = draft_md.find("---", 3)

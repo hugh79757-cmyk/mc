@@ -26,6 +26,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import json
 from mc_paths import (
     ensure_5000_on_path, load_config, load_prompts, get_chain_blog_key,
     PROMPTS_PATH, DRAFTS_DIR,
@@ -116,6 +117,37 @@ def generate_image_remote(image_prompt: str, image_keyword: str, pollinations_cf
 
 # ── 체인 이미지 생성 ──
 
+def _write_image_log(post_id: int, slug: str, message: str) -> None:
+    """이미지 생성 성공/실패 결과를 logs/에 보존 (관측성)."""
+    try:
+        import os as _os
+        from datetime import datetime as _dt
+        _log_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "logs")
+        _os.makedirs(_log_dir, exist_ok=True)
+        _ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        _p = _os.path.join(_log_dir, f"image_gen_{post_id}_{slug}_{_ts}.log")
+        with open(_p, "w", encoding="utf-8") as _f:
+            _f.write(message)
+    except Exception:
+        pass
+
+
+def _find_disk_image(slug: str):
+    """output/images/{slug}_*.webp|.jpg|.png 중 첫 매칭 반환 (디스크-DB 교차확인용). 없으면 None."""
+    try:
+        from pathlib import Path as _P
+        _base = _P(__file__).parent / "output" / "images"
+        if not _base.exists():
+            return None
+        for _pat in (f"{slug}_*.webp", f"{slug}_*.jpg", f"{slug}_*.png"):
+            _m = sorted(_base.glob(_pat))
+            if _m:
+                return _m[0]
+        return None
+    except Exception:
+        return None
+
+
 def generate_chain_images(chain_id: int) -> None:
     use_new_image = False
     img_gen = img_build = img_inject = None
@@ -142,6 +174,25 @@ def generate_chain_images(chain_id: int) -> None:
         post_id = post["id"]
         print(f"\n  [publisher] Image {i+1}/{len(posts)} — post #{post_id}")
 
+        # 정규 필드(image_meta.content_image_path) 기준 완결 판정 — 반쪽 백필 방지
+        _meta_raw = post.get("image_meta")
+        _meta = json.loads(_meta_raw) if isinstance(_meta_raw, str) else (_meta_raw or {})
+        if _meta.get("content_image_path"):
+            print(f"    ↷ 이미지 보유 (post #{post_id}): {_meta.get('content_image_path')} — 스킵")
+            continue
+
+        _slug = post.get("slug") or f"post-{post_id}"
+        # 디스크-DB 교차확인: 파일은 있으나 image_meta.content_image_path 미결속 → 재생성 금지, 백필만
+        _disk = _find_disk_image(_slug)
+        if _disk:
+            _abs = str(_disk)
+            db.update_content_image(post_id, _abs, "pollinations")
+            db.update_post_image(post_id, f"/images/{_disk.name}")
+            print(f"    ↷ 디스크 파일 백필 (post #{post_id}): {_abs}")
+            _write_image_log(post_id, _slug,
+                             f"IMAGE BACKFILL post_id={post_id}\ndisk={_abs}\nimage_meta.content_image_path set via update_content_image\n")
+            continue
+
         if use_new_image:
             blog_key = get_chain_blog_key(post["depth"])
             full_prompt = img_build(
@@ -150,16 +201,24 @@ def generate_chain_images(chain_id: int) -> None:
                 chain_type=chain.get("chain_type", "depth"),
                 step=post.get("step", 1),
             )
-            image_path = img_gen(full_prompt, slug=post.get("slug", f"post-{post_id}"))
-            if image_path:
+            image_result = img_gen(full_prompt, slug=_slug)
+            if image_result and image_result.ok:
+                image_path = image_result.value
                 image_url = f"/images/{image_path.name}"
+                db.update_content_image(post_id, str(image_path), "pollinations")
                 db.update_post_image(post_id, image_url)
+                _write_image_log(post_id, _slug, f"IMAGE GEN OK post_id={post_id}\nurl={image_url}\ncontent_image_path set\n")
                 if post.get("draft_md"):
                     updated = img_inject(
                         post["draft_md"], post.get("slug", ""),
                         blog_key, post.get("step", 1), post["title"],
                     )
                     db.update_post_draft(post_id, updated, post.get("slug", ""))
+            else:
+                _err = getattr(image_result, "error", "img_gen returned None/empty")
+                print(f"  [publisher] ⚠️ 이미지 생성 실패 (post #{post_id}, slug={_slug}): {_err}")
+                _write_image_log(post_id, _slug,
+                                f"IMAGE GEN FAIL post_id={post_id}\nerror={_err}\nfull_prompt={full_prompt[:500]}\n")
         else:
             image_url = generate_image_remote(
                 post["image_prompt"], post["image_keyword"], pol_cfg,
@@ -242,6 +301,16 @@ def publish_chain(chain_id: int, mode: str = "auto",
     if not posts:
         print(f"[mc] Chain #{chain_id} has no posts")
         return
+
+    # 누락 이미지 자동 보완 (기존 체인 발행 시 이미지 생성 누락 방지)
+    _missing = [p for p in posts if not p.get("image_url")]
+    if _missing:
+        print(f"[mc] ⚠️ 이미지 누락 {len(_missing)}건 → 이미지 생성/백필 실행")
+        try:
+            generate_chain_images(chain_id)
+        except Exception as _e:
+            print(f"[mc] 이미지 보완 실패 (발행 계속): {_e}")
+        posts = db.get_chain_posts_ordered(chain_id, direction="desc")
 
     print(f"\n{'='*60}")
     print(f"[mc] Publishing chain #{chain_id} (reverse order: 3→2→1)")
