@@ -6,7 +6,7 @@ Pillow 기반 3종 차트 렌더러 + 디스패처.
 - timeline: 타임라인
 - comparison: 좌/우 비교표
 
-Output: 1200×630 JPEG (quality 92)
+Output: 1200×630 WebP (quality 85)
 """
 
 import json
@@ -162,8 +162,8 @@ def generate_bar_chart(
             draw.text((x + (bar_width - lw) // 2, ly), ll, font=label_font, fill=text_color)
             ly += 26
 
-    out_path = IMAGE_DIR / f"chart_{slug}.jpg"
-    img.save(out_path, "JPEG", quality=92)
+    out_path = IMAGE_DIR / f"chart_{slug}.webp"
+    img.save(out_path, "WEBP", quality=85)
     print(f"  [chart] Bar chart saved → {out_path}")
     return (out_path, "pillow_chart")
 
@@ -242,8 +242,8 @@ def generate_timeline(
             draw.text((x - lw // 2, ly), ll, font=label_font, fill=text_color)
             ly += 28
 
-    out_path = IMAGE_DIR / f"chart_{slug}.jpg"
-    img.save(out_path, "JPEG", quality=92)
+    out_path = IMAGE_DIR / f"chart_{slug}.webp"
+    img.save(out_path, "WEBP", quality=85)
     print(f"  [chart] Timeline saved → {out_path}")
     return (out_path, "pillow_chart")
 
@@ -368,8 +368,8 @@ def generate_comparison(
     draw.line([(divider_x, table_top - 10), (divider_x, output_size[1] - 40)],
               fill=(200, 200, 200), width=2)
 
-    out_path = IMAGE_DIR / f"chart_{slug}.jpg"
-    img.save(out_path, "JPEG", quality=92)
+    out_path = IMAGE_DIR / f"chart_{slug}.webp"
+    img.save(out_path, "WEBP", quality=85)
     print(f"  [chart] Comparison saved → {out_path}")
     return (out_path, "pillow_chart")
 

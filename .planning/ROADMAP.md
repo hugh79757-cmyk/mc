@@ -117,21 +117,44 @@
 | 6 | Loop Funnel (Blowfish Hub + 2-CTA) | 8 | ✅ Complete |
 | 7 | Search-Augmented Drafting (Naver API) | 7 | ✅ Complete |
 | 8 | Chart Generation (pillow_chart.py) | 7 | ✅ Complete |
-| **Total** | | **40** | |
+| 9 | Publish Quality Fix | 8 | ◆ Planning |
+| 10 | KREA AI Fallback | 5 | ○ Pending |
+| **Total** | | **53** | |
 
 ---
 
-*Last updated: 2026-07-19 — Phase 8 complete (E2E verified, commit ab09204)*
+---
 
-## Next Phase Candidates
+## Phase 9: Publish Quality Fix
 
-Phase 1-8 core pipeline 완료. v2 요구사항 중 미구현 항목:
+**Goal:** 발행 품질 3대 결함(프롬프트 릭, 이미지 미삽입, 썸네일 가독성)을 일괄 수정한다.
+
+**Plans:**
+1. **프롬프트 릭 필터 재작성** — `_strip_prompt_leak()`를 frontmatter 이후에도 동작하도록 재작성, 들여쓰기 수정
+2. **이미지 치환 순서 수정** — `_sanitize_markdown_body()`의 마커 제거 regex를 치환 코드 이후로 이동
+3. **썸네일 개선** — 폰트 크기 48→64px, elif 버그 수정, 위치/그림자 조정, CJK 줄바꿈 개선
+4. **프롬프트 마커 지시문 수정** — GPT에게 `<!-- thumbnail/image -->` 삽입 지시 제거
+
+**Requirements covered:** 품질 (프롬프트 릭, 이미지 삽입, 썸네일 가독성)
+
+**Verification criteria:**
+- 새 체인 생성 시 프롬프트 헤더가 본문에 없음
+- `<!--todo:image-->`가 R2 URL로 교체되어 발행
+- 썸네일에서 제목 텍스트가 선명하게 보임
+- E2E 발행: `python chain_publisher.py --seed "테스트" --draft --image --publish` → 3개 사이트 깔끔 발행
+
+**Plan file:** `.planning/phases/phase-09/PLAN.md`
+
+---
+
+*Last updated: 2026-07-20 — Phase 9 planned (Publish Quality Fix)*
+
+| Phase 1-8 core pipeline 완료. v2 요구사항 중 미구현 항목 + 품질 수정:
 
 | Candidate | Requirement | Value | Effort |
 |-----------|-------------|-------|--------|
-| Phase 9: KREA Fallback | IMG-v2-03 | Pollinations 실패 시 KREA AI 대체 | Low |
-| Phase 10: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
-| Phase 11: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
-| Phase 12: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |
-
-**우선순위 논의 필요** — 사용자가 결정.
+| Phase 9: Publish Quality Fix | 품질 | 프롬프트 릭·이미지 미삽입·썸네일 가독성 일괄 수정 | Medium |
+| Phase 10: KREA Fallback | IMG-v2-03 | Pollinations 실패 시 KREA AI 대체 | Low |
+| Phase 11: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
+| Phase 12: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
+| Phase 13: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |

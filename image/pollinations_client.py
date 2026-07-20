@@ -13,6 +13,9 @@ import urllib.error
 import urllib.parse
 from pathlib import Path
 
+from PIL import Image
+from io import BytesIO
+
 import mc_paths  # noqa: F401 — ensure_5000_on_path 사이드 이펙트
 
 POLLINATIONS_BASE = "https://image.pollinations.ai/prompt/{encoded}"
@@ -76,10 +79,11 @@ def generate_image(
                 print(f"  [image] ⚠️ 응답이 너무 작음 ({len(image_bytes)} bytes), 재시도...")
                 continue
 
-            filename = f"{slug}_{width}x{height}.jpg"
+            filename = f"{slug}_{width}x{height}.webp"
             dest = IMAGE_DIR / filename
-            dest.write_bytes(image_bytes)
-            print(f"  [image] ✅ 저장: {dest} ({len(image_bytes):,} bytes)")
+            img = Image.open(BytesIO(image_bytes)).convert("RGB")
+            img.save(dest, "WEBP", quality=85)
+            print(f"  [image] ✅ 저장: {dest} ({dest.stat().st_size:,} bytes, WebP)")
             return dest
 
         except urllib.error.HTTPError as e:

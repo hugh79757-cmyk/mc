@@ -39,6 +39,11 @@ def _sanitize_markdown_body(body: str) -> str:
     # 헤딩 주변 공백 정규화: 제목 위에는 항상 빈 줄
     body = re.sub(r'(?<=\S)\n(#+ )', r'\n\n\1', body)
     body = re.sub(r'(#+ .+)\n(?=\S)', r'\1\n\n', body)
+    body = re.sub(r'^-([|].+)$', r'\1', body, flags=re.MULTILINE)
+    body = re.sub(r'^([|][-|:\s]+)$', r'\1', body, flags=re.MULTILINE)
+    # prompt leak 잔해 제거: 썸네일/이미지 플레이스홀더가 해소되지 않았으면 삭제
+    body = re.sub(r'<!--\s*(thumbnail|image)\s*:\s*.*?-->', '', body)
+    body = re.sub(r'<!--\s*todo:\s*(image|chart)\s*-->', '', body)
     return body
 
 
@@ -303,6 +308,7 @@ class PublisherCore:
                         break
                 if not _closer:
                     _rest_body = "".join(_fm_raw_lines[_body_start:])
+            _rest_body = re.sub(r'^featureimage:\s*["\']*\s*["\']\s*$', '', _rest_body, flags=re.MULTILINE)
 
             # 수정: draft→false, slug, date, featureimage 강제
             _fm_fields["draft"] = "false"
@@ -316,6 +322,9 @@ class PublisherCore:
             _new_fm_lines = ["---"]
             for _k, _v in _fm_fields.items():
                 _new_fm_lines.append(f"{_k}: {_v}")
+            if r2_thumb_url and theme == "PaperMod":
+                _new_fm_lines.append("cover:")
+                _new_fm_lines.append(f'  image: "{r2_thumb_url}"')
             _new_fm_lines.append("---")
             _fixed = "\n".join(_new_fm_lines) + "\n\n" + _rest_body
 
@@ -329,9 +338,8 @@ class PublisherCore:
                     text = text.replace("/images/" + local_name, r2_url)
                     text = text.replace("assets/" + local_name, r2_url)
 
-            # 마크다운 본문 정제
-            text = _sanitize_markdown_body(text)
             # 본문 이미지 placeholder 교체: <!--todo:image--> / <!--todo:chart--> / <!-- image: desc -->
+            # (sanitize보다 먼저 실행 — sanitize가 마커를 삭제하므로)
             _content_img_url = None
             if url_map:
                 for _ln, _ru in url_map.items():
@@ -347,6 +355,9 @@ class PublisherCore:
                 text = re.sub(r"<!--\s*image:\s*(.*?)\s*-->", _img_repl, text)
                 text = re.sub(r"<!--todo:image-->", f"![{_alt_prefix}]({_content_img_url})", text)
                 text = re.sub(r"<!--todo:chart-->", f"![{_alt_prefix}]({_content_img_url})", text)
+
+            # 마크다운 본문 정제 (이미지 교체 후 — 남은 미해소 마커 제거)
+            text = _sanitize_markdown_body(text)
             index_md.write_text(text, encoding="utf-8")
 
             # 5. Hugo 빌드

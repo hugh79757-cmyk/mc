@@ -18,10 +18,13 @@ def _find_image_file(slug: str) -> Path | None:
   if not base.exists():
     return None
   search_patterns = [
-    f"thumb_{slug}.jpg",          # Phase 7: thumbnail.py primary output
-    f"{slug}_*.jpg",              # pollinations_client.py legacy output
-    f"content_{slug}.jpg",        # Phase 7+ content image
-    f"chart_{slug}.jpg",          # Phase 8: pillow_chart output
+    f"thumb_{slug}.webp",         # Phase 7: thumbnail.py (WebP)
+    f"{slug}_*.webp",             # pollinations_client.py (WebP)
+    f"content_{slug}.webp",       # Phase 7+ content image
+    f"chart_{slug}.webp",         # Phase 8: pillow_chart (WebP)
+    f"thumb_{slug}.jpg",          # 하위호환: 기존 .jpg
+    f"{slug}_*.jpg",              # 하위호환: 기존 .jpg
+    f"chart_{slug}.jpg",          # 하위호환: 기존 .jpg
   ]
   for pattern in search_patterns:
     candidates = sorted(base.glob(pattern))

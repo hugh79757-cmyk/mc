@@ -1,237 +1,204 @@
-# Phase 9 Research: KREA AI Fallback
+# Phase 9 Research: Publish Quality Fix
 
-**Researched:** 2026-07-19 (inline, no subagent)
-**Scope:** Image fallback only — KREA as 4th provider in thumbnail.py chain.
-
----
-
-## 1. KREA API Reference
-
-### Endpoint & Auth
-
-- **Base URL:** `https://api.krea.ai`
-- **Auth:** Bearer token — `Authorization: Bearer YOUR_API_TOKEN`
-- **Token generation:** https://www.krea.ai/settings/api-tokens
-- **Billing docs:** /developers/api-keys-and-billing (pay-per-use, no free tier confirmed)
-
-### Async Job Pattern (critical)
-
-KREA is **asynchronous**, unlike Pollinations (which returns image bytes directly in one GET).
-
-**Step 1 — Create job:**
-```
-POST /generate/image/{provider}/{model}
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{"prompt": "...", "aspect_ratio": "1:1", "resolution": "1K"}
-```
-Returns immediately: `{"job_id": "...", "status": "queued"}`
-
-**Step 2 — Poll for completion:**
-```
-GET /jobs/{job_id}
-Authorization: Bearer {token}
-```
-Poll every 2 seconds until `status == "completed"`. Then `result.urls[0]` is the image URL.
-
-**Step 3 — Download image** from `result.urls[0]` (separate HTTP GET).
-
-### Available Image Models
-
-| Model | Endpoint | Price | Est. Time | Notes |
-|-------|----------|-------|-----------|-------|
-| Krea 2 (medium) | `/generate/image/krea/krea-2/medium` | $0.030 | ~10s | Flagship, creativity control |
-| Nano Banana Pro | `/generate/image/google/nano-banana-pro` | $0.15 | ~24s | Best typography |
-| Seedream 4 | `/generate/image/bytedance/seedream-4` | $0.0315 | ~20s | Photorealism |
-| GPT Image 2 | `/generate/image/openai/gpt-image-2` | $0.009 | ~55s | Cheapest |
-| Flux 1 Dev | `/generate/image/bfl/flux-1-dev` | (check) | ~? | Same as Pollinations Flux |
-
-**Recommendation:** Use **Krea 2 medium** ($0.03, ~10s) — cheapest Krea-native, fast, good quality. Fallback doesn't need to be the best, just reliable.
-
-### Request Parameters (Krea 2)
-
-```json
-{
-  "prompt": "English prompt here",
-  "aspect_ratio": "1:1",  // "1:1" | "4:5" | "16:9" | etc.
-  "resolution": "1K",     // "1K" | "2K" | "4K"
-  "creativity": "medium"  // "low" | "medium" | "high"
-}
-```
-
-For blog thumbnails (1024×1024), use `aspect_ratio: "1:1"`, `resolution: "1K"`.
-
-### Pricing
-
-- Pay-per-use, no free tier confirmed
-- Krea 2 medium: $0.03/image
-- 3 images per chain (1 per post) = $0.09/chain worst case (only when Unsplash + Pexels + Pollinations all fail)
-- In practice, fallback rarely triggers — Unsplash/Pexels succeed 90%+ for real-photo keywords
+**Researched:** 2026-07-20 (3 parallel explore agents)
+**Scope:** 프롬프트 릭, 이미지 미삽입, 썸네일 가독성 — 3대 결함 분석
 
 ---
 
-## 2. Current Pollinations Integration
+## 1. 프롬프트 릭 분석
 
-### How thumbnail.py works now
+### 1.1 `_strip_prompt_leak()` — 문서 중간 프롬프트 헤더를 절대 제거하지 못함
 
-`image/thumbnail.py:339` — `generate_thumbnail(title, keyword, slug, subtitle)` → `tuple[Path, str] | None`
+**파일:** `chain_drafter.py:288-298`
 
-**Provider chain (already implemented):**
-1. Unsplash (real photo) — `UnsplashProvider` class
-2. Pexels (real photo, 1st fallback) — `PexelsProvider` class
-3. Pollinations (AI, 2nd fallback) — `_pollinations_fallback()` function
-4. Krea (AI, 3rd fallback) — `_krea_fallback()` **STUB** (line 187, returns None)
-
-The fallback chain is **already wired** — `config/chain_config.yaml` has `fallback_chain: [pexels, pollinations, krea]` and the loop at line 395-427 already dispatches to each provider by name.
-
-### Failure modes that trigger fallback
-
-- Unsplash/Pexels: empty search results, API key missing, HTTP error, download timeout
-- Pollinations: HTTP error, timeout (120s), tiny response (<1000 bytes = likely error page), URL error
-
-### Current Pollinations client (`image/pollinations_client.py`)
-
-- Synchronous single GET request
-- 3 retries with 5-10s backoff
-- Returns `Path | None`
-- Saves to `output/images/{slug}_{width}x{height}.jpg`
-
-### Gap
-
-`_krea_fallback()` at line 187-190 is a stub that prints "not implemented" and returns None. **This is the only thing to implement.** No other file needs structural changes.
-
----
-
-## 3. Fallback Design
-
-### What to build
-
-New file: `image/krea_client.py` — mirrors `pollinations_client.py` pattern but with KREA's async job flow.
+**근본 원인:** `skip = True` 플래그가 문서 **맨 처음**에서만 활성화. frontmatter(`---`)나 본문 첫 줄이 등장하는 순간 `skip = False`로 전환되고, 이후에 나오는 프롬프트 헤더는 영원히 검사 대상에서 제외됨.
 
 ```python
-# image/krea_client.py
-def generate_image(prompt: str, slug: str = "post", 
-                   aspect_ratio: str = "1:1", resolution: str = "1K") -> Path | None:
-    """
-    KREA AI image generation (async job pattern).
-    Returns: saved image Path, or None on failure.
-    """
-    # 1. Load KREA_API_KEY from env
-    # 2. POST /generate/image/krea/krea-2/medium → job_id
-    # 3. Poll GET /jobs/{job_id} every 2s until completed/failed
-    # 4. Download result.urls[0] to output/images/krea_{slug}.jpg
-    # 5. Return Path or None
+def _strip_prompt_leak(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    out = []
+    skip = True                           # ← 처음만 True
+    for ln in lines:
+        stripped = ln.strip()
+        if skip and (not stripped or _PROMPT_LEAK_RE.match(stripped)):
+            continue
+        skip = False                      # ← 첫 비어있지 않은 줄 이후 무조건 False
+        out.append(ln)
+    return "".join(out)
 ```
 
-### Where to wire it
+GPT 출력은 항상 `---\ntitle: ...\n---` frontmatter로 시작하므로 `skip`은 즉시 `False`가 됨.
 
-`image/thumbnail.py:187-190` — replace stub:
+**실제 발행 글에서 확인된 증거 (7건):**
 
-```python
-def _krea_fallback(prompt: str, slug: str) -> Optional[Path]:
-    """Krea AI fallback (async job pattern)."""
-    try:
-        from image.krea_client import generate_image
-        return generate_image(prompt, slug=slug)
-    except Exception as e:
-        print(f"  [thumbnail] Krea fallback error: {e}")
-        return None
-```
+| 사이트 | 파일 | 줄 | 누출 내용 |
+|--------|------|----|----------|
+| rotcha | `2026-02-03-058-cheonhajeppang.../index.md` | 25 | `## 서론` |
+| rotcha | `20260503-072403-코레일-고객센터.../index.md` | 24 | `## 서론` |
+| techpawz | `20260503-072702-2026-진에어.../index.md` | 25 | `## 서론` |
+| techpawz | `20260503-072838-한화생명.../index.md` | 16, 21 | `## 서론`, `## 본론` |
+| techpawz | `20260503-073041-기아오토큐.../index.md` | 23 | `## 본론기아오토큐...` (GPT가 본론+제목을 합침) |
 
-**No other changes to thumbnail.py.** The dispatch loop at line 420-427 already calls `_krea_fallback()` and handles the return.
+### 1.2 `_PROMPT_LEAK_RE` 패턴 누락
 
-### Retry policy
+현재 regex가 커버하는 패턴과 실제 GPT 출력에서 관찰되는 패턴의 불일치:
 
-- **No retry inside KREA client** — the async job itself has internal retries on KREA's side
-- If job status is `failed` or `cancelled`, return None immediately
-- Polling timeout: 90 seconds max (45 polls × 2s), then return None
-- KREA's estimated time for Krea 2 medium is ~10s, so 90s is generous
+| GPT가 생성 가능한 패턴 | regex 커버 여부 |
+|----------------------|----------------|
+| `## 서론` (프롬프트에 명시) | O (그러나 로직상 무용) |
+| `## 본론` (프롬프트에 명시) | O (그러나 동일) |
+| `## 본론기아오토큐...` (GPT가 합침) | X |
+| `### 서론`, `### 본론`, `### 결론` | X |
+| `## 결론 및 핵심 요약` | X |
+| `# 이미지 유형 판단` | O |
+| `image_type 결정 기준:` | O (그러나 `:` 없는 변형은 X) |
+| GPT의 자기 설명 텍스트 | X |
 
-### Return contract
+### 1.3 `draft_user` 템플릿의 지시문이 GPT 출력에 전이
 
-`generate_image()` in krea_client.py returns `Path | None` — same as pollinations_client.py. The `_krea_fallback()` wrapper returns `Optional[Path]` — same as `_pollinations_fallback()`. The outer `generate_thumbnail()` already handles both.
-
-### Image saving
-
-Save to `output/images/krea_{slug}.jpg` — consistent with `pollinations_client.py` pattern (`{slug}_{width}x{height}.jpg`). The `add_text_overlay()` function in thumbnail.py will then process this file and output `thumb_{slug}.jpg`.
-
----
-
-## 4. Config Schema
-
-Add to `config/chain_config.yaml` (after `pollinations:` section):
+**파일:** `config/prompts.yaml:306-312`
 
 ```yaml
-# === KREA AI (Phase 9 — Pollinations fallback) ===
-krea:
-  enabled: true
-  api_base: https://api.krea.ai
-  model: krea/krea-2/medium        # provider/model format for endpoint
-  aspect_ratio: "1:1"
-  resolution: "1K"
-  creativity: medium
-  poll_interval_seconds: 2
-  poll_timeout_seconds: 90
+본문에 아래 형식의 이미지 주석을 2곳에 삽입하세요.
+- 썸네일용: <!-- thumbnail: {target_keyword} -->
+- 본문 첫 번째 H2 직후: <!-- image: {target_keyword} {angle} -->
 ```
 
-API key goes in `.env`:
-```
-KREA_API_KEY=your-token-here
+이 마커들은 `_strip_prompt_leak()` regex에 포함되지 않음.
+
+### 1.4 `draft_single_post()` 들여쓰기 오류
+
+**파일:** `chain_drafter.py:257-260`
+
+```python
+    draft_md = _strip_prompt_leak(draft_md)    # line 255 — 함수 내부 (4칸 들여쓰기)
+
+char_count = len(draft_md)                     # line 257 — 모듈 레벨 (들여쓰기 없음!)
+print(f" [drafter] Step {post.get('step', '?')} 완료 — {char_count:,}자 (model: {result['model']})")
+
+return draft_md, meta                          # line 260 — 모듈 레벨!
 ```
 
-Loading pattern: `os.getenv("KREA_API_KEY")` — same as `UNSPLASH_ACCESS_KEY` in `_load_env()`.
+`draft_md`, `post`, `result`, `meta`는 `draft_single_post()`의 지역 변수. 모듈 레벨에서 참조하면 `NameError` 발생.
+
+### 1.5 frontmatter에 중복 `---` 삽입
+
+`_ensure_featureimage()` 또는 `_publish_hugo()`의 frontmatter 재조립 로직에서 `---` 닫힘标记을 본문 시작 부분에 중복 삽입.
 
 ---
 
-## 5. File Touchpoints
+## 2. 이미지 미삽입 분석
 
-| File | Change | Lines |
-|------|--------|-------|
-| `image/krea_client.py` | **NEW** — async job client | ~80 lines |
-| `image/thumbnail.py` | Replace `_krea_fallback()` stub (line 187-190) | ~5 lines changed |
-| `config/chain_config.yaml` | Add `krea:` section after `pollinations:` | ~10 lines added |
-| `.env.example` | Add `KREA_API_KEY=` line | 1 line |
-| `.env.common` (user's, not committed) | Add actual KREA_API_KEY | 1 line |
+### 2.1 `_sanitize_markdown_body()`가 마커를 먼저 삭제 — 치명적
 
-**No changes to:**
-- `chain_publisher_core.py` — calls `generate_thumbnail()`, unaffected
-- `chain_db.py` — no schema change (thumbnail_path/source already exist)
-- `pillow_chart.py` — chart uses Pillow, no external API
-- `image/injector.py` — operates on already-generated files
-- `image/pollinations_client.py` — untouched, KREA is parallel not replacement
+**파일:** `chain_publisher_core.py`
+
+**실행 순서:**
+```
+line 342: text = _sanitize_markdown_body(text)     ← 1단계: 마커 삭제!
+...
+line 356: text = re.sub(r"<!--\s*image:...", ...)   ← 2단계: 이미 삭제된 마커를 찾으려 함
+line 357: text = re.sub(r"<!--todo:image-->", ...)  ← 절대 매칭 안 됨
+line 358: text = re.sub(r"<!--todo:chart-->", ...)  ← 절대 매칭 안 됨
+```
+
+`_sanitize_markdown_body()`의 정규식이 `<!-- image: -->`, `<!--todo:image-->`, `<!--todo:chart-->` 마커를 먼저 제거.
+
+### 2.2 `<!-- thumbnail: keyword -->` 마커는 어디서도 처리되지 않음
+
+| 마커 | GPT가 삽입? | drafter가 삽입? | publisher가 치환? | injector가 치환? |
+|------|------------|----------------|-------------------|-----------------|
+| `<!-- thumbnail: keyword -->` | 예 | 아니오 | 아니오 (sanitize에서 삭제만) | 아니오 |
+| `<!-- image: keyword angle -->` | 예 | 아니오 | `_sanitize`에서 삭제됨 | 아니오 |
+| `<!--todo:image-->` | 아니오 | 예 | `_sanitize`에서 삭제됨 | 예 |
+| `<!--todo:chart-->` | 아니오 | 예 | `_sanitize`에서 삭제됨 | 예 |
+
+**4종 마커 모두 publisher에서 치환되지 않음.**
+
+### 2.3 content image 부재 시 마커 치환 스킵
+
+`_content_img_url`이 None이면 라인 351의 `if` 블록 진입 불가 → 마커 치환 코드 자체가 스킵됨.
+
+### 2.4 R2 업로드 실패 시 모든 이미지 누락
+
+`url_map`이 비면 thumbnail URL도 없고 content image URL도 없음. 로컬 경로 대신 빈 채로 발행.
+
+### 2.5 `injector.py`가 발행 파이프라인에서 호출되지 않음
+
+`inject_images_into_draft()`가 `_publish_hugo()`에서 호출되지 않음. injector가 처리하는 `<!--todo:image-->`/`<!--todo:chart-->` 치환이 파이프라인에서 누락.
+
+### 2.6 발행된 글에서 미해소 마커 확인 (총 15개 파일, 31개)
+
+- rotcha: 4개 파일, 9개 마커
+- informationhot: 5개 파일, 9개 마커
+- techpawz: 6개 파일, 13개 마커
 
 ---
 
-## 6. Pitfalls
+## 3. 썸네일 가독성 분석
 
-| Pitfall | Mitigation |
-|---------|------------|
-| KREA async = slower than Pollinations sync | Acceptable — fallback only triggers when Pollinations fails. ~10s gen + 2s polls = ~15s total. |
-| KREA returns URL, not bytes | Extra HTTP GET to download. One more failure point (download could fail). Wrap in try/except. |
-| Korean text in prompt | KREA expects English prompts (same as Pollinations). `prompt_builder.py` already produces English. No change needed. |
-| KREA API key missing | `_krea_fallback()` returns None gracefully → "All providers failed" message. No crash. |
-| Polling infinite loop | Hard timeout: 90s (45 polls). Return None after. |
-| KREA billing — no free tier | Fallback triggers rarely. Worst case $0.09/chain. Document in config comment. |
-| NSFW filter differences | KREA may reject prompts Pollinations accepts (or vice versa). If KREA job status is `failed`, return None — next provider (none, end of chain) or "all failed". |
-| Job status `cancelled` | Treat same as `failed` — return None. |
-| Rate limits | KREA rate limits unknown. If 429, return None. Don't retry — fallback chain ends here. |
+### 3.1 폰트 크기 축소 로직의 `elif` 오류
+
+**파일:** `image/thumbnail.py:283-286`
+
+```python
+if len(title) > 30:
+    title_font_size = 36
+elif len(title) > 50:    # ← 절대 도달 불가
+    title_font_size = 28
+```
+
+`len > 50`이면 항상 `len > 30`도 참이므로 첫 번째 `if`에서 걸림.
+
+### 3.2 기본 폰트 크기 자체가 너무 작음
+
+1024x1024 이미지에서의 비율:
+
+| 크기 | 이미지 대비 비율 | YouTube 모범 사례 |
+|---|---|---|
+| 28px | 2.73% | — |
+| 36px | 3.52% | — |
+| **48px (현재)** | **4.69%** | 하한선(5%) 미달 |
+| 64px | 6.25% | 적정 범위 |
+| 72px | 7.03% | 적정 범위 |
+
+### 3.3 그라데이션 영역과 텍스트 불일치
+
+그라데이션은 y=358px(35%)에서 시작하지만, 텍스트 시작 위치는 y=764px(75%). 텍스트 상단 부분은 그라데이션이 충분히 진하지 않아서 배경 사진과 충돌.
+
+### 3.4 텍스트 그림자가 너무 약함
+
+shadow offset `(2, 2)`px는 48px 폰트의 4.2%에 불과. Pillow 10.x의 `stroke_width` 파라미터가 더 효과적.
+
+### 3.5 `_fit_text()`의 CJK 처리 — 영한 혼합 시 영어 단어 중간 끊김
+
+`list(paragraph)`로 한 글자씩 분해. 순수 한글에서는 동작하지만, 한글+영문 혼합 제목에서 영어 단어가 중간에서 끊김.
+
+### 3.6 Bold 폰트 누락
+
+`NotoSansKR-Bold.otf` 파일이 존재하지 않음. 제목의 시각적 무게감 부족.
+
+### 3.7 config `bg_alpha` 미사용
+
+`chain_config.yaml`의 `text_overlay.bg_alpha: 0.55`가 설정되어 있지만, `thumbnail.py`는 하드코딩된 `alpha = int(t * 180)` 사용.
 
 ---
 
-## 7. Recommendation
+## 4. 권장 수정 전략
 
-**Proceed with KREA fallback.** Rationale:
+### Wave 1: 프롬프트 릭 필터 재작성
+- `_strip_prompt_leak()`를 frontmatter 이후에도 동작하도록 재작성
+- `draft_single_post()` 들여쓰기 수정
+- `_PROMPT_LEAK_RE` 패턴 확장
 
-1. **Infrastructure ready** — `thumbnail.py` already has the dispatch loop and stub. Just need to fill in the stub.
-2. **Small scope** — 1 new file (~80 lines), 5-line stub replacement, config addition. No architectural changes.
-3. **Krea 2 medium** is cheap ($0.03) and fast (~10s). Good enough for fallback.
-4. **Pay-per-use** is acceptable since fallback triggers rarely (Unsplash/Pexels cover most real-photo needs).
-5. **No provider abstraction needed** — try/except in `_krea_fallback()` is sufficient. If we add a 5th provider later, then consider abstraction.
+### Wave 2: 이미지 치환 순서 수정
+- `_sanitize_markdown_body()`의 마커 제거 regex를 `_publish_hugo()`의 치환 코드 **이후**로 이동
+- 또는 마커 제거 regex를 `_sanitize_markdown_body()`에서 제거하고, 치환 코드에서 실패한 마커만 제거하도록 변경
+- `<!-- thumbnail: keyword -->` 마커 처리 로직 추가
 
-**Alternative considered:** Add Unsplash API as "always-on" with more permissive search. Rejected — Unsplash is already the primary provider. KREA adds AI generation capability that Unsplash/Pexels (real photos) can't provide for abstract/illustrative keywords.
-
-**Do NOT use:**
-- KREA SDK (`@krea-ai/sdk` is Node.js only, no Python SDK)
-- Webhooks (overkill for single-image fallback)
-- KREA video models (out of scope)
+### Wave 3: 썸네일 개선
+- 폰트 크기 48px → 64px
+- `elif` 버그 수정
+- 텍스트 위치 중앙~하단 조정
+- 그림자 → stroke_width 변경
+- `_fit_text()` CJK 처리 개선

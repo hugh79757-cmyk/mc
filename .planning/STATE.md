@@ -1,13 +1,13 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-07-19
+**Last updated:** 2026-07-20
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-07-18)
 
 **Core value:** One random keyword → 3 interconnected blog posts on 3 different domains, each going deeper than the last, with images and cross-links — fully automated.
-**Current focus:** Phase 8 — Chart generation (pillow_chart.py)
+**Current focus:** Phase 9 — Publish Quality Fix (프롬프트 릭·이미지 미삽입·썸네일 가독성)
 
 ## Phase Status
 
@@ -21,6 +21,7 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 | 6 — Loop Funnel | ✅ Complete | Hub page + dual-CTA spoke injection | Phase 6 |
 | 7 — Image Pipeline Integration | ✅ Complete | Thumbnail + content image pipeline | 7 tasks |
 | 8 — Chart Generation | ✅ Complete | pillow_chart.py + GPT chart recognition | 7 tasks, 3 waves |
+| 9 — Publish Quality Fix | ◆ Planning | 프롬프트 릭·이미지 미삽입·썸네일 가독성 | 8 tasks, 4 waves |
 
 ## Active Context
 
@@ -53,7 +54,9 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 
 ## Next Action
 
-1. ✅ E2E 테스트 통과 (chain #13, chain #9)
-2. ✅ Git 커밋 (ab09204) + push
-3. ✅ REQUIREMENTS.md traceability 업데이트
-4. ○ 다음 페이즈 결정 (Phase 9: KREA Fallback 후보)
+1. Phase 9 PLAN 승인
+2. Wave 1 실행: 프롬프트 릭 필터 재작성
+3. Wave 2 실행: 이미지 치환 순서 수정
+4. Wave 3 실행: 썸네일 개선
+5. Wave 4 실행: 프롬프트 마커 지시문 수정
+6. E2E 테스트 + 배포

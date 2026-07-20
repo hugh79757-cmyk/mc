@@ -203,30 +203,99 @@ def draft_single_post(
     meta = {"image_type": "none", "image_keyword": "", "image_reason": "", "chart_type": None, "chart_data": None}
     draft_md = raw_output
 
+    def _parse_meta(text: str, pos: int) -> tuple[str, dict]:
+        try:
+            j = json.loads(text[pos:])
+            if isinstance(j, dict):
+                meta["image_type"] = j.get("image_type", "none")
+                meta["image_keyword"] = j.get("image_keyword", "")
+                meta["image_reason"] = j.get("image_reason", "")
+                meta["chart_type"] = j.get("chart_type")
+                meta["chart_data"] = j.get("chart_data")
+                return text[:pos].rstrip(), meta
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return text, meta
+
     json_match = re.search(r'```json\s*\n(.*?)\n```', raw_output, re.DOTALL)
     if not json_match:
-        # Fallback: GPT sometimes omits closing ```
         json_match = re.search(r'```json\s*\n(.*?)$', raw_output, re.DOTALL)
     if json_match:
-        try:
-            chart_json = json.loads(json_match.group(1))
-            meta["image_type"] = chart_json.get("image_type", "none")
-            meta["image_keyword"] = chart_json.get("image_keyword", "")
-            meta["image_reason"] = chart_json.get("image_reason", "")
-            meta["chart_type"] = chart_json.get("chart_type")
-            meta["chart_data"] = chart_json.get("chart_data")
-            # Remove JSON block from draft
-            draft_md = raw_output[:json_match.start()].rstrip()
-        except (json.JSONDecodeError, TypeError) as e:
-            print(f"  [drafter] ⚠️ chart JSON 파싱 실패: {e}. image_type=none")
+        draft_md, meta = _parse_meta(raw_output, json_match.start())
+        if draft_md != raw_output:
+            print(f"  [drafter] ```json 블록에서 메타 추출 완료")
     else:
-        # No JSON block found — no chart
-        pass
+        code_match = re.search(r'```\s*\n(.*?)\n```', raw_output, re.DOTALL)
+        if code_match:
+            try:
+                j = json.loads(code_match.group(1))
+                if isinstance(j, dict):
+                    draft_md, meta = _parse_meta(raw_output, code_match.start())
+                    print(f"  [drafter] 일반 코드블록 메타 추출 완료")
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if draft_md == raw_output:
+            for p in range(len(raw_output) - 1, -1, -1):
+                if raw_output[p] == '}':
+                    depth = 0
+                    for q in range(p, -1, -1):
+                        if raw_output[q] == '}':
+                            depth += 1
+                        elif raw_output[q] == '{':
+                            depth -= 1
+                            if depth == 0:
+                                candidate, meta = _parse_meta(raw_output, q)
+                                if candidate != raw_output:
+                                    draft_md = candidate
+                                    print(f"  [drafter] 끝부분 raw JSON 추출 완료")
+                                break
+                    if draft_md != raw_output:
+                        break
+
+    draft_md = _strip_prompt_leak(draft_md)
 
     char_count = len(draft_md)
-    print(f"  [drafter] Step {post.get('step', '?')} 완료 — {char_count:,}자 (model: {result['model']})")
+    print(f" [drafter] Step {post.get('step', '?')} 완료 — {char_count:,}자 (model: {result['model']})")
 
     return draft_md, meta
+
+
+# ── Prompt leak 방지 ──────────────────────────────────────────────
+_PROMPT_LEAK_RE = re.compile(
+    r"^(# Role \(역할\)|"
+    r"# SEO 기본 원칙|"
+    r"# Frontmatter Rules|"
+    r"## title 규칙|"
+    r"## description 규칙|"
+    r"## tags 규칙|"
+    r"## categories 규칙|"
+    r"# Content Structure|"
+    r"## 서론|"
+    r"## 본론|"
+    r"## 결론|"
+    r"# Formatting Rules|"
+    r"## 절대 금지|"
+    r"## 링크|"
+    r"# H2 제목 SEO 규칙|"
+    r"# Tone & Manner|"
+    r"# Output Checklist|"
+    r"# Chain Context|"
+    r"# 이미지 플레이스홀더|"
+    r"# 이미지 유형 판단|"
+    r"image_type 결정 기준)"
+)
+
+def _strip_prompt_leak(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    out = []
+    skip = True
+    for ln in lines:
+        stripped = ln.strip()
+        if skip and (not stripped or _PROMPT_LEAK_RE.match(stripped)):
+            continue
+        skip = False
+        out.append(ln)
+    return "".join(out)
 
 
 # ── 체인 전체 초안 생성 ────────────────────────────────────────────

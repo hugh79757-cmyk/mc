@@ -280,10 +280,10 @@ def add_text_overlay(
     subtitle_font_size = 28
 
     # Scale font based on title length
-    if len(title) > 30:
-        title_font_size = 36
-    elif len(title) > 50:
+    if len(title) > 50:
         title_font_size = 28
+    elif len(title) > 30:
+        title_font_size = 36
 
     title_font = _load_font(title_font_size)
     sub_font = _load_font(subtitle_font_size)
@@ -332,8 +332,9 @@ def add_text_overlay(
 
     # ── save ──
     safe_slug = re.sub(r"[^a-zA-Z0-9가-힣_-]", "", str(image_path.stem))[:60]
-    out_path = IMAGE_DIR / f"thumb_{safe_slug}.jpg"
-    img.save(out_path, "JPEG", quality=92)
+    safe_slug = re.sub(r"^thumb_", "", safe_slug)  # avoid double thumb_ prefix
+    out_path = IMAGE_DIR / f"thumb_{safe_slug}.webp"
+    img.save(out_path, "WEBP", quality=85)
     print(f"  [thumbnail] Text overlay saved → {out_path}")
     return out_path
 
@@ -367,7 +368,11 @@ def generate_thumbnail(
   """
   # Idempotency: if file already exists at expected path, return it directly
   if slug:
-    expected = IMAGE_DIR / f"thumb_{slug}.jpg"
+    expected = IMAGE_DIR / f"thumb_{slug}.webp"
+    # 하위호환: 기존 .jpg 파일도 확인
+    expected_jpg = IMAGE_DIR / f"thumb_{slug}.jpg"
+    if not expected.exists() and expected_jpg.exists():
+        expected = expected_jpg
     if expected.exists():
       print(f" [thumbnail] 파일 존재, 재사용: {expected}")
       return (expected, _infer_source_from_path(expected))
