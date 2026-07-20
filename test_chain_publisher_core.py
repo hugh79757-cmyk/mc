@@ -675,6 +675,67 @@ class TestLegacyColumnsRemoved:
                 core._publish_hugo(blog_cfg, draft_md, "test-slug", "T", ["tag1"])
 
 
+class TestHugoBuildFailure:
+    """위반 3 검증: Hugo 빌드 실패 시 raise DeployValidationError, 빈 튜플 반환 금지."""
+
+    @patch("chain_publisher_core.load_config")
+    @patch("chain_publisher_core.get_r2_config")
+    @patch("chain_publisher_core.upload_all_images")
+    @patch("chain_publisher_core.shutil.which")
+    @patch("chain_publisher_core.subprocess.run")
+    @patch("chain_publisher_core._run_wrangler")
+    @patch("chain_publisher_core._verify_before_deploy")
+    def test_hugo_build_failure_raises_deploy_validation_error(
+        self,
+        mock_verify,
+        mock_run_wrangler,
+        mock_subprocess,
+        mock_which,
+        mock_upload,
+        mock_get_r2,
+        mock_load_config,
+        sample_chain_config,
+        temp_dir,
+    ):
+        """Hugo 빌드 실패(returncode != 0) 시 DeployValidationError 발생."""
+        hugo_root = str(temp_dir / "hugo")
+        config = sample_chain_config.copy()
+        config["sites"]["rotcha"] = {**config["sites"]["rotcha"], "hugo_root": hugo_root}
+        blog_cfg = config["sites"]["rotcha"]
+
+        mock_load_config.return_value = config
+        mock_get_r2.return_value = ("images/rotcha", "https://img.rotcha.kr")
+        mock_upload.return_value = {}
+        mock_which.return_value = "/opt/homebrew/bin/hugo"
+        mock_subprocess.return_value = MagicMock(returncode=1, stdout="", stderr="Build error")
+        mock_run_wrangler.return_value = (0, "OK", "")
+        mock_verify.return_value = None
+
+        with patch("chain_db.get_conn") as mock_get_conn:
+            mock_conn = MagicMock()
+            mock_get_conn.return_value = mock_conn
+            mock_conn.execute.return_value.fetchone.return_value = {
+                "id": 1,
+                "image_meta": json.dumps({
+                    "image_type": "none", "image_keyword": None,
+                    "thumbnail_path": None, "thumbnail_source": None,
+                    "content_image_path": "already_set",
+                    "chart_type": None, "chart_data": None, "image_reason": None,
+                }),
+            }
+
+            from chain_publisher_core import PublisherCore, DeployValidationError
+            core = PublisherCore(config)
+
+            draft_md = "---\ntitle: T\ndraft: true\n---\n\nBody."
+
+            with pytest.raises(DeployValidationError, match=r"Hugo 빌드 실패"):
+                core._publish_hugo(blog_cfg, draft_md, "test-slug", "T", ["tag1"])
+
+            # Wrangler deploy should NOT be called when build fails
+            mock_run_wrangler.assert_not_called()
+
+
 class TestCLI:
     """CLI 테스트 (해당 없음 - PublisherCore는 라이브러리)."""
 

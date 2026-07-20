@@ -560,8 +560,9 @@ class PublisherCore:
                 timeout=120,
             )
             if build.returncode != 0:
-                logger.error(f"Hugo 빌드 실패: {build.stderr[:300]}")
-                return ("", "hugo", "")
+                raise DeployValidationError(
+                    f"Hugo 빌드 실패: returncode={build.returncode}, slug={slug}, stderr={build.stderr[:300]}"
+                )
 
             try:
                 _verify_before_deploy(hugo_path, slug, _image_meta)
