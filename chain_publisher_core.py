@@ -50,6 +50,24 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
         if closer:
             frontmatter = rest[:closer.start()]
             body = rest[closer.end():].lstrip("\n")
+        else:
+            # closer 없는 malformed frontmatter: 첫 빈 줄을 경계로 분리
+            lines = rest.split("\n")
+            fm_lines = []
+            body_start = 0
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if not stripped:
+                    body_start = i + 1
+                    break
+                if re.match(r'^[a-zA-Z_][\w]*\s*:', stripped):
+                    fm_lines.append(stripped)
+                    body_start = i + 1
+                else:
+                    body_start = i
+                    break
+            frontmatter = "\n".join(fm_lines)
+            body = "\n".join(lines[body_start:]).lstrip("\n")
 
     allowed_lines = []
     in_code_block = False
@@ -110,6 +128,24 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
         raise BodyExtractionError("본문에서 유효한 마크다운 요소를 찾을 수 없습니다")
 
     return CleanedDraft(frontmatter=frontmatter, body=clean_body)
+
+
+def _write_stage_log(stage: str, slug: str, stdout: str, stderr: str) -> None:
+    """발행 단계별 stdout/stderr를 logs/에 파일로 보존 (관측성 확보).
+
+    성공/실패 구분 없이 항상 기록 — 실패 재현 시 원인 추적용.
+    """
+    try:
+        _log_dir = Path(__file__).resolve().parent / "logs"
+        _log_dir.mkdir(parents=True, exist_ok=True)
+        _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _p = _log_dir / f"{stage}_{slug}_{_ts}.log"
+        _p.write_text(
+            f"=== STDOUT ===\n{stdout or ''}\n\n=== STDERR ===\n{stderr or ''}\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 
 def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -> None:
@@ -370,14 +406,14 @@ class PublisherCore:
             # Phase 8: content_image (chart 또는 photo) — image_meta JSON 기반
             if _post_id and not _has_content_image:
                 if _img_type == "chart":
-                    _chart_data_str = _image_meta.get("chart_data")
-                    if _chart_type and _chart_data_str:
+                    _chart_data_raw = _image_meta.get("chart_data")
+                    if _chart_type and _chart_data_raw:
                         try:
                             import json as _json
                             from pillow_chart import render_chart
                             from mc_paths import load_config as _load_cfg
                             _cfg = _load_cfg()
-                            _chart_data = _json.loads(_chart_data_str)
+                            _chart_data = _chart_data_raw if isinstance(_chart_data_raw, dict) else _json.loads(_chart_data_raw)
                             _font_path = _cfg.get("chart", {}).get("font", "assets/fonts/NotoSansKR-Regular.otf")
                             _chart_path, _chart_src = render_chart(
                                 chart_type=_chart_type,
@@ -387,14 +423,8 @@ class PublisherCore:
                                 font_path=_font_path,
                                 config=_cfg,
                             )
-                            # DB 업데이트
-                            _conn2 = get_conn()
-                            _conn2.execute(
-                                "UPDATE chain_posts SET content_image_path=?, content_image_source=? WHERE id=?",
-                                (str(_chart_path), _chart_src, _post_id),
-                            )
-                            _conn2.commit()
-                            _conn2.close()
+                            from chain_db import update_content_image as _db_update_content
+                            _db_update_content(_post_id, str(_chart_path), _chart_src)
                             # assets_dir에 복사
                             shutil.copy2(_chart_path, assets_dir / Path(_chart_path).name)
                         except FileNotFoundError as e:
@@ -414,13 +444,8 @@ class PublisherCore:
                         )
                     _photo_path = _photo_result.value
                     if Path(_photo_path).exists():
-                        _conn3 = get_conn()
-                        _conn3.execute(
-                            "UPDATE chain_posts SET content_image_path=?, content_image_source=? WHERE id=?",
-                            (str(_photo_path), "pollinations", _post_id),
-                        )
-                        _conn3.commit()
-                        _conn3.close()
+                        from chain_db import update_content_image as _db_update_content
+                        _db_update_content(_post_id, str(_photo_path), "pollinations")
                         shutil.copy2(_photo_path, assets_dir / Path(_photo_path).name)
                         logger.info(f"[Hugo] photo content_image 생성: {_photo_path}")
 
@@ -534,7 +559,11 @@ class PublisherCore:
 
             try:
                 cleaned = _extract_clean_body(text)
-                text = cleaned.body
+                # 프론트매터 보존: 본문만 정제(sanitize)하고 _fixed 에 조립된 FM 블록을 재결합.
+                # FM을 버리면 no-FM 파일이 되어 Blowfish/PaperMod 테마가 페이지를 빌드에서 제외함(404).
+                _fm_match = re.search(r'^---\n.*?\n---\n', _fixed, re.DOTALL)
+                _fm_block = _fm_match.group(0) if _fm_match else ""
+                text = _fm_block + cleaned.body if _fm_block else cleaned.body
             except BodyExtractionError as e:
                 logger.error(f"본문 추출 실패: {e}")
                 return ("", "hugo", "")
@@ -559,6 +588,7 @@ class PublisherCore:
                 text=True,
                 timeout=120,
             )
+            _write_stage_log("hugo_build", slug, build.stdout, build.stderr)
             if build.returncode != 0:
                 raise DeployValidationError(
                     f"Hugo 빌드 실패: returncode={build.returncode}, slug={slug}, stderr={build.stderr[:300]}"
@@ -577,6 +607,7 @@ class PublisherCore:
                     ["pages", "deploy", str(public_dir), "--project-name", cf_project, "--commit-dirty=true", "--commit-message", "deploy"],
                     cwd=str(hugo_path),
                 )
+                _write_stage_log("wrangler_deploy", slug, stdout, stderr)
                 if rc != 0:
                     logger.error(f"Wrangler 배포 실패 (rc={rc}): {stderr[:2000]}")
                     return ("", "hugo", "")
