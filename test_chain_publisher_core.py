@@ -145,6 +145,15 @@ Para 2.""".replace("\n", "\n")
         # Should not have 3+ consecutive newlines
         assert "\n\n\n" not in result.body
 
+    def test_extract_clean_body_handles_unclosed_frontmatter(self):
+        """closer 없는 malformed frontmatter → frontmatter 정상 추출."""
+        from chain_publisher_core import _extract_clean_body
+
+        text = '---\ntitle: "Test"\ndraft: true\n\nBody paragraph here.'
+        result = _extract_clean_body(text)
+        assert 'title: "Test"' in result.frontmatter
+        assert "Body paragraph here" in result.body
+
 
 class TestVerifyBeforeDeploy:
     """_verify_before_deploy 검증 게이트 테스트."""

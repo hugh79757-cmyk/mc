@@ -405,6 +405,44 @@ class TestIndentationFix:
                 pytest.fail(f"들여쓰기 누락 at line {i}: {lines[i]}")
 
 
+class TestEnsureFrontmatterCloser:
+    """_ensure_frontmatter_closer() 테스트."""
+
+    def test_ensure_frontmatter_closer_adds_missing_closer(self):
+        """closer 없는 frontmatter → closer 추가."""
+        from chain_drafter import _ensure_frontmatter_closer
+        draft = '---\ntitle: "Test"\ndraft: true\n\nBody text here.'
+        result = _ensure_frontmatter_closer(draft)
+        assert result.startswith("---\n")
+        assert result.count("---") >= 2
+        end = result.find("---", 3)
+        assert end != -1
+        body = result[end + 3:].strip()
+        assert "Body text here" in body
+
+    def test_ensure_frontmatter_closer_preserves_existing_closer(self):
+        """closer가 이미 있으면 그대로 반환."""
+        from chain_drafter import _ensure_frontmatter_closer
+        draft = '---\ntitle: "Test"\n---\n\nBody text.'
+        result = _ensure_frontmatter_closer(draft)
+        assert result == draft
+
+    def test_ensure_frontmatter_closer_no_frontmatter(self):
+        """frontmatter 없으면 그대로 반환."""
+        from chain_drafter import _ensure_frontmatter_closer
+        draft = "No frontmatter here.\n\nBody text."
+        result = _ensure_frontmatter_closer(draft)
+        assert result == draft
+
+    def test_ensure_frontmatter_closer_no_empty_line(self):
+        """빈 줄이 없으면 전체를 frontmatter로 간주."""
+        from chain_drafter import _ensure_frontmatter_closer
+        draft = '---\ntitle: "Test"\ndraft: true'
+        result = _ensure_frontmatter_closer(draft)
+        assert result.endswith("\n---\n")
+        assert result.count("---") >= 2
+
+
 class TestCLI:
     """CLI 테스트."""
 

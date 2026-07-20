@@ -18,5 +18,8 @@ output/
 # opencode session artifacts
 .omo/
 
+# 발행/빌드 로그 (휘발성)
+logs/
+
 # macOS
 .DS_Store
