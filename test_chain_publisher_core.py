@@ -111,6 +111,38 @@ Valid content."""
         assert "<link" not in result.body
         assert "Valid content" in result.body
 
+    def test_rejects_inline_html_tag_in_middle(self):
+        """인라인 HTML 태그 (본문 중간 삽입) 거부 — re.search 사용으로 전체 라인 검사."""
+        from chain_publisher_core import _extract_clean_body
+
+        # <div>가 라인 시작이 아니라 본문 문장 중간에 삽입된 경우
+        text = """---
+title: "Test"
+---
+
+Paragraph with a <div>inline div</div> in the middle.
+
+Another paragraph.
+
+<div>Start-of-line div also rejected</div>
+
+![Image](https://example.com/img.jpg)
+
+[Link](https://example.com)
+
+| Table | Header |
+|-------|--------|
+| Cell  | Data   |"""
+
+        result = _extract_clean_body(text)
+        # 인라인 div는 필터링되어야 함
+        assert result.body.count("<div>") == 0
+        # 이미지/링크/표는 통과해야 함
+        assert "![Image](https://example.com/img.jpg)" in result.body
+        assert "[Link](https://example.com)" in result.body
+        assert "| Table | Header |" in result.body
+        assert "Cell" in result.body
+
     def test_rejects_raw_json(self):
         """Raw JSON 객체 거부."""
         from chain_publisher_core import _extract_clean_body
