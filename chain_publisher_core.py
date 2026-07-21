@@ -16,11 +16,9 @@ import time
 from pathlib import Path
 from datetime import datetime
 
-from mc_paths import ensure_mde2_on_path, load_config, CHAIN_CONFIG_PATH
+from mc_paths import load_config, CHAIN_CONFIG_PATH
 
-ensure_mde2_on_path()
-
-from app.services.r2_uploader import get_r2_config, upload_all_images, HUGO_R2_DOMAINS
+from image.r2_uploader import get_r2_config, upload_all_images, HUGO_R2_DOMAINS
 from chain_db import check_duplicate, log_publish
 from chain_models import (
     CleanedDraft, DeployValidationError, BodyExtractionError,

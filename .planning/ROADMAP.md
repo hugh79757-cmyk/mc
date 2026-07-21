@@ -170,7 +170,7 @@
 
 ---
 
-*Last updated: 2026-07-21 — Phase 11: HTML 릭 + 광고 겹침 수정*
+*Last updated: 2026-07-22 — Phase 12: mc R2 업로더 분리*
 
 | Phase 1-8 core pipeline 완료. v2 요구사항 중 미구현 항목 + 품질 수정:
 
@@ -179,5 +179,6 @@
 | Phase 9: Publish Quality Fix | 품질 | 프롬프트 릭·이미지 미삽입·썸네일 가독성 일괄 수정 | Medium |
 | Phase 10: 회귀 방지 + 잔여 이슈 | 품질 | R2 업로드·CSS/SRI·audit 체계 | Medium |
 | Phase 11: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
-| Phase 12: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
-| Phase 13: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |
+| Phase 12: mc R2 업로더 분리 | 아키텍처 | mde2 의존성 제거, mc 자체 R2 업로더 | Low |
+| Phase 13: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
+| Phase 14: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |
