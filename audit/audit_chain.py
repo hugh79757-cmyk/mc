@@ -265,13 +265,14 @@ def check_content_by_whitelist(body: str) -> list:
     return issues
 
 
-def check_thumbnail(thumbnail_path, label: str = "") -> list:
-    """thumbnail_path가 DB에 저장되어 있는지 검사"""
-    if not thumbnail_path:
-        return [{"post": label, "issue": "thumbnail_path = None — 썸네일 생성되지 않음"}]
-    tp = Path(str(thumbnail_path))
-    if not tp.exists():
-        return [{"post": label, "issue": f"thumbnail_path 파일 없음: {thumbnail_path}"}]
+def check_thumbnail(image_url, label: str = "") -> list:
+    """image_url (로컬 상대경로)가 output/images/에 존재하는지 검사"""
+    if not image_url:
+        return [{"post": label, "issue": "image_url = None — 이미지 미삽입"}]
+    # image_url은 /images/... 형태의 상대경로
+    local_path = PROJECT_ROOT / "output" / image_url.lstrip("/")
+    if not local_path.exists():
+        return [{"post": label, "issue": f"이미지 파일 없음: {local_path}"}]
     return []
 
 
@@ -332,7 +333,7 @@ def get_chain_posts(chain_id: int) -> list:
     posts = db.execute(
         """SELECT id, slug, title, status, step,
                   hugo_file_path, published_url,
-                  thumbnail_path, thumbnail_source,
+                  image_url, image_meta,
                   draft_md
            FROM chain_posts
            WHERE chain_id = ?
@@ -381,13 +382,25 @@ def scan_chain_posts(chain_id: int, quick: bool = False, fix: bool = False) -> d
         body = p["draft_md"] or ""
         fm, content = _split_frontmatter(body)
 
+        # featureimage는 _publish_hugo()에서 R2 URL로 업데이트되지만
+        # draft_md는 원본을 유지하므로 Hugo 파일에서 직접 읽음
+        hugo_fm = fm
+        hugo_path = p.get("hugo_file_path")
+        if hugo_path and Path(hugo_path).exists():
+            try:
+                with open(hugo_path, "r", encoding="utf-8") as hf:
+                    hugo_content = hf.read()
+                hugo_fm, _ = _split_frontmatter(hugo_content)
+            except Exception:
+                pass  # 실패 시 draft_md의 fm 사용
+
         results["prompt_leak"].extend(check_prompt_leak(content, label))
         results["unresolved_markers"].extend(check_unresolved_markers(body, label))
         results["cta_leak"].extend(check_cta_leak(content, label))
         results["whitelist"].extend(check_content_by_whitelist(body))
-        results["featureimage_url"].extend(check_featureimage_url(fm, label))
+        results["featureimage_url"].extend(check_featureimage_url(hugo_fm, label))
         results["images_exist"].extend(check_images_exist(content, label))
-        results["thumbnail_missing"].extend(check_thumbnail(p.get("thumbnail_path"), label))
+        results["thumbnail_missing"].extend(check_thumbnail(p.get("image_url"), label))
 
     results["hugo_build"] = check_hugo_build(skip=quick)
 
