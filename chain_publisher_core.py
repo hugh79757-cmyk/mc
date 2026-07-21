@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 
 R2_IMAGE_DOMAINS = ("r2.dev", "img.")
 
+# HTML 태그 감지 정규식 — _extract_clean_body()와 _verify_before_deploy()에서 동일하게 사용
+HTML_TAG_RE = re.compile(r'<(?:div|span|meta|script|ins|link|p|a|table|blockquote|figure|del)[\s>/]')
+
 
 def _extract_clean_body(raw: str) -> CleanedDraft:
     """
@@ -109,7 +112,7 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
         is_image = bool(re.match(r'!\[.*?\]\(https?://', stripped))
         is_link = bool(re.match(r'\[.*?\]\(https?://', stripped))
         is_html_comment = stripped.startswith("<!--")
-        is_html_tag = bool(re.search(r'<(?:div|span|meta|script|ins|link|p|a|table|blockquote|figure|del)[\s>/]', stripped))
+        is_html_tag = bool(HTML_TAG_RE.search(stripped))
         is_raw_json = stripped.startswith("{") and ("image_type" in stripped or "chart_type" in stripped)
 
         if is_html_comment or is_html_tag or is_raw_json:
@@ -173,10 +176,7 @@ def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -
             f"index.md에 HTML 주석 잔류: {html_comment.group()[:60]}"
         )
 
-    html_tag = re.search(
-        r'<(?:div|span|meta|script|ins|link|p |a |table|blockquote|figure|del)[\s>/]',
-        content,
-    )
+    html_tag = HTML_TAG_RE.search(content)
     if html_tag:
         # W3(card_injector shortcode 전환) 완료 전까지 WARNING으로 운영
         logger.warning(
