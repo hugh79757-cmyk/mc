@@ -68,6 +68,21 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 | W5 | 11-7 3개 사이트 전파 | informationhot/techpawz custom.css 업데이트 | ✅ |
 | W3 | 11-8~10 shortcode 전환 | chain_card_injector.py — shortcode 이스케이프 | ✅ Committed a72a89b |
 
+## Phase 10 Deliverables (W4 is Manual — see Next Action)
+
+| Wave | Task | File | Status |
+|------|------|------|--------|
+| W1 | 10-1 R2 credentials | `mde2/app/services/r2_uploader.py` — get_r2_client() credentials 로딩 | ✅ Verified working |
+| W1 | 10-2 R2 upload chain | `chain_publisher_core.py` — upload_all_images() Hugo/Blogger 경로 | ✅ Verified wired |
+| W2 | 10-3 informationhot SRI/CORS | `informationhot-hugo/layouts/partials/head.html` — crossorigin 속성 | ✅ |
+| W2 | 10-4 techpawz SRI/CORS | `techpawz-hugo/layouts/partials/extend-head.html` — integrity/crossorigin | ✅ |
+| W3 | 10-5 audit_chain.py | `audit/audit_chain.py` — 635줄 전수검사 도구 | ✅ |
+| W5 | 10-7 FM closer handling | `chain_publisher_core.py:56-73` — malformed FM 분리 로직 | ✅ Committed f31327d |
+| W5 | 10-8 drafter closer 보장 | `chain_drafter.py:98-114` — _ensure_frontmatter_closer() | ✅ Committed bac8ad5 |
+| W5 | 10-9 DB cleanup | DB files are 0 bytes — cleanup not applicable | ✅ N/A |
+
+**W4 (10-6 E2E 통합 검증):** 수동 Hugo 빌드 + CF Pages 배포 — 미실행 (아래参照)
+
 ## Phase 11 Key Decisions
 
 - `HTML_TAG_RE` constant unified across `_extract_clean_body()` and `_verify_before_deploy()`
@@ -77,5 +92,25 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 
 ## Next Action
 
-1. Hugo 빌드 + 배포: 3개 사이트 모두 `hugo --gc --minify` → `wrangler pages deploy`
+1. **Phase 10 W4 (E2E 통합 검증) — 수동 실행:**
+   ```bash
+   # 1) audit 전수검사 (audit_chain.py가 이미 완료됨)
+   python -m audit.audit_chain --all --quick
+
+   # 2) Hugo 빌드 (3개 사이트)
+   cd /Users/twinssn/Projects/rotcha-blog && hugo --gc --minify
+   cd /Users/twinssn/Projects/informationhot-hugo && hugo --gc --minify
+   cd /Users/twinssn/Projects/techpawz-hugo && hugo --gc --minify
+
+   # 3) CF Pages 배포 (env unset 후 hugh79757 프로필)
+   unset CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CF_DNS_TOKEN CLOUDFLARE_WORKERS_AI_API_TOKEN R2_ENDPOINT
+   cd /Users/twinssn/Projects/rotcha-blog && wrangler --profile hugh79757 pages deploy ./public --project-name rotcha-blog
+   cd /Users/twinssn/Projects/informationhot-hugo && wrangler --profile hugh79757 pages deploy ./public --project-name informationhot-hugo
+   cd /Users/twinssn/Projects/techpawz-hugo && wrangler --profile hugh79757 pages deploy ./public --project-name techpawz-hugo
+
+   # 4) HTTP 200 확인
+   curl -s -o /dev/null -w "%{http_code}" https://rotcha.kr
+   curl -s -o /dev/null -w "%{http_code}" https://informationhot.kr
+   curl -s -o /dev/null -w "%{http_code}" https://techpawz.kr
+   ```
 2. Phase 12 요구사항 분석: ROADMAP.md의 PL-v2-01 (Parallel Chains), PL-v2-02 (Auto-approval), PL-v2-03 (Scheduled Execution)
