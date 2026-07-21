@@ -266,6 +266,40 @@ title: "Test"
             _verify_before_deploy(hugo_path, "test-slug")
 
     @patch("chain_publisher_core.logger")
+    def test_warns_on_html_tag_in_source(self, mock_logger, temp_dir):
+        """소스에 HTML 태그 있으면 WARNING (W3 완료 전까지 ERROR 아님)."""
+        from chain_publisher_core import _verify_before_deploy
+
+        hugo_path = temp_dir / "hugo"
+        content_dir = hugo_path / "content" / "posts" / "test-slug"
+        content_dir.mkdir(parents=True)
+        index_md = content_dir / "index.md"
+        index_md.write_text("""---
+title: "Test"
+featureimage: "https://img.example.com/thumb.webp"
+---
+
+## Content
+
+This has <div style="padding:1em;">HTML tag</div> in body.
+""", encoding="utf-8")
+
+        # public HTML도 생성 (2단계 검증 통과용)
+        public_dir = hugo_path / "public" / "posts" / "test-slug"
+        public_dir.mkdir(parents=True)
+        (public_dir / "index.html").write_text(
+            """<html><body><article><p>Content</p></article></body></html>""",
+            encoding="utf-8",
+        )
+
+        _verify_before_deploy(hugo_path, "test-slug")
+
+        # WARNING이어서 예외 대신 logger.warning 호출 확인
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args[0][0]
+        assert "HTML 태그 잔류" in call_args
+
+    @patch("chain_publisher_core.logger")
     def test_fails_on_empty_featureimage(self, mock_logger, temp_dir):
         """featureimage 빈 값이면 실패."""
         from chain_publisher_core import _verify_before_deploy, DeployValidationError
