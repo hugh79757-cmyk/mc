@@ -109,7 +109,7 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
         is_image = bool(re.match(r'!\[.*?\]\(https?://', stripped))
         is_link = bool(re.match(r'\[.*?\]\(https?://', stripped))
         is_html_comment = stripped.startswith("<!--")
-        is_html_tag = bool(re.search(r'<(?:div|span|meta|script|ins|link|p |a |table|blockquote|figure|del)[\s>/]', stripped))
+        is_html_tag = bool(re.search(r'<(?:div|span|meta|script|ins|link|p|a|table|blockquote|figure|del)[\s>/]', stripped))
         is_raw_json = stripped.startswith("{") and ("image_type" in stripped or "chart_type" in stripped)
 
         if is_html_comment or is_html_tag or is_raw_json:

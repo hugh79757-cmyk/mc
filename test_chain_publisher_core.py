@@ -88,7 +88,7 @@ Another paragraph."""
         assert "Another paragraph" in result.body
 
     def test_rejects_html_tags(self):
-        """HTML 태그 거부 (div, meta, script, ins, link)."""
+        """HTML 태그 거부 — 8종 (div, span, p, a, table, blockquote, figure, ins)."""
         from chain_publisher_core import _extract_clean_body
 
         text = """---
@@ -96,19 +96,25 @@ title: "Test"
 ---
 
 <div class="cta">CTA block</div>
-<meta charset="utf-8">
-<script>alert('xss')</script>
-<ins data-adsbygoogle="true"></ins>
-<link rel="stylesheet" href="style.css">
+<span style="color:red">styled span</span>
+<p>paragraph</p>
+<a href="https://example.com">link</a>
+<table><tr><td>cell</td></tr></table>
+<blockquote>quoted text</blockquote>
+<figure><img src="x"></figure>
+<ins datetime="2024">inserted</ins>
 
 Valid content."""
 
         result = _extract_clean_body(text)
         assert "<div" not in result.body
-        assert "<meta" not in result.body
-        assert "<script" not in result.body
+        assert "<span" not in result.body
+        assert "<p>" not in result.body
+        assert "<a " not in result.body
+        assert "<table" not in result.body
+        assert "<blockquote" not in result.body
+        assert "<figure" not in result.body
         assert "<ins" not in result.body
-        assert "<link" not in result.body
         assert "Valid content" in result.body
 
     def test_rejects_inline_html_tag_in_middle(self):
