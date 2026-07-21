@@ -40,6 +40,11 @@ from shared.publishers.hugo_writer import _write_hugo_post
 import chain_db as db
 from chain_deriver import derive_chain
 
+# ── 안전장치: 비의도 체인 발행 금지 ──
+# 내역: chain 19(킨다·chain20과 slug 중복·photo/2990자·비의도), chain 27(포천·chain28과 slug 중복·photo/2742/3426자·비의도)
+# 의도: chain 20(킨다-s3·chart/3770자), chain 28(포천-s1/s2·chart)
+_NON_INTENDED_CHAINS: set[int] = {19, 27}
+
 
 # ── Phase 7: Preflight Check ──
 
@@ -292,6 +297,13 @@ def publish_chain(chain_id: int, mode: str = "auto",
     theme_override: Hugo 테마 강제 지정 (PaperMod/Blowfish)
     cf_project_override: Cloudflare Pages 프로젝트명 강제 지정
     """
+    if chain_id in _NON_INTENDED_CHAINS:
+        _intended = {19: 20, 27: 28}
+        print(f"[mc] BLOCKED: Chain #{chain_id}는 비의도 체인입니다 "
+              f"(의도 체인=#{_intended.get(chain_id)}, "
+              f"slug 중복으로 덮어쓰기 방지). 발행을 건너뜁니다.")
+        print(f"[mc] 제거하려면 _NON_INTENDED_CHAINS에서 {chain_id}를 삭제하세요.")
+        return
     from chain_publisher_core import PublisherCore
 
     config = load_config()
@@ -363,6 +375,12 @@ def publish_chain(chain_id: int, mode: str = "auto",
 
 def inject_cards_chain(chain_id: int) -> None:
     """Step 1→2→3 정순으로 next 카드 주입 (draft_md 기반 + 재발행)."""
+    if chain_id in _NON_INTENDED_CHAINS:
+        _intended = {19: 20, 27: 28}
+        print(f"[mc] BLOCKED: Chain #{chain_id}는 비의도 체인입니다 "
+              f"(의도 체인=#{_intended.get(chain_id)}, "
+              f"slug 중복으로 덮어쓰기 방지). 카드 주입을 건너뜁니다.")
+        return
     from chain_card_injector import CardInjector
     from chain_publisher_core import PublisherCore
 
