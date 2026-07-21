@@ -98,10 +98,10 @@ class CardInjector:
         url = link.get("url", "https://www.gov.kr")
         label = link.get("label", "공식 사이트")
         return (
-            f'{{< chain-official-card '
+            f'{{{{< chain-official-card '
             f'title="{title}" '
             f'url="{url}" '
-            f'label="{label}" >}}'
+            f'label="{label}" >}}}}'
         )
 
     # ── CTA 조회 ──────────────────────────────────────────────
@@ -306,7 +306,7 @@ class DualCTAInjector:
         if not conv_url:
             conv_url = "#"
         return (
-            f'{{< dual-cta '
+            f'{{{{< dual-cta '
             f'hub_url="{hub_url}" '
             f'hub_title="{hub_title}" '
             f'info_url="{hub_url}" '
@@ -316,7 +316,7 @@ class DualCTAInjector:
             f'conv_url="{conv_url}" '
             f'conv_title="추천 상품" '
             f'conv_desc="이 주제와 관련된 추천 상품을 확인해보세요." '
-            f'conv_cta="상품 보기 →" >}}'
+            f'conv_cta="상품 보기 →" >}}}}'
         )
 
     # ── draft_md 주입 ──────────────────────────────────────
