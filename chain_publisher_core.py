@@ -109,7 +109,7 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
         is_image = bool(re.match(r'!\[.*?\]\(https?://', stripped))
         is_link = bool(re.match(r'\[.*?\]\(https?://', stripped))
         is_html_comment = stripped.startswith("<!--")
-        is_html_tag = bool(re.match(r'<(?:div|span|meta|script|ins|link)', stripped))
+        is_html_tag = bool(re.search(r'<(?:div|span|meta|script|ins|link|p |a |table|blockquote|figure|del)[\s>/]', stripped))
         is_raw_json = stripped.startswith("{") and ("image_type" in stripped or "chart_type" in stripped)
 
         if is_html_comment or is_html_tag or is_raw_json:
@@ -171,6 +171,16 @@ def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -
     if html_comment:
         raise DeployValidationError(
             f"index.md에 HTML 주석 잔류: {html_comment.group()[:60]}"
+        )
+
+    html_tag = re.search(
+        r'<(?:div|span|meta|script|ins|link|p |a |table|blockquote|figure|del)[\s>/]',
+        content,
+    )
+    if html_tag:
+        # W3(card_injector shortcode 전환) 완료 전까지 WARNING으로 운영
+        logger.warning(
+            f"[verify] index.md에 HTML 태그 잔류 (W3 완료 후 ERROR로 승격): {html_tag.group()[:60]}"
         )
 
     featureimage_match = re.search(r'^featureimage:\s*["\']?(.*?)["\']?\s*$', content, re.MULTILINE)

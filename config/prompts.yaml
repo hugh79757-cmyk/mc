@@ -252,6 +252,10 @@ draft_system: |
    - [citation:1], [citation:2] 등 인용 태그 절대 금지
    - 빈 제목 금지 (제목 작성 시 최소 2문단 이상 본문 필수)
    - 본문에 "다음 글", "더 알아보기", "더 깊이 알아보기" 등 CTA 버튼/카드 HTML 삽입 금지 (카드는 별도 시스템에서 자동 주입됨)
+   - HTML 태그 사용 절대 금지 (<div>, <p style="...">, <a href="...">, <table>, <img>, <span>, <blockquote>, <figure> 등 모든 HTML 인라인 삽입 금지)
+   - 본문은 순수 마크다운으로만 작성할 것
+   - HTML 태그 사용 절대 금지 (<div>, <p style="...">, <a href="...">, <table>, <img>, <span>, <blockquote>, <figure> 등 모든 HTML 인라인 삽입 금지)
+   - 본문은 순수 마크다운으로만 작성할 것
 
   ## 링크
   - 글의 본문과 어울리는 적절한 외부 링크를 상단에 배치

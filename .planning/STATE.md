@@ -1,13 +1,13 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-07-20
+**Last updated:** 2026-07-21
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-07-18)
 
 **Core value:** One random keyword → 3 interconnected blog posts on 3 different domains, each going deeper than the last, with images and cross-links — fully automated.
-**Current focus:** Phase 10 — Phase 9 Aftermath (회귀 방지 + 잔여 이슈)
+**Current focus:** Phase 11 — HTML 릭 + 광고 겹침 수정 (진단 기반)
 
 ## Phase Status
 
@@ -22,6 +22,8 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 | 7 — Image Pipeline Integration | ✅ Complete | Thumbnail + content image pipeline | 7 tasks |
 | 8 — Chart Generation | ✅ Complete | pillow_chart.py + GPT chart recognition | 7 tasks, 3 waves |
 | 9 — Publish Quality Fix | ◆ Planning | 프롬프트 릭·이미지 미삽입·썸네일 가독성 | 8 tasks, 4 waves |
+| 10 — Phase 9 Aftermath | ○ Pending | 회귀 방지 + 잔여 이슈 | 5 tasks |
+| 11 — HTML 릭 + 광고 겹침 수정 | ◆ Planning | _extract_clean_body 필터링·프롬프트·검증·CSS·card_injector | 10 tasks, 5 waves |
 
 ## Active Context
 
@@ -54,9 +56,8 @@ See: .planning/PROJECT.md (updated 2026-07-18)
 
 ## Next Action
 
-1. Phase 9 PLAN 승인
-2. Wave 1 실행: 프롬프트 릭 필터 재작성
-3. Wave 2 실행: 이미지 치환 순서 수정
-4. Wave 3 실행: 썸네일 개선
-5. Wave 4 실행: 프롬프트 마커 지시문 수정
-6. E2E 테스트 + 배포
+1. Phase 11 Wave 1 실행: `_extract_clean_body()` re.match → re.search 전환
+2. Phase 11 Wave 2 실행: 프롬프트 HTML 전면 금지
+3. Phase 11 Wave 4 실행: `_verify_before_deploy()` HTML 태그 검증
+4. Phase 11 Wave 5 실행: 광고 CSS 방어 broadened + 3개 사이트 전파
+5. Phase 11 Wave 3 실행: card_injector HTML → shortcode 전환

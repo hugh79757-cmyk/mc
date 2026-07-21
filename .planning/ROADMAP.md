@@ -119,7 +119,8 @@
 | 8 | Chart Generation (pillow_chart.py) | 7 | ✅ Complete |
 | 9 | Publish Quality Fix | 8 | ◆ Planning |
 | 10 | Phase 9 Aftermath — 회귀 방지 + 잔여 이슈 | 5 | ○ Pending |
-| **Total** | | **53** | |
+| 11 | HTML 릭 + 광고 겹침 수정 | 10 | ◆ Planning |
+| **Total** | | **63** | |
 
 ---
 
@@ -169,7 +170,7 @@
 
 ---
 
-*Last updated: 2026-07-20 — Phase 9 → Phase 10 Aftermath*
+*Last updated: 2026-07-21 — Phase 11: HTML 릭 + 광고 겹침 수정*
 
 | Phase 1-8 core pipeline 완료. v2 요구사항 중 미구현 항목 + 품질 수정:
 

@@ -1,10 +1,10 @@
 # Phase 10: Phase 9 Aftermath — 회귀 방지 및 잔여 이슈 해결
 
-**Goal:** Phase 9에서 발견·수정된 모든 fix의 회귀를 방지하고, 3개 사이트에 CSS/SRI 수정을 전파하며, R2 썸네일 업로드 실패의 근본 원인을 수정한다.
+**Goal:** Phase 9에서 발견·수정된 모든 fix의 회귀를 방지하고, 3개 사이트에 CSS/SRI 수정을 전파하며, R2 썸네일 업로드 실패의 근본 원인을 수정하며, `_extract_clean_body()` 도입으로 발생한 frontmatter closer 버그를 수정한다.
 
 **Prerequisite:** Phase 9 완료 (프롬프트 릭, 이미지 치환 순서, 썸네일 개선, JSON 릭, CTA 릭, SRI/CORS rotcha 적용 완료).
 
-**Scope (locked):** R2 업로드 디버깅, CSS/SRI 3개 사이트 전파, audit_posts.py, E2E 검증. KREA AI는 무기한 연기.
+**Scope (locked):** R2 업로드 디버깅, CSS/SRI 3개 사이트 전파, audit_posts.py, E2E 검증, frontmatter closer 버그 수정. KREA AI는 무기한 연기.
 
 **Reference:**
 - `CONTEXT.md` — 7개 이슈 분류표 (Already Fixed / Needs Propagation / Unresolved / Missing)
@@ -21,8 +21,9 @@ Phase 9 PLAN은 원래 4개 Wave 8개 Task (프롬프트 릭, 이미지 치환, 
 | G2 | CTA 인라인 블록 릭 ("더 깊이 알아보기") | Phase 9 테스트 중 | ✅ 누락 |
 | G3 | SRI/CORS CSS 렌더링 (pages.dev integrity 속성) | Phase 9 배포 후 발견 | ✅ 누락 |
 | G4 | R2 썸네일 업로드 실패 | Phase 9 검증 중 발견 | ✅ 누락 |
+| G5 | Frontmatter closer 버그 (`_extract_clean_body()` 회귀) | Phase 10 배포 중 발견 | ✅ 누락 |
 
-G1~G3은 이미 수정 완료. G4는 원인 불명 — Phase 10에서 수정.
+G1~G3은 이미 수정 완료. G4는 원인 불명 — Phase 10에서 수정. G5는 `d23df34` 커밋에서 `_sanitize_markdown_body()` → `_extract_clean_body()` 교체 시 도입된 회귀 버그.
 
 ---
 
@@ -43,6 +44,11 @@ Phase 10 Fix Propagation
 │
 └── Wave 4: E2E 통합 검증
     └── 10-6: 3사이트 Hugo 빌드 + CF Pages 배포 + audit 통과
+
+└── Wave 5: Frontmatter Closer 버그 수정
+    ├── 10-7: _extract_clean_body() malformed frontmatter 처리
+    ├── 10-8: chain_drafter.py closer 보장
+    └── 10-9: DB draft_md malformed 데이터 일괄 수정
 ```
 
 ---
@@ -281,6 +287,122 @@ audit_chain.py — Chain #29 (seed: "테스트 키워드")
 
 ---
 
+## Wave 5: Frontmatter Closer 버그 수정 (3 files)
+
+### Background
+
+`d23df34` 커밋에서 `_sanitize_markdown_body()`를 `_extract_clean_body()`로 교체하면서 발생한 회귀 버그. 새 함수가 `re.search(r'^---\s*$', rest, re.MULTILINE)`로 frontmatter closer를 찾는데, DB `draft_md`에 closer `---`가 없으면 전체를 body로 처리하여 frontmatter가 유실됨.
+
+**원인 체인:**
+```
+chain_drafter.py → closer 없는 draft_md 생성 (malformed)
+    ↓
+_publish_hugo() → _extract_clean_body() 호출
+    ↓
+closer 못 찾음 → frontmatter 없이 body만 반환
+    ↓
+frontmatter 없이 파일 작성 → Hugo 페이지 미생성
+    ↓
+이미지 figure shortcode 유실 → 이미지 깨짐
+```
+
+**영향 범위:** Phase 9(`e6d6765`) 이후 발행된 모든 체인. chain #50(욕지도배편) 3개 포스트 확인됨.
+
+### Task 10-7: `chain_publisher_core.py` — `_extract_clean_body()` malformed frontmatter 처리
+
+**파일:** `chain_publisher_core.py`
+
+**문제:** `_extract_clean_body()`가 closer 없는 frontmatter를 인식 못함
+
+**수정:** closer 미발견 시 첫 빈 줄을 경계로 frontmatter/body 분리
+
+```python
+if raw.lstrip().startswith("---"):
+    rest = raw[3:].lstrip("\n")
+    closer = re.search(r'^---\s*$', rest, re.MULTILINE)
+    if closer:
+        frontmatter = rest[:closer.start()]
+        body = rest[closer.end():].lstrip("\n")
+    else:
+        # closer 없는 malformed frontmatter: 첫 빈 줄을 경계로 분리
+        lines = rest.split("\n")
+        fm_lines = []
+        body_start = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped:
+                body_start = i + 1
+                break
+            if re.match(r'^[a-zA-Z_][\w]*\s*:', stripped):
+                fm_lines.append(stripped)
+                body_start = i + 1
+            else:
+                body_start = i
+                break
+        frontmatter = "\n".join(fm_lines)
+        body = "\n".join(lines[body_start:]).lstrip("\n")
+```
+
+**성공 기준:** closer 없는 draft_md를 `_extract_clean_body()`에 넣었을 때 frontmatter가 정상 추출됨
+
+### Task 10-8: `chain_drafter.py` — draft_md 생성 시 frontmatter closer 보장
+
+**파일:** `chain_drafter.py`
+
+**문제:** GPT가 반환한 draft_md에 `---` closer가 없는 경우가 있음
+
+**수정:** `_strip_prompt_leak()` 호출 후 frontmatter closer 존재 여부 검사, 없으면 첫 빈 줄 위치에 closer 삽입
+
+```python
+def _ensure_frontmatter_closer(draft_md: str) -> str:
+    """frontmatter closer가 없으면 보정."""
+    if not draft_md.lstrip().startswith("---"):
+        return draft_md
+    rest = draft_md[3:].lstrip("\n")
+    if re.search(r'^---\s*$', rest, re.MULTILINE):
+        return draft_md  # closer 이미 있음
+    # 첫 빈 줄을 찾아서 그 앞에 closer 삽입
+    lines = rest.split("\n")
+    for i, line in enumerate(lines):
+        if not line.strip():
+            # 첫 빈 줄 앞에 closer 삽입
+            fm = "\n".join(lines[:i])
+            body = "\n".join(lines[i:])
+            return "---\n" + fm + "\n---\n" + body
+    # 빈 줄이 없으면 전체를 frontmatter로 간주
+    return "---\n" + rest + "\n---\n"
+```
+
+**호출 위치:** `draft_single_post()`에서 `_strip_prompt_leak()` 호출 직후
+
+**성공 기준:** `chain_drafter.py`가 생성하는 모든 draft_md에 `---` closer가 존재함
+
+### Task 10-9: 기존 DB draft_md malformed 데이터 수정
+
+**파일:** `chain_db.py` (또는 수동 스크립트)
+
+**목적:** 이미 저장된 malformed draft_md를 일괄 수정
+
+**수정 대상:**
+1. frontmatter closer가 없는 draft_md
+2. `featureimage: ""`이 테이블 행에 섞인 draft_md
+
+**스크립트:**
+```python
+# closer 보정
+for each post:
+    if draft_md starts with "---" and no closer found:
+        insert closer at first empty line position
+
+# featureimage: "" 테이블 오염 제거
+for each post:
+    remove lines matching `featureimage: ""` from body
+```
+
+**성공 기준:** `SELECT id FROM chain_posts WHERE draft_md LIKE '%featureimage: ""%'` 결과 0건
+
+---
+
 ## Verification Criteria
 
 | # | Criterion | Check Method | Wave |
@@ -295,6 +417,10 @@ audit_chain.py — Chain #29 (seed: "테스트 키워드")
 | V8 | audit CTA 블록 0건 | 기존 체인 audit 시 CTA 블록 0건 | W3 |
 | V9 | 3개 사이트 배포 성공 | `wrangler pages deploy` 3/3 성공 | W4 |
 | V10 | 신규 체인 E2E 회귀 없음 | 신규 체인 생성 + audit ALL PASS | W4 |
+| V11 | closer 없는 draft_md 처리 | `_extract_clean_body()`에 closer 없는 draft_md 입력 시 frontmatter 정상 추출 | W5 |
+| V12 | drafter closer 보장 | `chain_drafter.py` 생성 draft_md에 `---` closer 존재 확인 | W5 |
+| V13 | DB malformed 데이터 0건 | `featureimage: ""` 테이블 오염 레코드 0건 | W5 |
+| V14 | chain #50 이미지 복구 | chain #50 재발행 후 3개 사이트 이미지 정상 렌더링 | W5 |
 
 ---
 
@@ -310,5 +436,8 @@ audit_chain.py — Chain #29 (seed: "테스트 키워드")
 | `techpawz-hugo/layouts/partials/header/fixed-fill-blur.html` | MODIFY | 10-4 |
 | NEW: `audit/audit_chain.py` | CREATE | 10-5 |
 | (manual) Hugo 빌드 + 배포 | EXECUTE | 10-6 |
+| `chain_publisher_core.py` | MODIFY | 10-7 |
+| `chain_drafter.py` | MODIFY | 10-8 |
+| `chain_db.py` (또는 스크립트) | MODIFY | 10-9 |
 
-**Total:** 7 files, 6 tasks, 4 waves.
+**Total:** 8 files, 9 tasks, 5 waves.

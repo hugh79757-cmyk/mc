@@ -91,23 +91,17 @@ class CardInjector:
         return None
 
     def build_official_card_html(self, link: dict) -> str:
-        """공식 안내 링크 카드 HTML."""
+        """공식 안내 링크 카드 shortcode."""
         if not link:
             return ""
         title = link.get("title", "공식 안내")
         url = link.get("url", "https://www.gov.kr")
         label = link.get("label", "공식 사이트")
         return (
-            '<div style="padding:1em;margin:2em 0;border:1px solid #e5e7eb;'
-            'border-radius:8px;background:#f0fdf4;text-align:center;">\n'
-            f'  <p style="font-size:0.85em;color:#166534;font-weight:600;">{title}</p>\n'
-            f'  <p style="font-size:0.9em;color:#15803d;margin:0.5em 0;">{label}</p>\n'
-            f'  <a href="{url}" target="_blank" rel="noopener noreferrer" '
-            'style="display:inline-block;padding:0.5em 1.5em;'
-            'background:#16a34a;color:#fff;border-radius:4px;text-decoration:none;">\n'
-            f'    공식 사이트 바로가기 →\n'
-            '  </a>\n'
-            "</div>"
+            f'{{< chain-official-card '
+            f'title="{title}" '
+            f'url="{url}" '
+            f'label="{label}" >}}'
         )
 
     # ── CTA 조회 ──────────────────────────────────────────────
@@ -121,16 +115,12 @@ class CardInjector:
     # ── 카드 HTML 생성 ────────────────────────────────────────
 
     def build_card_html(self, title: str, url: str, cta: str) -> str:
-        """Hugo-compatible card HTML."""
+        """Hugo shortcode card (ChainInjector)."""
         return (
-            '<div style="padding:1em;margin:2em 0;border:1px solid #ddd;'
-            'border-radius:8px;background:#fafafa;text-align:center;">\n'
-            f'  <p style="font-size:0.9em;color:#666;">다음 글</p>\n'
-            f'  <p style="font-size:1.1em;font-weight:bold;">{title}</p>\n'
-            f'  <a href="{url}" style="display:inline-block;padding:0.5em 1.5em;'
-            f'background:#333;color:#fff;border-radius:4px;text-decoration:none;">'
-            f'{cta}</a>\n'
-            "</div>"
+            f'{{{{< chain-card '
+            f'title="{title}" '
+            f'url="{url}" '
+            f'cta="{cta}" >}}}}'
         )
 
     # ── 삽입 위치 정규화 ──────────────────────────────────────
@@ -311,43 +301,22 @@ class DualCTAInjector:
         hub_title: str,
         conv_cta_url: str = None,
     ) -> str:
-        """Blowfish-tailwind dual CTA card HTML."""
+        """Dual CTA shortcode."""
         conv_url = conv_cta_url if conv_cta_url else self.conv_cta_url
         if not conv_url:
             conv_url = "#"
-
         return (
-            '<div class="max-w-2xl mx-auto my-8 p-6 bg-neutral-50 dark:bg-neutral-800 '
-            'rounded-xl border border-neutral-200 dark:border-neutral-700">\n'
-            '  <p class="text-lg font-semibold mb-2">이 시리즈 전체 보기</p>\n'
-            f'  <p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">'
-            f'{hub_title} 시리즈의 모든 글을 한곳에서 확인하세요.</p>\n'
-            f'  <a href="{hub_url}" '
-            'class="inline-block w-full text-center px-4 py-3 '
-            'bg-neutral-800 dark:bg-neutral-100 text-white dark:text-neutral-800 '
-            'rounded-lg font-medium hover:opacity-90 transition-opacity">\n'
-            f'    {self.info_cta_text}\n'
-            '  </a>\n'
-            '\n'
-            '  <div class="relative my-4">\n'
-            '    <div class="absolute inset-0 flex items-center">'
-            '<div class="w-full border-t border-neutral-300 dark:border-neutral-600">'
-            '</div></div>\n'
-            '    <div class="relative flex justify-center">'
-            '<span class="bg-neutral-50 dark:bg-neutral-800 px-3 text-sm text-neutral-500">'
-            '또는</span></div>\n'
-            '  </div>\n'
-            '\n'
-            '  <p class="text-lg font-semibold mb-2">추천 상품</p>\n'
-            '  <p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">'
-            '이 주제와 관련된 추천 상품을 확인해보세요.</p>\n'
-            f'  <a href="{conv_url}" '
-            'class="inline-block w-full text-center px-4 py-3 '
-            'bg-amber-600 text-white rounded-lg font-medium '
-            'hover:bg-amber-700 transition-colors">\n'
-            f'    {self.conv_cta_text}\n'
-            '  </a>\n'
-            "</div>"
+            f'{{< dual-cta '
+            f'hub_url="{hub_url}" '
+            f'hub_title="{hub_title}" '
+            f'info_url="{hub_url}" '
+            f'info_title="이 시리즈 전체 보기" '
+            f'info_desc="이 시리즈의 모든 글을 한곳에서 확인하세요." '
+            f'info_cta="시리즈 보기 →" '
+            f'conv_url="{conv_url}" '
+            f'conv_title="추천 상품" '
+            f'conv_desc="이 주제와 관련된 추천 상품을 확인해보세요." '
+            f'conv_cta="상품 보기 →" >}}'
         )
 
     # ── draft_md 주입 ──────────────────────────────────────
