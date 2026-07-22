@@ -121,8 +121,9 @@
 | 10 | Phase 9 Aftermath — 회귀 방지 + 잔여 이슈 | 5 | ○ Pending |
 | 11 | HTML 릭 + 광고 겹침 수정 | 10 | ✅ Complete |
 | 12 | mc R2 업로더 분리 | — | ✅ Complete |
-| **13** | **콘텐츠 고도화 (Content Refinement)** | **1** | **◆ Planning** |
-| **Total** | | **~64** | |
+| **13** | **콘텐츠 고도화 (Content Refinement)** | **2** | **✅ Complete** |
+| **14** | **CLI 단일 진입점 `mc <keyword>`** | **TBD** | **◆ Planning** |
+| **Total** | | **~70** | |
 
 ---
 
@@ -172,15 +173,23 @@
 
 ---
 
-*Last updated: 2026-07-22 — Phase 13: 콘텐츠 고도화*
+*Last updated: 2026-07-22 — Phase 13 ✅ Complete, Phase 14 ◆ Planning*
 
 ## Phase 13: 콘텐츠 고도화 (Content Refinement)
 
 **Goal:** 콘텐츠 품질 3대 문제(이미지 관련성 부족, 마크다운 기호 누출, 표 렌더링 깨짐)를 수정한다.
 
+**Status:** ✅ Complete
+
 **Plans:**
-1. **이미지 관련성 개선** — Contextual prompt engineering (title+angle), Unsplash/Pexels 본문 이미지 확장
-2. **마크다운 기호 제거 + 표 렌더링** — `_clean_markdown_symbols()`, `_convert_tables_to_html()`, prompts.yaml 강화
+1. **이미지 관련성 개선** — `build_contextual_prompt()` (title+angle) + `search_providers.py` (Unsplash/Pexels + 24h cache + fallback)
+2. **마크다운 기호 제거 + 표 렌더링** — `_clean_markdown_symbols()` (보호된 마커/테이블/코드/수식), prompts.yaml 파이프 규칙 강화
+
+**Verification:**
+- **pytest:** 130/130 (112 기존 + 10 markdown + 8 image = 18 신규)
+- **라이브:** 체인 #66 업클로젯 — rotcha/informationhot/techpawz 3/3 ✅
+- **검증 항목:** HTTP 200, H2≥1, 이미지 주입, 표 렌더링, `<strong>` 렌더링, `**`/`|`/`##` leak 0
+- **버그 발견 및 수정:** CJK bold spacing regex가 CommonMark 렌더링 깨뜨리는 현상 — Rule 2 제거 후 재발행 완료
 
 **Requirements covered:** R1 (Image Relevance), R2 (Markdown Symbol Leakage), R3 (Table Rendering)
 
@@ -188,10 +197,31 @@
 
 ---
 
-| Phase 1-12 core pipeline 완료. 남은 후보 항목:
+## Phase 14: CLI 단일 진입점 `mc <keyword>`
+
+**Goal:** `mc <키워드>` 하나로 draft→image→publish를 순차 실행하는 단일 진입점 CLI 구축.
+
+**Status:** ◆ Planning (PLAN.md + CONTEXT.md 기획 완료, 구현 전)
+
+**Plans:**
+1. **CLI Wrapper** — `mc <keyword>` → `chain_publisher.py --draft / --image / --publish` 순차 호출
+2. **Resume** — `--chain-id N --resume` 실패 지점부터 재개
+3. **Logging** — `logs/mc-cli-YYYYMMDD.log` with cost summary
+4. **Install** — `pip install -e .` or shell wrapper for `which mc`
+
+**Design constraints:**
+- `chain_publisher.py` 수정 금지 (기존 130/130 pytest 보존)
+- 19/27 게이트, frontmatter FM 보존, W1–W6 Phase 11–13 code 건드리지 않음
+- 새 파일만 생성 (예: `cli/mc.py`)
+
+**Plan file:** `.planning/phase-14/PLAN.md`
+
+---
+
+| Phase 1-13 core pipeline 완료. 남은 후보 항목:
 
 | Candidate | Requirement | Value | Effort |
 |-----------|-------------|-------|--------|
-| Phase 14: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
-| Phase 15: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |
+| Phase 14.1: cron/launchd + dashboard + audit | PL-v2-02/03 | 정기 체인 실행 + 상태 모니터링 | Medium |
+| Phase 15: Auto-approval | PL-v2-04 | operator checkpoint 없이 자동 발행 | Low |
 | Phase 16: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
