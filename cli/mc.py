@@ -120,7 +120,6 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
       derive → draft → schema validation → image → publish → card injection.
     """
     from chain_publisher import run_chain
-    from unittest.mock import patch
 
     # Determine pipeline stage
     if args.dry_run:
@@ -153,51 +152,16 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
 
     start = datetime.now()
 
-    # ── Frontmatter injection patch ─────────────────────────────────
-    # _validate_draft_schema expects frontmatter in draft_md, but
-    # draft_chain stores drafts WITHOUT frontmatter (frontmatter is added
-    # later in _publish_hugo). We patch draft_chain at the source
-    # (chain_drafter.draft_chain) to inject frontmatter into draft_md
-    # after the original function stores it in the DB.
-    # This ensures _validate_draft_schema passes without modifying
-    # chain_publisher.py or chain_drafter.py.
-    import chain_db as _cdb
-    from chain_drafter import draft_chain as _orig_draft_chain
-
-    def _wrapped_draft_chain(chain_id, seed_keyword, use_context=False):
-        result = _orig_draft_chain(chain_id, seed_keyword, use_context)
-        # _orig_draft_chain returns posts with OLD draft_md (update_post_draft returns None).
-        # We must inject frontmatter into the returned posts list directly so
-        # _validate_draft_schema (which receives this same list) finds frontmatter.
-        for p in result:
-            dm = p.get("draft_md", "")
-            if not dm or dm.strip().startswith("---"):
-                continue
-            title = p.get("title", "")
-            tags = p.get("tags", [])
-            cats = p.get("category_guess", "일반")
-            tags_str = ", ".join(f'"{t}"' for t in (tags if isinstance(tags, list) else []))
-            fm = (
-                f"---\n"
-                f'title: "{title}"\n'
-                f"description: \"\"\n"
-                f"draft: true\n"
-                f"tags: [{tags_str}]\n"
-                f'categories: ["{cats}"]\n'
-                f"---\n\n"
-            )
-            p["draft_md"] = fm + dm
-        return result
-
-    with patch("chain_drafter.draft_chain", side_effect=_wrapped_draft_chain):
-        chain_id = run_chain(
-            seed=keyword,
-            dry_run=args.dry_run,
-            draft_only=draft_only,
-            image_only=image_only,
-            publish_mode=publish_mode,
-            blog_overrides=blog_overrides,
-        )
+    # _ensure_frontmatter is now implemented in chain_drafter.py (Phase 14 P1).
+    # draft_chain calls _ensure_frontmatter internally — no patch needed.
+    chain_id = run_chain(
+        seed=keyword,
+        dry_run=args.dry_run,
+        draft_only=draft_only,
+        image_only=image_only,
+        publish_mode=publish_mode,
+        blog_overrides=blog_overrides,
+    )
 
     elapsed = (datetime.now() - start).total_seconds()
 

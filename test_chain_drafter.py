@@ -591,3 +591,130 @@ categories: [카테고리]
         result, message = _validate_draft_schema(valid_draft, meta={"image_keyword": None})
         assert result is True
         assert message == "스키마 검증 통과"
+
+
+class TestEnsureFrontmatter:
+    """_ensure_frontmatter() 테스트 — Phase 14 P1 frontmatter patch 정식화."""
+
+    def test_ensure_frontmatter_adds_when_missing(self):
+        """frontmatter 없는 draft_md → title/tags/categories로 frontmatter 생성."""
+        from chain_drafter import _ensure_frontmatter
+
+        draft_md = """## 서론
+
+본문 내용입니다.
+
+## 결론
+
+결론 내용."""
+
+        post = {
+            "title": "테스트 포스트",
+            "tags": ["테스트", "기술"],
+            "category_guess": "기술",
+        }
+
+        result = _ensure_frontmatter(draft_md, post)
+
+        # frontmatter가 앞에 추가되어야 함
+        assert result.startswith("---\n")
+        assert 'title: "테스트 포스트"' in result
+        assert "draft: true" in result
+        assert 'categories: ["기술"]' in result
+        # 원본 본문이 그대로 이어져야 함
+        assert "## 서론" in result
+        assert "본문 내용입니다" in result
+
+    def test_ensure_frontmatter_preserves_existing(self):
+        """이미 유효한 frontmatter가 있는 draft_md → 보존 (중복 추가 안 함)."""
+        from chain_drafter import _ensure_frontmatter
+
+        existing_fm = """---
+title: "기존 타이틀"
+description: "기존 설명"
+tags: ["기존태그"]
+categories: ["기존카테고리"]
+featureimage: ""
+---
+
+## 기존 본문
+
+기존 본문 내용입니다."""
+
+        post = {
+            "title": "새 타이틀",
+            "tags": ["새태그"],
+            "category_guess": "새카테고리",
+        }
+
+        result = _ensure_frontmatter(existing_fm, post)
+
+        # 기존 frontmatter 보존 (새로 추가되지 않음)
+        assert result.startswith("---\n")
+        assert result.count("---") == 2
+        assert 'title: "기존 타이틀"' in result  # 기존 타이틀 유지
+        assert 'categories: ["기존카테고리"]' in result  # 기존 카테고리 유지
+        assert "## 기존 본문" in result
+        # 새로운 title/categories가 중복 추가되지 않음
+        assert result.count("title:") == 1
+        assert result.count("categories:") == 1
+
+    def test_ensure_frontmatter_partial_opening_only(self):
+        """열기 ---는 있지만 닫기 ---가 없으면 → frontmatter 생성 (보존 안 함)."""
+        from chain_drafter import _ensure_frontmatter
+
+        # frontmatter가 열리지만 닫히지 않은 경우
+        partial_fm = '---\ntitle: "Partial"\n\n## 본문\n\n본문 내용.'
+
+        post = {
+            "title": "새 포스트",
+            "tags": ["태그"],
+            "category_guess": "일반",
+        }
+
+        result = _ensure_frontmatter(partial_fm, post)
+
+        # 닫는 ---가 없으면 새로운 frontmatter를 앞에 추가
+        assert result.startswith("---\n")
+        # 기존 content가 그대로 이어져야 함
+        assert "## 본문" in result
+        assert "본문 내용" in result
+
+    def test_ensure_frontmatter_empty_draft(self):
+        """빈 draft_md → 그대로 반환."""
+        from chain_drafter import _ensure_frontmatter
+
+        post = {"title": "Test", "tags": [], "category_guess": "일반"}
+        assert _ensure_frontmatter("", post) == ""
+        assert _ensure_frontmatter("   ", post) == "   "
+
+    def test_ensure_frontmatter_tags_string_not_list(self):
+        """tags가 list 대신 콤마 구분 문자열인 경우 → list로 파싱."""
+        from chain_drafter import _ensure_frontmatter
+
+        draft_md = "## Content\n\nBody."
+        post = {
+            "title": "Test",
+            "tags": "태그1, 태그2, 태그3",
+            "category_guess": "기술",
+        }
+
+        result = _ensure_frontmatter(draft_md, post)
+
+        assert 'tags: ["태그1", "태그2", "태그3"]' in result
+
+    def test_ensure_frontmatter_tags_empty(self):
+        """tags가 빈 리스트인 경우 → 빈 tags로 frontmatter 생성."""
+        from chain_drafter import _ensure_frontmatter
+
+        draft_md = "## Content\n\nBody."
+        post = {
+            "title": "Test",
+            "tags": [],
+            "category_guess": "일반",
+        }
+
+        result = _ensure_frontmatter(draft_md, post)
+
+        assert "tags: []" in result
+        assert 'categories: ["일반"]' in result

@@ -129,6 +129,41 @@ def _ensure_featureimage(draft_md: str) -> str:
   return before_close.rstrip() + "\nfeatureimage: \"\"\n" + rest
 
 
+def _ensure_frontmatter(draft_md: str, post: dict) -> str:
+  """
+  draft_md에 frontmatter가 없으면 title/tags/categories로 생성.
+  이미 frontmatter가 있으면 (---로 열리고 닫히면) 보존.
+  Phase 11 W2 _ensure_featureimage와 달리 title/description/tags/categories도 추가.
+  """
+  if not draft_md or not draft_md.strip():
+    return draft_md
+
+  # 이미 유효한 frontmatter가 있는지 확인 (열고 닫는 ---가 모두 존재)
+  if draft_md.strip().startswith("---"):
+    end = draft_md.find("---", 3)
+    if end != -1:
+      return draft_md  # frontmatter 이미 있음 → 보존
+
+  # frontmatter 생성
+  title = (post.get("title") or "").replace('"', '\\"')
+  tags = post.get("tags", [])
+  if isinstance(tags, str):
+    tags = [t.strip() for t in tags.split(",") if t.strip()]
+  tags_str = ", ".join(f'"{t}"' for t in (tags or []))
+  cats = (post.get("category_guess") or post.get("category") or "일반").replace('"', '\\"')
+
+  fm = (
+    f"---\n"
+    f'title: "{title}"\n'
+    f"description: \"\"\n"
+    f"draft: true\n"
+    f"tags: [{tags_str}]\n"
+    f'categories: ["{cats}"]\n'
+    f"---\n\n"
+  )
+  return fm + draft_md
+
+
 def _insert_body_image_marker(draft_md: str) -> str:
   """본문 첫 번째 ## 헤딩 직전에 <!--todo:image--> 마커 삽입."""
   h2_pattern = re.compile(r"^## ", re.MULTILINE)
@@ -396,6 +431,9 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> 
         elif image_type == "chart":
             draft_md = _insert_chart_marker(draft_md)
         # 'none' → no marker
+
+        # Phase 11 W4: frontmatter 보장 — title/tags/categories로 기존 FM 보존 또는 생성
+        draft_md = _ensure_frontmatter(draft_md, post)
 
         slug = _build_slug(post["title"], seed_keyword)
         slug = f"{slug}-s{post.get('step', post['depth'] + 1)}"
