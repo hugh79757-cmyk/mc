@@ -1,14 +1,14 @@
 # STATE.md — mc (Manual Chain)
 
 **Updated:** 2026-07-22
-**Phase:** Phase 14 W1 완료 — CLI 단일 진입점 `mc <keyword>` (W2 구현 진행 중)
+**Phase:** Phase 14 W1+W2 완료 — CLI 단일 진입점 `mc <keyword>` (W3 구현 진행 중)
 **Status:** 🚧 W1 머지 완료, W2 착수
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **155/155** ✅ (130 기존 + 25 W1 신규) |
+| pytest | **159/159** ✅ (130 기존 + 25 W1 + 4 W2 신규) |
 | 라이브 (업클로젯 --dry-run 체인 #67) | **1/1** derive 성공 ✅ |
 | Phase 13 라이브 (업클로젯 체인 #66) | **3/3** HTTP 200 + H2 + img + `<strong>` 렌더링 ✅ |
 | 작업 트리 | 깨끗함 (`git status --short` = untracked only) |
@@ -67,10 +67,14 @@
 - **`test_cli_mc.py`**: 25개 테스트 (argparse 10 + blog_overrides 7 + routing 8)
 - **Live verification**: `mc 업클로젯 --dry-run` → Chain #67 생성 성공 (27.2s)
 
-### Wave 2 — _resume_chain() 구현 중 (R3)
+### Wave 2 — _resume_chain() (R3)
 
-- `cli/mc.py`에 `_resume_chain()` stub 존재 → NotImplementedError
-- 목표: 실패 체인 재개 (draft→image→publish 상태 감지)
+- **`_resume_chain()`** (`cli/mc.py`)
+  - DB 상태 감지: draft_md / image_url / published_url 없는 post 기준
+  - 완료된 단계 자동 스킵, 미완료 단계만 실행
+  - 잘못된 chain-id → exit code 2 반환
+  - 이미 완료된 체인 → "already complete" 로그 + exit 0
+- **4개 테스트** (`test_cli_mc.py`): all-complete / invalid-id / sequential / partial-publish
 
 ## Recent Commits
 
