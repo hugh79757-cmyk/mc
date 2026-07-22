@@ -116,6 +116,26 @@
 - **6개 신규 테스트** (`test_chain_drafter.py`): 생성 / 보존 / 부분FM / 빈값 / 문자열태그 / 빈태그
 - **라이브 회귀**: Chain #72 --draft 3/3 FM 검증 통과 ✅
 
+### P2 — 고아 content_image_path 백필 (Phase 11 기술부채 해소)
+
+- **진단 결과**: 57건 content_image_path IS NULL (AGENTS.md 37건은 outdated)
+  - (a) 마커 없음: 43건 → 백필 제외 (별도 이월, 신규 발행 시 W6 게이트 자동 적용)
+  - (b) 마커 있음/image 없음: 12건 → image 재생성 필요 (W2 대상)
+  - (d) 발행됨/path만 없음: 3건 → DB 경로 백필 (W1 대상, 2건 테스트 데이터 제외)
+
+#### W1 — (d) DB 경로 백필 ✅
+
+- **대상**: Chain #71 포스트 #170, #171 + 포스트 #78 (이미지 디스크 존재)
+- **방법**: image_url → 디스크 파일 확인 → `update_content_image()` DB 갱신
+- **결과**: 3/3 백필 완료 ✅ (테스트 데이터 #89, #99 제외)
+- **라이브 회귀**: rotcha #170 HTTP 200 img=True, infohot #171 HTTP 200 img=True ✅
+- **pytest**: 171/171 ✅
+
+#### W2 — (b) image 재생성 (대기)
+
+- **대상**: Chain #56,#62,#63,#65,#70,#72 — 마커 있으나 image_url=NULL (12건)
+- **방법**: `mc --chain-id N --resume` image 단계 재실행
+
 ## Recent Commits
 
 ```
@@ -130,7 +150,7 @@ e04281e feat(phase-14-w4): pyproject.toml console_scripts + frontmatter injectio
 
 1. ~~**Phase 14 — CLI 단일 진입점 `mc <keyword>`**~~ ✅ 완료 (W1~W4 완)
 2. **Phase 14.1 — cron/launchd 스케줄링, dashboard, audit 통합**: Phase 14 이후로 이월.
-3. **고아 content_image_path 정리**: 37건 NULL content_image_path (이월 — 계속 미해결)
+3. **고아 content_image_path 정리**: 57건 → (d)3건 백필 완료 + (a)43건 이월 + (b)12건 W2 대기
 4. **Blowfish CSS 복구**: P3(B) 우선순위 (이월 — 계속 미해결)
 
 ## Resume Instructions
