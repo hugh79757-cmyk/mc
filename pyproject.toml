@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mc-cli"
+version = "0.1.0"
+description = "Manual Chain CLI — one command to derive, draft, image, and publish a blog chain"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "mc maintainers"}
+]
+dependencies = [
+    "openai>=1.30.0",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "click>=8.1.0",
+    "beautifulsoup4>=4.12.0",
+    "python-slugify>=8.0.0",
+    "python-frontmatter>=1.0.0",
+]
+
+[project.scripts]
+mc = "cli.mc:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cli*", "chain_*", "image*", "shared*"]
+exclude = ["test*", "docs*", ".planning*"]
+
+[tool.setuptools.package-data]
+mc = ["py.typed"]
