@@ -1,14 +1,14 @@
 # STATE.md — mc (Manual Chain)
 
 **Updated:** 2026-07-22
-**Phase:** Phase 14 W1+W2 완료 — CLI 단일 진입점 `mc <keyword>` (W3 구현 진행 중)
+**Phase:** Phase 14 W1~W3 완료 — CLI 단일 진입점 `mc <keyword>` (W4 구현 진행 중)
 **Status:** 🚧 W1 머지 완료, W2 착수
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **159/159** ✅ (130 기존 + 25 W1 + 4 W2 신규) |
+| pytest | **165/165** ✅ (130 기존 + 25 W1 + 4 W2 + 6 W3 신규) |
 | 라이브 (업클로젯 --dry-run 체인 #67) | **1/1** derive 성공 ✅ |
 | Phase 13 라이브 (업클로젯 체인 #66) | **3/3** HTTP 200 + H2 + img + `<strong>` 렌더링 ✅ |
 | 작업 트리 | 깨끗함 (`git status --short` = untracked only) |
@@ -75,6 +75,17 @@
   - 잘못된 chain-id → exit code 2 반환
   - 이미 완료된 체인 → "already complete" 로그 + exit 0
 - **4개 테스트** (`test_cli_mc.py`): all-complete / invalid-id / sequential / partial-publish
+
+### Wave 3 — _setup_logging() + _run_background() (R5, R6)
+
+- **`_setup_logging()`** (`cli/mc.py`)
+  - Dual handler: FileHandler (DEBUG, logs/mc-cli-YYYYMMDD.log) + StreamHandler (INFO, stdout)
+  - `_FlushFileHandler` + `_FlushStreamHandler`: flush on every emit (real-time stage visibility)
+- **`_run_background()`** (`cli/mc.py`)
+  - `subprocess.Popen` + `start_new_session=True` (detached session)
+  - `--pid-file` 인자: subprocess가 `atexit` 핸들러 등록 → 완료 시 PID 파일 자동 삭제
+  - 콘솔: 1줄 출력 (PID + log 경로 + pid_file 경로)
+- **6개 테스트** (`test_cli_mc.py`): dual_handler / flush / popen_start_new_session / pid_file_created / argv_includes_pid_file / console_single_line
 
 ## Recent Commits
 
