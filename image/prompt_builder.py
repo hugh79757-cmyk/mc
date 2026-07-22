@@ -43,6 +43,53 @@ def _load_blog_config() -> dict:
     return cfg.get("sites", {})
 
 
+def build_contextual_prompt(
+    image_keyword: str,
+    title: str,
+    blog_key: str,
+    post_angle: str = "",
+    seed_keyword: str = "",
+    step: int = 1,
+    chain_type: str = "depth",
+) -> str:
+    """
+    Build a contextual Pollinations prompt using title + angle.
+    Replaces the generic '主題: {image_keyword}' prefix with article context.
+
+    Args:
+        image_keyword: Short keyword for image identity.
+        title: Article title for contextualization.
+        blog_key: Blog identifier (rotcha/informationhot/techpawz).
+        post_angle: Article angle/perspective.
+        seed_keyword: Original seed keyword.
+        step: Chain step number.
+        chain_type: Chain direction type.
+
+    Returns:
+        Full English prompt string for Pollinations.
+    """
+    style = get_image_style_for_blog(blog_key)
+    sites = _load_blog_config()
+    site_cfg = sites.get(blog_key, {})
+    extra_prompt = site_cfg.get("prompt", "")
+
+    # Contextual subject line (replaces bare '主題: {keyword}')
+    subject_line = f"Article about '{title}' focusing on {image_keyword}"
+    if post_angle:
+        subject_line += f" from the perspective of {post_angle}"
+
+    parts = [
+        subject_line,
+        style,
+        extra_prompt,
+        f"step {step} of {chain_type} chain blog series, Korean cultural context",
+        "masterpiece, best quality, 8k, trending on ArtStation",
+        f"negative: {POLLINATIONS_NEGATIVE}",
+    ]
+
+    return ". ".join(p for p in parts if p)
+
+
 def build_full_prompt(
     image_keyword: str,
     blog_key: str,

@@ -323,9 +323,41 @@ class TestImagePackageInit:
 
         assert hasattr(image, "generate_image")
         assert hasattr(image, "build_full_prompt")
+        assert hasattr(image, "build_contextual_prompt")
         assert hasattr(image, "inject_images_into_draft")
         assert hasattr(image, "generate_thumbnail")
         assert hasattr(image, "add_text_overlay")
+
+
+class TestContextualPrompt:
+    """build_contextual_prompt 테스트 (Phase 13 R1)."""
+
+    def test_contextual_prompt_contains_title_and_keyword(self):
+        """컨텍스트 프롬프트에 제목과 키워드 포함."""
+        from image.prompt_builder import build_contextual_prompt
+
+        prompt = build_contextual_prompt(
+            image_keyword="laptop",
+            title="Best Laptops 2026",
+            blog_key="techpawz",
+            post_angle="gaming performance",
+            step=2,
+            chain_type="depth",
+        )
+        assert "Best Laptops 2026" in prompt
+        assert "laptop" in prompt
+        assert "gaming performance" in prompt
+
+    def test_contextual_prompt_no_raw_subject(self):
+        """'主題:' 프리픽스가 없어야 함."""
+        from image.prompt_builder import build_contextual_prompt
+
+        prompt = build_contextual_prompt(
+            image_keyword="coffee",
+            title="Best Coffee Shops",
+            blog_key="rotcha",
+        )
+        assert "主題:" not in prompt
 
 
 class TestKreaClient:

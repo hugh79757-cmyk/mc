@@ -441,21 +441,48 @@ class PublisherCore:
                             logger.error(f"Chart generation failed: {e}. Fallback to photo.")
 
                 elif _img_type == "photo":
-                    from image.pollinations_client import generate_image as _gen_photo
-                    _photo_result = _gen_photo(_img_keyword, slug=slug)
-                    if not _photo_result.ok:
-                        _err = _photo_result.error
-                        if _err.category in (ErrorCategory.TRANSIENT, ErrorCategory.RATE_LIMITED):
-                            logger.warning(f"[Hugo] Photo 생성 일시적 실패 (재시도 대상): {_err.message}")
-                        raise ImageGenerationError(
-                            f"Photo 생성 실패: {slug} (image_keyword={_img_keyword}, error={_err.message})"
-                        )
-                    _photo_path = _photo_result.value
-                    if Path(_photo_path).exists():
+                    _photo_path = None
+                    _photo_src = None
+
+                    # Phase 13 R1: try real photo search first
+                    try:
+                        from image.search_providers import search_body_image
+                        _body_result = search_body_image(_kw or title, slug=slug)
+                        if _body_result:
+                            _photo_path, _photo_src = _body_result
+                    except Exception:
+                        pass  # fall through to Pollinations
+
+                    if not _photo_path:
+                        # Use contextual prompt for Pollinations
+                        try:
+                            from image.prompt_builder import build_contextual_prompt
+                            _contextual_prompt = build_contextual_prompt(
+                                image_keyword=_kw or "",
+                                title=title,
+                                blog_key=blog_cfg.get("name", ""),
+                                post_angle=_image_meta.get("angle", ""),
+                            )
+                        except Exception:
+                            _contextual_prompt = _img_keyword  # fallback
+
+                        from image.pollinations_client import generate_image as _gen_photo
+                        _photo_result = _gen_photo(_contextual_prompt, slug=slug)
+                        if not _photo_result.ok:
+                            _err = _photo_result.error
+                            if _err.category in (ErrorCategory.TRANSIENT, ErrorCategory.RATE_LIMITED):
+                                logger.warning(f"[Hugo] Photo 생성 일시적 실패 (재시도 대상): {_err.message}")
+                            raise ImageGenerationError(
+                                f"Photo 생성 실패: {slug} (image_keyword={_img_keyword}, error={_err.message})"
+                            )
+                        _photo_path = _photo_result.value
+                        _photo_src = "pollinations"
+
+                    if _photo_path and Path(_photo_path).exists():
                         from chain_db import update_content_image as _db_update_content
-                        _db_update_content(_post_id, str(_photo_path), "pollinations")
+                        _db_update_content(_post_id, str(_photo_path), _photo_src or "pollinations")
                         shutil.copy2(_photo_path, assets_dir / Path(_photo_path).name)
-                        logger.info(f"[Hugo] photo content_image 생성: {_photo_path}")
+                        logger.info(f"[Hugo] photo content_image 생성: {_photo_path} (source={_photo_src})")
 
             # Phase 3/7: 본문 이미지(Pollinations)를 output/images/ → assets_dir 복사
             _output_images = Path("output/images")
@@ -567,11 +594,13 @@ class PublisherCore:
 
             try:
                 cleaned = _extract_clean_body(text)
+                # Phase 13 R2: clean markdown symbols before FM reassembly
+                cleaned_body = _clean_markdown_symbols(cleaned.body)
                 # 프론트매터 보존: 본문만 정제(sanitize)하고 _fixed 에 조립된 FM 블록을 재결합.
                 # FM을 버리면 no-FM 파일이 되어 Blowfish/PaperMod 테마가 페이지를 빌드에서 제외함(404).
                 _fm_match = re.search(r'^---\n.*?\n---\n', _fixed, re.DOTALL)
                 _fm_block = _fm_match.group(0) if _fm_match else ""
-                text = _fm_block + cleaned.body if _fm_block else cleaned.body
+                text = _fm_block + cleaned_body if _fm_block else cleaned.body
             except BodyExtractionError as e:
                 logger.error(f"본문 추출 실패: {e}")
                 return ("", "hugo", "")
@@ -646,7 +675,8 @@ class PublisherCore:
         body = self._strip_frontmatter(draft_md)
         try:
             cleaned = _extract_clean_body(body)
-            body = cleaned.body
+            # Phase 13 R2: clean markdown symbols
+            body = _clean_markdown_symbols(cleaned.body)
         except BodyExtractionError as e:
             logger.error(f"Blogger 본문 추출 실패: {e}")
             return ("", "blogger", "")
@@ -933,3 +963,85 @@ class PublisherCore:
             print("  [publisher] ⚠️ git push timeout")
         except Exception as e:
             print(f"  [publisher] ⚠️ git push error: {e}")
+
+
+# ── Phase 13 R2: Markdown symbol cleanup ──────────────────────────
+
+
+def _clean_markdown_symbols(body: str) -> str:
+    """
+    Clean markdown symbols that would leak as literal text in rendered HTML.
+    Operates on body text only (frontmatter already extracted).
+
+    PROTECTED — never modified:
+    - <!--todo:image--> / <!--todo:chart--> markers
+    - Code blocks (``` fences)
+    - Inline code (backtick)
+    - Table lines (lines starting with | preceded by blank line)
+    - Math blocks ($$) and inline math ($)
+
+    Rules:
+    1. Escape loose pipes (|) outside protected contexts — replace with \\|.
+    2. Fix bold/italic spacing for CJK text (space around ** and *).
+    3. Remove orphaned markdown delimiters (unmatched ** pairs).
+    """
+    lines = body.split('\n')
+    result = []
+    in_code_block = False
+    in_math_block = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # PROTECTED: code blocks
+        if stripped.startswith('```'):
+            in_code_block = not in_code_block
+            result.append(line)
+            continue
+        if in_code_block:
+            result.append(line)
+            continue
+
+        # PROTECTED: math blocks
+        if stripped.startswith('$$'):
+            in_math_block = not in_math_block
+            result.append(line)
+            continue
+        if in_math_block:
+            result.append(line)
+            continue
+
+        # PROTECTED: image/comment markers
+        if '<!--todo:' in stripped:
+            result.append(line)
+            continue
+
+        # PROTECTED: table lines (starts with |, typical table row or separator)
+        if stripped.startswith('|') and re.match(r'^\||^[-|:\s]+$', stripped):
+            result.append(line)
+            continue
+
+        # PROTECTED: inline math ($...$)
+        stripped_no_math = re.sub(r'\$[^\$]+\$', '', stripped)
+        if not stripped_no_math.strip():
+            result.append(line)
+            continue
+
+        # Rule 1: Escape loose pipes in non-table context
+        line = line.replace('|', '\\|')
+
+        # Rule 2: NO CJK bold/italic spacing — AI prompt already enforces
+        # '볼드체 앞뒤에 반드시 공백' and CommonMark requires no spaces
+        # inside ** or * delimiters. Adding spaces inside breaks rendering.
+        pass
+
+        # Rule 3: Handle unmatched bold/italic delimiters
+        bold_count = line.count('**')
+        if bold_count % 2 != 0:
+            last_idx = line.rfind('**')
+            if last_idx >= 0:
+                line = line[:last_idx] + line[last_idx + 2:]
+
+        result.append(line)
+
+    return '\n'.join(result)

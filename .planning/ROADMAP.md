@@ -119,8 +119,10 @@
 | 8 | Chart Generation (pillow_chart.py) | 7 | ✅ Complete |
 | 9 | Publish Quality Fix | 8 | ◆ Planning |
 | 10 | Phase 9 Aftermath — 회귀 방지 + 잔여 이슈 | 5 | ○ Pending |
-| 11 | HTML 릭 + 광고 겹침 수정 | 10 | ◆ Planning |
-| **Total** | | **63** | |
+| 11 | HTML 릭 + 광고 겹침 수정 | 10 | ✅ Complete |
+| 12 | mc R2 업로더 분리 | — | ✅ Complete |
+| **13** | **콘텐츠 고도화 (Content Refinement)** | **1** | **◆ Planning** |
+| **Total** | | **~64** | |
 
 ---
 
@@ -170,15 +172,26 @@
 
 ---
 
-*Last updated: 2026-07-22 — Phase 12: mc R2 업로더 분리*
+*Last updated: 2026-07-22 — Phase 13: 콘텐츠 고도화*
 
-| Phase 1-8 core pipeline 완료. v2 요구사항 중 미구현 항목 + 품질 수정:
+## Phase 13: 콘텐츠 고도화 (Content Refinement)
+
+**Goal:** 콘텐츠 품질 3대 문제(이미지 관련성 부족, 마크다운 기호 누출, 표 렌더링 깨짐)를 수정한다.
+
+**Plans:**
+1. **이미지 관련성 개선** — Contextual prompt engineering (title+angle), Unsplash/Pexels 본문 이미지 확장
+2. **마크다운 기호 제거 + 표 렌더링** — `_clean_markdown_symbols()`, `_convert_tables_to_html()`, prompts.yaml 강화
+
+**Requirements covered:** R1 (Image Relevance), R2 (Markdown Symbol Leakage), R3 (Table Rendering)
+
+**Plan file:** `.planning/phase-13/PLAN.md`
+
+---
+
+| Phase 1-12 core pipeline 완료. 남은 후보 항목:
 
 | Candidate | Requirement | Value | Effort |
 |-----------|-------------|-------|--------|
-| Phase 9: Publish Quality Fix | 품질 | 프롬프트 릭·이미지 미삽입·썸네일 가독성 일괄 수정 | Medium |
-| Phase 10: 회귀 방지 + 잔여 이슈 | 품질 | R2 업로드·CSS/SRI·audit 체계 | Medium |
-| Phase 11: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
-| Phase 12: mc R2 업로더 분리 | 아키텍처 | mde2 의존성 제거, mc 자체 R2 업로더 | Low |
-| Phase 13: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
-| Phase 14: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |
+| Phase 14: Auto-approval | PL-v2-02 | operator checkpoint 없이 자동 발행 | Low |
+| Phase 15: Scheduled Execution | PL-v2-03 | cron 기반 정기 체인 실행 | Medium |
+| Phase 16: Parallel Chains | PL-v2-01 | 다중 seed 동시 실행 | High |
