@@ -46,15 +46,15 @@ One random keyword → 3 interconnected blog posts on 3 different domains, each 
 ## Context
 
 The project is built on the user's existing Hugo ecosystem with 3 blogs:
-- **rotcha.kr** — basic/informational depth role
-- **informationhot.kr** — applied/practical depth role
-- **techpawz.com** — advanced/analytical depth role
+- **rotcha.kr** — basic/informational depth role (R2: hotissue-images)
+- **informationhot.kr** — applied/practical depth role (R2: hotissue-images)
+- **techpawz.com** — advanced/analytical depth role (R2: techpawz-images)
 
-Images use **Pollinations.ai Flux** which is fully free without API key as of 2026. Rate limit: ~1 req/15 sec anonymous. 6 images per chain = ~90 sec wait. English prompts produce significantly better Flux results.
+Images use **Pollinations.ai Flux** for generation + **Unsplash/Pexels** for search. Cloudflare R2 for storage. `mc <keyword>` CLI for single-command pipeline.
 
 The writing prompt is the user's existing SEO-optimized Hugo blog prompt with strict frontmatter rules, content structure, and formatting rules.
 
-Previous 5000 project's hugo_writer.py is referenced for publishing logic reuse.
+**CLI:** `mc <keyword>` → derive → draft → image → publish (3/3 sites). `--resume`, `--background`, `--site`, `--dry-run` flags available.
 
 ## Constraints
 
@@ -71,13 +71,16 @@ Previous 5000 project's hugo_writer.py is referenced for publishing logic reuse.
 | Reverse publish order (3→2→1) | Ensures bridge cards have target URLs before insertion | ✅ Phase 3 validated |
 | Pollinations Flux legacy endpoint | Fully free, no API key, sufficient quality for blog thumbnails | ✅ Phase 3 validated |
 | English image prompts via GPT | Flux quality is dramatically better with English prompts | ✅ Phase 3 validated |
-| Local static/images/ storage → R2-first (Phase 5) | Hugo serves directly, no external storage dependency → R2 enables cross-platform image sharing between Hugo and Blogger | ⚡ Phase 5: switch to R2 |
-| git push deploy → Hugo local build + Wrangler (Phase 5) | Cloudflare Pages auto-build is unreliable; local build + wrangler deploy is deterministic | ⚡ Phase 5: switch |
-| Blogger pickle token → JSON token (Phase 5) | JSON is portable, debuggable, and aligns with mde2's proven pattern | ⚡ Phase 5: switch |
+| Local static/images/ storage → R2-first (Phase 5) | Hugo serves directly, no external storage dependency → R2 enables cross-platform image sharing | ✅ Phase 5: R2-first |
+| git push deploy → Hugo local build + Wrangler (Phase 5) | Cloudflare Pages auto-build is unreliable; local build + wrangler deploy is deterministic | ✅ Phase 5: Wrangler |
+| Blogger pickle token → JSON token (Phase 5) | JSON is portable, debuggable, and aligns with mde2's proven pattern | ✅ Phase 5: JSON |
+| `_ensure_frontmatter()` in chain_drafter.py (Phase 14 P1) | draft_md에 FM 없으면 생성, 있으면 보존. cli/mc.py patch 완전 제거 | ✅ Phase 14 P1 |
+| published_md 컬럼 분리 (Phase 14 R2) | card injection이 R2 URL을 덮어쓰지 않도록 원본 draft_md 보존 + R2 교체 결과 분리 | ✅ Phase 14 R2 |
+| techpawz R2 버킷 분기 (Phase 14 R2) | img.techpawz.com → techpawz-images, rotcha/infohot → hotissue-images | ✅ Phase 14 R2 |
 
 ---
 
-*Last updated: 2026-07-18 after initialization*
+*Last updated: 2026-07-23 — Phase 14 + R2 이미지 수정 완료*
 
 ## Evolution
 
