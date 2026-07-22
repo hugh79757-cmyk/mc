@@ -327,6 +327,7 @@ class PublisherCore:
         title: str,
         labels: list = None,
         chain_type: str = "depth",
+        post_id: int = None,
     ) -> tuple:
         """
         blog_key의 publisher_type에 따라 분기.
@@ -336,7 +337,7 @@ class PublisherCore:
         ptype = blog_cfg.get("publisher_type", "manual")
 
         if ptype == "hugo":
-            return self._publish_hugo(blog_cfg, draft_md, slug, title, labels)
+            return self._publish_hugo(blog_cfg, draft_md, slug, title, labels, post_id=post_id)
         elif ptype == "blogger":
             return self._publish_blogger(blog_cfg, draft_md, slug, title, labels)
         else:
@@ -346,7 +347,7 @@ class PublisherCore:
 
     def _publish_hugo(
         self, blog_cfg: dict, draft_md: str, slug: str, title: str,
-        labels: list = None,
+        labels: list = None, post_id: int = None,
     ) -> tuple:
         """Hugo 사이트에 발행: R2 이미지 업로드 + 파일 복사 + hugo build + wrangler deploy"""
         # 1. 임시 디렉토리에 draft 저장
@@ -484,6 +485,26 @@ class PublisherCore:
                         shutil.copy2(_photo_path, assets_dir / Path(_photo_path).name)
                         logger.info(f"[Hugo] photo content_image 생성: {_photo_path} (source={_photo_src})")
 
+            # Phase 3/7-b: <!--todo:image--> / <!--todo:chart--> 마커 → 실제 이미지 URL로 حل
+            # draft_md에 미해결 마커가 있으면 image_url DB 값을 사용하여 assets/에 복사
+            if ("<!--todo:image-->" in draft_md or "<!--todo:chart-->" in draft_md) and post_id:
+                try:
+                    from chain_db import get_post as _db_get_post
+                    _db_post = _db_get_post(post_id)
+                    _db_image_url = (_db_post or {}).get("image_url", "") if _db_post else ""
+                except Exception:
+                    _db_image_url = ""
+                if _db_image_url:
+                    _img_filename = _db_image_url.lstrip("/").replace("images/", "")
+                    _src_path = Path("output/images") / _img_filename
+
+                    if _src_path.exists():
+                        shutil.copy2(_src_path, assets_dir / _img_filename)
+                        # 마커를 실제 이미지 경로로 교체
+                        draft_md = draft_md.replace("<!--todo:image-->", f"/images/{_img_filename}")
+                        draft_md = draft_md.replace("<!--todo:chart-->", f"/images/{_img_filename}")
+                        logger.info(f"[Hugo] 마커 해결: <!--todo:image--> → /images/{_img_filename}")
+
             # Phase 3/7: 본문 이미지(Pollinations)를 output/images/ → assets_dir 복사
             _output_images = Path("output/images")
             if _output_images.exists():
@@ -605,6 +626,14 @@ class PublisherCore:
                 logger.error(f"본문 추출 실패: {e}")
                 return ("", "hugo", "")
             index_md.write_text(text, encoding="utf-8")
+
+            # 4-b. R2 교체 결과를 DB published_md에 저장 (card injection용)
+            if post_id:
+                try:
+                    from chain_db import update_post_published_md
+                    update_post_published_md(post_id, text)
+                except Exception as _e:
+                    logger.warning(f"published_md 저장 실패 (post #{post_id}): {_e}")
 
             # 5. Hugo 빌드
             hugo_bin = shutil.which("hugo") or "/opt/homebrew/bin/hugo"

@@ -359,7 +359,7 @@ def publish_chain(chain_id: int, mode: str = "auto",
                 site_cfg["cf_pages_project"] = cf_project_override
             config["sites"][blog_key] = site_cfg
 
-        url, method, file_path = core.publish_post(blog_key, draft_md, slug, title, labels)
+        url, method, file_path = core.publish_post(blog_key, draft_md, slug, title, labels, post_id=post["id"])
         if url:
             db.update_published_url(post["id"], url, method)
             if file_path:

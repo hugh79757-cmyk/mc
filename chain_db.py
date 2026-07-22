@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS chain_posts (
   card_injected INTEGER DEFAULT 0, -- Phase 3: 카드 주입 완료 여부
   card_injected_at TEXT, -- Phase 3: 카드 주입 일시
   publish_method TEXT, -- Phase 3: 'hugo' | 'blogger' | 'manual' | 'manual_pending'
+  published_md TEXT, -- R2 URL 교체 본문 (card injection용, draft_md 원본 보존)
   status TEXT NOT NULL DEFAULT 'derived',
   -- derived | image_generated | drafted | published | failed
   error_log TEXT,
@@ -481,6 +482,16 @@ def update_post_draft(post_id: int, draft_md: str, slug: str):
     conn.execute(
         "UPDATE chain_posts SET draft_md = ?, slug = ?, status = 'drafted', updated_at = ? WHERE id = ?",
         (draft_md, slug, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+def update_post_published_md(post_id: int, published_md: str):
+    """Save R2-replaced content for card injection to use (preserves draft_md original)."""
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET published_md = ? WHERE id = ?",
+        (published_md, post_id),
     )
     conn.commit()
     conn.close()

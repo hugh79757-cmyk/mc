@@ -335,3 +335,51 @@ class TestImageMetaMigration:
 
         posts = get_chain_posts(chain_id)
         assert posts[0]["card_injected"] == 1
+
+
+class TestPublishedMd:
+    """published_md 컬럼 테스트 — R2 URL 보존 + draft_md 원본 보존."""
+
+    def test_update_post_published_md(self, temp_db_path):
+        """update_post_published_md가 published_md를 DB에 저장."""
+        from chain_db import create_chain, create_chain_post, get_post
+        from chain_db import update_post_published_md
+
+        chain_id = create_chain("테스트", chain_type="depth")
+        post_id = create_chain_post(chain_id, 0, "1단계", target_keyword="k1")
+
+        r2_content = "---\ntitle: Test\n---\n\n![img](https://img.rotcha.kr/test.webp)"
+        update_post_published_md(post_id, r2_content)
+
+        post = get_post(post_id)
+        assert post["published_md"] == r2_content
+
+    def test_draft_md_preserved_after_published_md(self, temp_db_path):
+        """published_md 저장 후 draft_md 원본 보존."""
+        from chain_db import create_chain, create_chain_post, get_post
+        from chain_db import update_post_draft, update_post_published_md
+
+        chain_id = create_chain("테스트", chain_type="depth")
+        post_id = create_chain_post(chain_id, 0, "1단계", target_keyword="k1")
+
+        original_draft = "---\ntitle: Test\n---\n\n![img](/images/test.webp)"
+        update_post_draft(post_id, original_draft, "test-slug")
+
+        r2_content = "---\ntitle: Test\n---\n\n![img](https://img.rotcha.kr/test.webp)"
+        update_post_published_md(post_id, r2_content)
+
+        post = get_post(post_id)
+        assert post["draft_md"] == original_draft
+        assert post["published_md"] == r2_content
+        assert "img.rotcha.kr" in post["published_md"]
+        assert "/images/" in post["draft_md"]
+
+    def test_published_md_none_by_default(self, temp_db_path):
+        """새 포스트의 published_md는 NULL."""
+        from chain_db import create_chain, create_chain_post, get_post
+
+        chain_id = create_chain("테스트", chain_type="depth")
+        post_id = create_chain_post(chain_id, 0, "1단계", target_keyword="k1")
+
+        post = get_post(post_id)
+        assert post.get("published_md") is None

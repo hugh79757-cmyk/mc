@@ -234,18 +234,22 @@ class CardInjector:
         direction: str,
     ) -> bool:
         """
-        DB에서 draft_md 조회 → 카드 주입 → 기존 frontmatter 보존 후 파일 업데이트.
+        DB에서 published_md(또는 draft_md fallback) 조회 → 카드 주입 → 기존 frontmatter 보존 후 파일 업데이트.
+        published_md가 있으면 R2 URL이 포함된 버전을 사용 (본문 이미지 깨짐 방지).
         """
         post = get_post(post_id)
         if not post or not post.get("draft_md"):
             return False
 
+        # published_md优先: R2 URL이 포함된 버전. 없으면 draft_md fallback.
+        source_md = post.get("published_md") or post.get("draft_md")
+
         post_title = post.get("title", "")
         post_keyword = post.get("target_keyword", "")
-        post_body = post.get("draft_md", "")
+        post_body = source_md
 
         updated_md = self.inject_cards_into_draft(
-            post["draft_md"],
+            source_md,
             next_title,
             next_url,
             blog_key,
@@ -276,6 +280,12 @@ class CardInjector:
             updated_md,
             is_html=False,
         )
+        # 카드 주입 결과를 published_md에 저장 (다음 republish 시 R2 URL 보존)
+        try:
+            from chain_db import update_post_published_md
+            update_post_published_md(post_id, updated_md)
+        except Exception:
+            pass
         return True
 
 
