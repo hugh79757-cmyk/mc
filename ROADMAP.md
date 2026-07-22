@@ -12,8 +12,9 @@
 
 ## 현황
 
-- **pytest:** 165/165 ✅ (130 기존 + 35 Phase 14 W1-W3)
+- **pytest:** 171/171 ✅ (130 기존 + 35 Phase 14 W1-W3 + 6 P1 frontmatter)
 - **라이브:** AI프롬프트마켓 체인 #71 — rotcha/infohot/techpawz 3/3 정상
+- **patch 제거:** cli/mc.py — W4 임시 patch 완전 제거
 - **작업 트리:** 깨끗함 (untracked만)
 
 ## 다음 Phase (예정)
@@ -22,17 +23,17 @@
 
 | Phase | 작업 | 테스트 목표 | 상태 |
 |-------|------|------------|------|
-| 14.1 | P1 인계: frontmatter patch 정식화 — `_ensure_frontmatter()` 구현 + cli/mc.py patch 제거 + 2~3개 신규 테스트 + 라이브 재발행 회귀 확인 | 168/168 | 인계 대기 |
+| 14.1 | ~~P1 인계: frontmatter patch 정식화~~ | ~~168/168~~ **171/171** | ✅ 완료 |
 | 13.1 | 이미지 캐시 대시보드 + 사이트별 이미지 전략 분기 (이월) | — | 대기 |
 
 ### Phase 14.1 상세 (Planning)
 
-| 작업 | 내용 |
-|------|------|
-| W1 | `chain_drafter.py`에 `_ensure_frontmatter(draft_md, meta)` 정식 구현 — FM 보존/생성 |
-| W2 | `cli/mc.py`의 `patch("chain_drafter.draft_chain")` 제거, 정식 구현으로 위임 |
-| W3 | frontmatter 보존 케이스 테스트 2~3개 추가 |
-| W4 | 기존 draft 있는 체인 1건 `--publish` 재발행으로 라이브 회귀 확인 |
+| 작업 | 내용 | 상태 |
+|------|------|------|
+| W1 | `_ensure_frontmatter()` 정식 구현 | ✅ 완료 |
+| W2 | `cli/mc.py` patch 제거 | ✅ 완료 |
+| W3 | frontmatter 보존 케이스 테스트 6개 추가 | ✅ 완료 (171/171) |
+| W4 | Chain #72 --draft 라이브 회귀 확인 | ✅ 완료 |
 
 ### 잔여 작업
 

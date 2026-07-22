@@ -1,15 +1,16 @@
 # STATE.md — mc (Manual Chain)
 
 **Updated:** 2026-07-22
-**Phase:** Phase 14 완료 ✅ — CLI 단일 진입점 `mc <keyword>` 전 Waves 완료
-**Status:** ✅ W1~W4 머지 완료, Phase 14 전체 완료
+**Phase:** Phase 14 완료 ✅ + P1 frontmatter patch 정식화 완료
+**Status:** ✅ W1~W4 + P1 머지 완료, patch 제거, 171/171
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **165/165** ✅ (130 기존 + 35 W1-W3 테스트) |
+| pytest | **171/171** ✅ (130 기존 + 35 W1-W3 + 6 P1 frontmatter) |
 | Phase 14 W4 | **완료** ✅ — `mc` 전역 명령 + 3/3 라이브 (Chain #71) |
+| Phase 14 P1 | **완료** ✅ — `_ensure_frontmatter` 정식 구현 + patch 제거 (Chain #72 --draft 검증) |
 | 라이브 (업클로젯 --dry-run 체인 #67) | **1/1** derive 성공 ✅ |
 | Phase 13 라이브 (업클로젯 체인 #66) | **3/3** HTTP 200 + H2 + img + `<strong>` 렌더링 ✅ |
 | 작업 트리 | 깨끗함 (`git status --short` = untracked only) |
@@ -104,14 +105,25 @@
 
 - **logs/mc-cli-20260722.log**: 35,708 bytes ✅
 
+### P1 — Frontmatter patch 정식화 (Phase 14 기술부채 해소)
+
+- **`_ensure_frontmatter(draft_md, post)`** (`chain_drafter.py`)
+  - FM 없으면 title/tags/categories로 생성 (draft: true 포함)
+  - FM 있으면 (`---` 로 열고 닫히면) 그대로 보존 (중복 추가 안 함)
+  - 빈 draft_md → 그대로 반환
+- **`draft_chain()` 통합**: image phase 후 `_ensure_frontmatter(draft_md, post)` 호출 → DB에도 FM 저장
+- **cli/mc.py patch 제거**: `patch("chain_drafter.draft_chain")` + `_wrapped_draft_chain` + `unittest.mock import` 완전 제거
+- **6개 신규 테스트** (`test_chain_drafter.py`): 생성 / 보존 / 부분FM / 빈값 / 문자열태그 / 빈태그
+- **라이브 회귀**: Chain #72 --draft 3/3 FM 검증 통과 ✅
+
 ## Recent Commits
 
 ```
+82b734e refactor(phase-14-p1): _ensure_frontmatter 정식 구현 + cli/mc.py patch 제거
+33fb8d8 docs: Phase 14 머지 완료 — continue/roadmap 갱신, pytest 165/165
 e04281e feat(phase-14-w4): pyproject.toml console_scripts + frontmatter injection patch
 5b740cc feat(phase-14-w3): _run_background() subprocess + flush handlers + 6 tests
-c340271 docs(state): Phase 14 W2 완료 — pytest 159/159, _resume_chain 가동
 3c0be3b feat(phase-14-w2): _resume_chain() DB state detection + 4 resume tests
-eb1b24a feat(phase-14-w1): cli/mc.py argparse + _run_full() 파이프라인 래퍼 + 25개 테스트
 ```
 
 ## 인계 사항 (잔여 작업)
