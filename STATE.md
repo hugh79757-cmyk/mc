@@ -1,14 +1,14 @@
 # STATE.md — mc (Manual Chain)
 
-**Updated:** 2026-07-22
-**Phase:** Phase 14 + P1 + P2 완료
-**Status:** ✅ W1~W4 + P1 + P2 머지 완료, patch 제거, 171/171
+**Updated:** 2026-07-23
+**Phase:** Phase 14 + P1 + P2 + R2 이미지 수정 완료
+**Status:** ✅ published_md 컬럼 + card injection R2 보존, 174/174
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **171/171** ✅ (130 기존 + 35 W1-W3 + 6 P1 frontmatter) |
+| pytest | **174/174** ✅ (130 기존 + 35 W1-W3 + 6 P1 + 3 published_md) |
 | Phase 14 W4 | **완료** ✅ — `mc` 전역 명령 + 3/3 라이브 (Chain #71) |
 | Phase 14 P1 | **완료** ✅ — `_ensure_frontmatter` 정식 구현 + patch 제거 (Chain #72 --draft 검증) |
 | 라이브 (업클로젯 --dry-run 체인 #67) | **1/1** derive 성공 ✅ |
