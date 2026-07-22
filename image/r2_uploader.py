@@ -37,6 +37,12 @@ HUGO_R2_DOMAINS = {
     "techpawz-hugo": ("images/techpawz", "https://img.techpawz.com"),
 }
 
+# 사이트별 R2 버킷 매핑 (기본: hotissue-images, 분기 대상만 명시)
+R2_SITE_BUCKETS = {
+    "images/techpawz": "techpawz-images",
+    # rotcha, informationhot 등은 기본값 hotissue-images 사용
+}
+
 CONTENT_TYPES = {
     ".webp": "image/webp",
     ".png": "image/png",
@@ -68,6 +74,11 @@ def get_r2_config(site_path: str) -> tuple:
         if key in site_path:
             return prefix, domain
     return None, None
+
+
+def _resolve_bucket(r2_prefix: str) -> str:
+    """R2 prefix로 사이트별 버킷 이름 결정. 미등록 시 기본값 반환."""
+    return R2_SITE_BUCKETS.get(r2_prefix, R2_BUCKET_NAME)
 
 
 # ── 포맷 검증 ──
@@ -109,6 +120,7 @@ def upload_all_images(post_dir: Path, slug: str, r2_prefix: str, r2_domain: str)
     if not client:
         return {}
 
+    bucket = _resolve_bucket(r2_prefix)
     url_map = {}
 
     def _upload(file_path, r2_key):
@@ -118,10 +130,10 @@ def upload_all_images(post_dir: Path, slug: str, r2_prefix: str, r2_domain: str)
                 print(f"[R2] ⚠️ 포맷 불일치에도 업로드 진행: {r2_key}")
 
             ct = CONTENT_TYPES.get(file_path.suffix.lower(), "application/octet-stream")
-            client.upload_file(str(file_path), R2_BUCKET_NAME, r2_key, ExtraArgs={"ContentType": ct})
+            client.upload_file(str(file_path), bucket, r2_key, ExtraArgs={"ContentType": ct})
 
             try:
-                client.head_object(Bucket=R2_BUCKET_NAME, Key=r2_key)
+                client.head_object(Bucket=bucket, Key=r2_key)
             except Exception:
                 print(f"[R2] ⚠️ 업로드 후 검증 실패 (파일 없음): {r2_key}")
                 return None
@@ -178,13 +190,15 @@ def upload_thumbnail_to_r2(post_dir: Path, r2_prefix: str = "thumbnails", r2_dom
     if not client:
         return False, "R2 클라이언트 생성 실패"
 
+    bucket = _resolve_bucket(r2_prefix)
+
     for thumb_name in ["thumbnail.webp", "cover.webp", "thumbnail.png"]:
         thumb = post_dir / thumb_name
         if thumb.exists():
             r2_key = f"{r2_prefix}/{post_dir.name}{thumb.suffix}"
             try:
                 ct = CONTENT_TYPES.get(thumb.suffix.lower(), "image/webp")
-                client.upload_file(str(thumb), R2_BUCKET_NAME, r2_key, ExtraArgs={"ContentType": ct})
+                client.upload_file(str(thumb), bucket, r2_key, ExtraArgs={"ContentType": ct})
                 return True, f"{r2_domain}/{r2_key}"
             except Exception as e:
                 return False, str(e)
