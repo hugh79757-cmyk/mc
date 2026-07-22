@@ -5,41 +5,26 @@
 | Phase | 상태 | 설명 |
 |-------|------|------|
 | Phase 1–10 | ✅ 완료 | 기반 구축, 체인 파이프라인, 광고, 이미지, 배포 |
-| Phase 11 W1–W6 | ✅ 머지 완료 | Hugo 발행 안정화, Blowfish 테마 적용, CTA 개선, 광고 커버리지, 이미지 마커 보장 |
-| Phase 12 | ✅ 머지 완료 | mc R2 업로더 분리, 썸네일 업로드 버그 수정 |
-| Phase 13 | ✅ 머지 완료 | 마크다운 정제 + 테이블 보호 + CJK Bold 버그 수정 + contextual image + search providers |
-| Phase 14 | ✅ 머지 완료 | CLI 단일 진입점 `mc <keyword>` — W1 argparse/W2 resume/W3 background+logging/W4 console_scripts |
+| Phase 11 W1–W6 | ✅ 완료 | Hugo 발행 안정화, Blowfish 테마, CTA 개선, 광고 커버리지, 이미지 마커 보장 |
+| Phase 12 | ✅ 완료 | R2 업로더 분리, 썸네일 업로드 버그 수정 |
+| Phase 13 | ✅ 완료 | 마크다운 정제 + 테이블 보호 + CJK Bold 버그 + contextual image + search providers |
+| Phase 14 | ✅ 완료 | CLI `mc <keyword>` — argparse/resume/background+logging/console_scripts |
+| Phase 14 P1 | ✅ 완료 | `_ensure_frontmatter()` 정식 구현 + cli/mc.py patch 제거 |
+| Phase 14 P2 | ✅ 완료 | 고아 content_image_path 백필 15/15 |
+| R2 이미지 수정 | ✅ 완료 | published_md 컬럼 + card injection R2 보존 + techpawz 버킷 분기 |
 
 ## 현황
 
-- **pytest:** 171/171 ✅ (130 기존 + 35 Phase 14 W1-W3 + 6 P1 frontmatter)
-- **라이브:** AI프롬프트마켓 체인 #71 — rotcha/infohot/techpawz 3/3 정상
-- **patch 제거:** cli/mc.py — W4 임시 patch 완전 제거
+- **pytest:** 179/179 ✅
+- **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
+- **이미지 파이프라인:** 전체 종료
 - **작업 트리:** 깨끗함 (untracked만)
 
-## 다음 Phase (예정)
+## 잔존 이월
 
-### P1 (즉시)
-
-| Phase | 작업 | 테스트 목표 | 상태 |
-|-------|------|------------|------|
-| 14.1 | ~~P1 인계: frontmatter patch 정식화~~ | ~~168/168~~ **171/171** | ✅ 완료 |
-| 13.1 | 이미지 캐시 대시보드 + 사이트별 이미지 전략 분기 (이월) | — | 대기 |
-
-### Phase 14.1 상세 (Planning)
-
-| 작업 | 내용 | 상태 |
-|------|------|------|
-| W1 | `_ensure_frontmatter()` 정식 구현 | ✅ 완료 |
-| W2 | `cli/mc.py` patch 제거 | ✅ 완료 |
-| W3 | frontmatter 보존 케이스 테스트 6개 추가 | ✅ 완료 (171/171) |
-| W4 | Chain #72 --draft 라이브 회귀 확인 | ✅ 완료 |
-
-### 잔여 작업
-
-| 작업 | 우선순위 |
-|------|---------|
-| (a) Phase 14.1: cron/launchd + dashboard + audit 통합 | P1 |
-| (b) 고아 NULL content_image_path 57건 → 15건 백필 완료, 43건 이월 | ✅ 완료 |
-| (c) slug 고유화 + 비의도 체인 자동 감지 | P2 |
-| (d) Blowfish CSS 복구 | P3 |
+| 작업 | 우선순위 | 비고 |
+|------|---------|------|
+| Phase 14.1: cron/launchd + dashboard + audit | 별도 milestone | 공수 큼, 무인 스케줄 자동발행 |
+| (a) 43건 고아 content_image_path | 별도 milestone | 신규 발행 W6 게이트로 차단, 기존은 재발행 전까지 이미지 없음 |
+| slug 고유화 + 비의도 체인 자동 감지 | P2 | |
+| P3 Blowfish CSS 복구 | P3 | 라이브 3/3 기능 정상, CSS 미세 복구 영역 |

@@ -140,22 +140,49 @@
 - **pytest**: 171/171 ✅
 - **잔여 고아**: 40건 (image_url=NULL + path=NULL → (a) 카테고리, 백필 제외 대상)
 
+### R2 이미지 파이프라인 수정 (Phase 13 기술부채 해소) ✅
+
+#### R2-1 — published_md 컬럼: card injection R2 URL 보존 ✅
+
+- **근인**: `_publish_hugo()` R2 교체 → `inject_cards_chain()`이 DB 원본 `draft_md`로 덮어쓰기 → R2 URL 상실
+- **수정**: `chain_posts.published_md` 컬럼 추가 + `_publish_hugo()` R2 교체 후 저장 + `inject_into_post()` published_md 우선 사용 + 카드 주입 후 갱신
+- ** pytest**: +3개 (174/174)
+- **라이브**: Chain #71 재발행 → rotcha R2 200✅ infohot R2 200✅
+
+#### R2-2 — techpawz R2 업로드 버킷 분기 ✅
+
+- **근인**: `img.techpawz.com` → `techpawz-images` 버킷에 바인딩. 코드가 `hotissue-images`에 업로드 → 불일치 → 404
+- **수정**: `R2_SITE_BUCKETS = {"images/techpawz": "techpawz-images"}` + `_resolve_bucket(r2_prefix)`
+- **비회귀**: rotcha/informationhot → `hotissue-images` 유지 확인
+- ** pytest**: +5개 (179/179)
+- **라이브**: 3/3 R2 200 ✅ (rotcha/infohot/techpawz 전부)
+
+#### 이미지 파이프라인 전체 종료 요약
+
+| 이슈 | 수정 | 상태 |
+|------|------|------|
+| Phase 13 contextual image | search_providers + prompt_builder | ✅ |
+| P2 고아 content_image_path | (d)3건 DB경로 + (b)12건 Pollinations | ✅ 15/15 |
+| R2 card injection URL 상실 | published_md 컬럼 + inject 갱신 | ✅ |
+| techpawz R2 버킷 불일치 | R2_SITE_BUCKETS 분기 | ✅ |
+
 ## Recent Commits
 
 ```
+6c79a09 docs(state): techpawz 버킷 분기 완료 — pytest 179/179, 라이브 3/3 R2 200
+e288be4 fix(r2): techpawz R2 업로드 버킷 분기 — hotissue-images → techpawz-images
+c4e8f06 fix(r2): published_md 컬럼으로 card injection R2 URL 보존
 82b734e refactor(phase-14-p1): _ensure_frontmatter 정식 구현 + cli/mc.py patch 제거
-33fb8d8 docs: Phase 14 머지 완료 — continue/roadmap 갱신, pytest 165/165
-e04281e feat(phase-14-w4): pyproject.toml console_scripts + frontmatter injection patch
-5b740cc feat(phase-14-w3): _run_background() subprocess + flush handlers + 6 tests
-3c0be3b feat(phase-14-w2): _resume_chain() DB state detection + 4 resume tests
 ```
 
 ## 인계 사항 (잔여 작업)
 
-1. ~~**Phase 14 — CLI 단일 진입점 `mc <keyword>`**~~ ✅ 완료 (W1~W4 완)
-2. **Phase 14.1 — cron/launchd 스케줄링, dashboard, audit 통합**: Phase 14 이후로 이월.
-3. **고아 content_image_path 정리**: 57건 → (d)3건 + (b)12건 백필 완료 (15/15), (a)43건 이월
-4. **Blowfish CSS 복구**: P3(B) 우선순위 (이월 — 계속 미해결)
+1. ~~Phase 14 CLI~~ ✅ 완료 (W1~W4 + P1)
+2. ~~고아 content_image_path~~ ✅ 완료 (P2: 15/15, (a)43건 이월)
+3. ~~R2 이미지 파이프라인~~ ✅ 완료 (published_md + techpawz 버킷 분기)
+4. **Phase 14.1 — cron/launchd 스케줄링, dashboard, audit 통합**: 별도 milestone 이월
+5. **(a) 43건 고아**: 신규 발행 W6 게이트로 차단, 기존 43건은 재발행 전까지 이미지 없음
+6. **P3 Blowfish CSS 복구**: 라이브 3/3 기능 정상, CSS 미세 복구 영역
 
 ## Resume Instructions
 
