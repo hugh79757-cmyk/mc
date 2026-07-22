@@ -40,6 +40,9 @@ from shared.publishers.hugo_writer import _write_hugo_post
 import chain_db as db
 from chain_deriver import derive_chain
 
+# 스키마 검증 함수 import
+from chain_drafter import _validate_draft_schema
+
 # ── 안전장치: 비의도 체인 발행 금지 ──
 # 내역: chain 19(킨다·chain20과 slug 중복·photo/2990자·비의도), chain 27(포천·chain28과 slug 중복·photo/2742/3426자·비의도)
 # 의도: chain 20(킨다-s3·chart/3770자), chain 28(포천-s1/s2·chart)
@@ -492,6 +495,35 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
     print(f"\n{'='*60}\n[mc] Drafting chain #{chain_id}\n{'='*60}\n")
     drafted = draft_chain(chain_id, seed, use_context=use_context)
     print(f"\n[mc] Draft complete: {len(drafted)} posts")
+    
+    # 스키마 검증 게이트
+    print(f"\n{'─'*60}\n[mc] Validating draft schema...\n{'─'*60}\n")
+    validation_passed = True
+    
+    for post in drafted:
+        draft_md = post.get("draft_md", "")
+        meta = post.get("meta")
+        if not draft_md:
+            print(f"  [ERROR] Post {post.get('step', 'N/A')} has empty draft")
+            validation_passed = False
+            break
+            
+        result, message = _validate_draft_schema(draft_md, meta)
+        if result:
+            print(f"  [OK] Post {post.get('step', 'N/A')} schema validation passed")
+        else:
+            print(f"  [ERROR] Post {post.get('step', 'N/A')} schema validation failed: {message}")
+            validation_passed = False
+            break
+    
+    if not validation_passed:
+        print(f"\n[ERROR] Schema validation failed for chain #{chain_id}")
+        print("[ERROR] Publishing aborted due to schema violations")
+        if not draft_only:
+            print("Tip: Check draft files for missing H2 headings or image markers")
+        return None
+    
+    print(f"\n[mc] All posts schema validation passed ✓")
 
     if draft_only:
         return chain_id

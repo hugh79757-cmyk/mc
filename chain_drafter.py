@@ -284,7 +284,7 @@ def draft_single_post(
 
 # ── Prompt leak 방지 ──────────────────────────────────────────────
 _PROMPT_LEAK_RE = re.compile(
-    r"^(# Role \(역할\)|"
+    r"^# Role \(역할\)|"
     r"# SEO 기본 원칙|"
     r"# Frontmatter Rules|"
     r"## title 규칙|"
@@ -303,7 +303,7 @@ _PROMPT_LEAK_RE = re.compile(
     r"# 이미지 유형 판단|"
     r"image_type 결정 기준|"
     r"이전 포스트 \(|"
-    "|\*\*\[.*\]\*\*)"  # **[...]** 패턴 추가 - 문제 있는 부분 제외
+    r"\*\*\[.*\]\*\*"
 )
 
 def _strip_prompt_leak(text: str) -> str:
@@ -345,7 +345,7 @@ def _strip_prompt_leak(text: str) -> str:
                 out.append(ln)
             continue
 
-        if _PROMPT_LEAK_RE.match(stripped):
+        if _PROMPT_LEAK_RE.match(stripped) or stripped.startswith("다음 포스트 ("):
             if stripped.startswith("#"):
                 skip_block = True
             continue
@@ -381,6 +381,13 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> 
             if not meta.get("chart_type") or not meta.get("chart_data"):
                 print(f"  [drafter] ⚠️ image_type=chart but chart_type/chart_data missing. Setting to none.")
                 image_type = "none"
+
+        # 자동 이미지 키워드 보강: 이미지/차트 타입에 image_keyword가 없으면 제목으로 fallback
+        needs_image = image_type in ("photo", "chart")
+        if needs_image and (not meta.get("image_keyword") or not str(meta.get("image_keyword")).strip()):
+            default_keyword = (post.get("title", "") or seed_keyword).strip()
+            meta["image_keyword"] = default_keyword
+            print(f"  [drafter] image_keyword 자동 보강: '{default_keyword}'")
 
         # Phase 7: placeholder insertion
         draft_md = _ensure_featureimage(draft_md)
@@ -418,9 +425,65 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> 
             "draft_md": draft_md,
             "slug": slug,
             "draft_file": str(file_path),
+            "meta": meta,
         })
 
     return updated_posts
+
+
+# ── 스키마 검증 게이트 ─────────────────────────────────────────────
+
+def _validate_draft_schema(draft_md: str, meta: dict = None) -> tuple[bool, str]:
+    """
+    초안 마크다운의 스키마를 검증합니다.
+    
+    Args:
+        draft_md: 검증할 초안 마크다운 문자열
+        meta: 선택적 메타데이터 딕셔너리 (image_keyword 등을 포함)
+        
+    Returns:
+        tuple[bool, str]: (검증 결과, 실패 시 원인 메시지)
+    """
+    if not draft_md or not draft_md.strip():
+        return False, "초안이 비어 있습니다"
+    
+    # 1. H2 헤딩 검증 (최소 1개)
+    h2_pattern = r'^##\s+.+$'
+    h2_matches = re.findall(h2_pattern, draft_md, re.MULTILINE)
+    if len(h2_matches) < 1:
+        return False, "본문에 최소 1개 이상의 H2 헤딩이 필요합니다"
+    
+    # 2. 이미지 마커 검증 (<!--todo:image--> 또는 <!--todo:chart-->)
+    image_marker_pattern = r'<!--todo:(image|chart)-->'
+    image_markers = re.findall(image_marker_pattern, draft_md)
+    if not image_markers:
+        return False, "이미지 마커(<!--todo:image--> 또는 <!--todo:chart-->)가 필요합니다"
+    
+    # Determine if any chart marker is present
+    has_chart = '<!--todo:chart-->' in draft_md
+    
+    # 3. 이미지 키워드 검증 (meta가 제공되고, 차트 마커가 아닌 경우)
+    if meta is not None and not has_chart:
+        image_keyword = meta.get('image_keyword') if isinstance(meta, dict) else None
+        if not image_keyword or not str(image_keyword).strip():
+            return False, "이미지 마커에 대한 image_keyword가 비어 있습니다"
+    
+    # 4. Frontmatter 검증 (필수 필드)
+    frontmatter_pattern = r'^---\s*\n(.*?)\n---\s*$'
+    frontmatter_match = re.search(frontmatter_pattern, draft_md, re.DOTALL | re.MULTILINE)
+    
+    if frontmatter_match:
+        frontmatter_content = frontmatter_match.group(1)
+        required_fields = ['title', 'description', 'tags', 'categories']
+        
+        for field in required_fields:
+            # YAML 형식과 평범한 텍스트 형식 모두 지원
+            if f'{field}:' not in frontmatter_content:
+                return False, f"Frontmatter에 필수 필드 '{field}'가 없습니다"
+    else:
+        return False, "Frontmatter(---로 시작하는 섹션)가 없습니다"
+    
+    return True, "스키마 검증 통과"
 
 
 # ── 운영자 검토 인터페이스 ────────────────────────────────────────

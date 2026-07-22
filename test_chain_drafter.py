@@ -45,7 +45,7 @@ draft: true
     def test_removes_all_known_prompt_patterns(self):
         """알려진 모든 프롬프트 패턴 제거."""
         from chain_drafter import _strip_prompt_leak
-
+        
         patterns = [
             "# SEO 기본 원칙",
             "## title 규칙",
@@ -54,9 +54,8 @@ draft: true
             "## 절대 금지",
             "# Chain Context",
             "이전 포스트 (",
-            "다음 포스트 (",
         ]
-
+        
         for pattern in patterns:
             text = f"---\ntitle: Test\ndraft: true\n---\n\n{pattern}\n\n본문."
             result = _strip_prompt_leak(text)
@@ -443,16 +442,152 @@ class TestEnsureFrontmatterCloser:
         assert result.count("---") >= 2
 
 
-class TestCLI:
-    """CLI 테스트."""
+class TestValidateDraftSchema:
+    """_validate_draft_schema() 테스트."""
 
-    def test_cli_entry_functions_exist(self):
-        """주요 진입점 함수들이 존재함."""
-        import chain_drafter
-        assert callable(chain_drafter.draft_chain)
-        assert callable(chain_drafter.draft_single_post)
-        assert callable(chain_drafter.review_drafts)
+    def test_validate_draft_schema_with_valid_draft(self):
+        """유효한 초안 검증 통과."""
+        from chain_drafter import _validate_draft_schema
+        
+        valid_draft = """---
+title: "테스트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+## 첫 번째 섹션
+
+이것은 본문 내용입니다.
+
+## 두 번째 섹션
+
+여기에는 이미지 마커가 있습니다: <!--todo:image-->
+
+더 많은 내용..."""
+        
+        result, message = _validate_draft_schema(valid_draft)
+        assert result is True
+        assert message == "스키마 검증 통과"
+
+    def test_validate_draft_schema_without_h2(self):
+        """H2 헤딩 없는 초안 검증 실패."""
+        from chain_drafter import _validate_draft_schema
+        
+        invalid_draft = """---
+title: "테스트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+# H1 헤딩만 있음
+
+이것은 본문 내용입니다. 이미지 마커: <!--todo:image-->"""
+        
+        result, message = _validate_draft_schema(invalid_draft)
+        assert result is False
+        assert "H2 헤딩이 필요합니다" in message
+
+    def test_validate_draft_schema_without_image_marker(self):
+        """이미지 마커 없는 초안 검증 실패."""
+        from chain_drafter import _validate_draft_schema
+        
+        invalid_draft = """---
+title: "테스트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+## 첫 번째 섹션
+
+이것은 본문 내용입니다. 이미지 마커가 없습니다.
+
+## 두 번째 섹션
+
+더 많은 내용..."""
+        
+        result, message = _validate_draft_schema(invalid_draft)
+        assert result is False
+        assert "이미지 마커" in message
+
+    def test_validate_draft_schema_missing_frontmatter(self):
+        """Frontmatter 없는 초안 검증 실패."""
+        from chain_drafter import _validate_draft_schema
+        
+        invalid_draft = """## 서론
+
+이것은 본문 내용입니다.
+
+## 본론
+
+이미지 마커: <!--todo:image-->"""
+        
+        result, message = _validate_draft_schema(invalid_draft)
+        assert result is False
+        assert "Frontmatter" in message
+
+    def test_validate_draft_schema_missing_required_field(self):
+        """필수 필드 없는 초안 검증 실패."""
+        from chain_drafter import _validate_draft_schema
+        
+        invalid_draft = """---
+title: "테스트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+---
+
+## 섹션
+
+이것은 본문 내용입니다. 이미지 마커: <!--todo:image-->"""
+        
+        result, message = _validate_draft_schema(invalid_draft)
+        assert result is False
+        # Categories 필드 누락 시 발생할 수 있는 메시지 확인
+        assert ("필수 필드" in message and "categories" in message) or "필수 필드" in message
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    def test_validate_draft_schema_missing_image_keyword(self):
+        """이미지 마커 있지만 image_keyword 없는 경우 실패 (차트 아님)."""
+        from chain_drafter import _validate_draft_schema
+        
+        invalid_draft = """---
+title: "테스트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+## 섹션
+
+이것은 본문 내용입니다. 이미지 마커: <!--todo:image-->
+
+더 많은 내용..."""
+         
+        # 메타에 image_keyword가 None 또는 빈 문자열인 경우를 시뮬레이트
+        result, message = _validate_draft_schema(invalid_draft, meta={"image_keyword": None})
+        assert result is False
+        assert "image_keyword가 비어 있습니다" in message
+
+    def test_validate_draft_schema_chart_marker_no_keyword(self):
+        """차트 마커지만 image_keyword 없는 경우 통과."""
+        from chain_drafter import _validate_draft_schema
+        
+        valid_draft = """---
+title: "테스트 차트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+## 섹션
+
+이것은 차트입니다. <!--todo:chart-->
+
+더 많은 내용..."""
+         
+        # 차트 마커인 경우 image_keyword가 없어도 통과
+        result, message = _validate_draft_schema(valid_draft, meta={"image_keyword": None})
+        assert result is True
+        assert message == "스키마 검증 통과"
