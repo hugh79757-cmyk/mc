@@ -39,7 +39,7 @@
 
 | 작업 | 우선순위 |
 |------|---------|
-| (a) Phase 14.1: cron/launchd + dashboard + audit 통합 | P1 (P1 인계 후) |
-| (b) 고아 NULL content_image_path 37건 백필 | P2 |
+| (a) Phase 14.1: cron/launchd + dashboard + audit 통합 | P1 |
+| (b) 고아 NULL content_image_path 57건 → 15건 백필 완료, 43건 이월 | ✅ 완료 |
 | (c) slug 고유화 + 비의도 체인 자동 감지 | P2 |
 | (d) Blowfish CSS 복구 | P3 |
