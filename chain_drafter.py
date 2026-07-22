@@ -136,7 +136,15 @@ def _insert_body_image_marker(draft_md: str) -> str:
   if m:
     pos = m.start()
     return draft_md[:pos].rstrip() + "\n\n<!--todo:image-->\n\n" + draft_md[pos:]
-  return draft_md  # H2 없으면 건너뜀
+  
+  # H2 헤딩이 없으면 첫 번째 빈 줄 직전에 마커 삽입 (백업 방식)
+  lines = draft_md.split('\n')
+  for i, line in enumerate(lines):
+    if line.strip() == "" and i > 0:  # 빈 줄이고 첫 줄이 아닐 때
+      return '\n'.join(lines[:i]) + "\n\n<!--todo:image-->\n\n" + '\n'.join(lines[i:])
+  
+  # 그래도 없으면 마지막에 추가
+  return draft_md.rstrip() + "\n\n<!--todo:image-->\n\n"
 
 
 def _insert_chart_marker(draft_md: str) -> str:
@@ -295,7 +303,7 @@ _PROMPT_LEAK_RE = re.compile(
     r"# 이미지 유형 판단|"
     r"image_type 결정 기준|"
     r"이전 포스트 \(|"
-    r"다음 포스트 \()"
+    "|\*\*\[.*\]\*\*)"  # **[...]** 패턴 추가 - 문제 있는 부분 제외
 )
 
 def _strip_prompt_leak(text: str) -> str:

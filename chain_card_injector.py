@@ -210,7 +210,7 @@ class CardInjector:
         body = self.inject_bottom_card(body, next_card)
         if self.should_inject_middle_card(body):
             middle_card = self.build_card_html(
-                next_title, next_url, cta + " (관련)"
+                next_title, next_url, cta
             )
             body = self.inject_middle_card(body, middle_card)
 
