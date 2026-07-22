@@ -39,18 +39,27 @@ _LOG_DIR = _PROJECT_ROOT / "logs"
 _LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _setup_logging() -> logging.Logger:
-    """Set up dual logging: stdout (INFO) + file (DEBUG)."""
+def _setup_logging(force_flush: bool = True) -> logging.Logger:
+    """
+    Set up dual logging: stdout (INFO, user-facing) + file (DEBUG, detailed).
+    Each emit triggers a flush when force_flush=True (real-time stage visibility).
+    """
     logger = logging.getLogger("mc")
     logger.setLevel(logging.DEBUG)
-    # Remove any pre-existing handlers to avoid duplicates on re-run
     logger.handlers.clear()
 
     today = datetime.now().strftime("%Y%m%d")
     log_file = _LOG_DIR / f"mc-cli-{today}.log"
 
-    # File handler — DEBUG, all details
-    fh = logging.FileHandler(str(log_file), encoding="utf-8")
+    # File handler — DEBUG, all details, flush on each emit
+    if force_flush:
+        class _FlushFileHandler(logging.FileHandler):
+            def emit(self, record):
+                super().emit(record)
+                self.flush()
+        fh = _FlushFileHandler(str(log_file), encoding="utf-8", mode="a")
+    else:
+        fh = logging.FileHandler(str(log_file), encoding="utf-8", mode="a")
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(
         logging.Formatter(
@@ -59,8 +68,15 @@ def _setup_logging() -> logging.Logger:
         )
     )
 
-    # Stdout handler — INFO, user-facing
-    sh = logging.StreamHandler(sys.stdout)
+    # Stdout handler — INFO, user-facing, flush immediately
+    if force_flush:
+        class _FlushStreamHandler(logging.StreamHandler):
+            def emit(self, record):
+                super().emit(record)
+                self.flush()
+        sh = _FlushStreamHandler(sys.stdout)
+    else:
+        sh = logging.StreamHandler(sys.stdout)
     sh.setLevel(logging.INFO)
     sh.setFormatter(logging.Formatter("[mc] %(message)s"))
 
@@ -290,8 +306,61 @@ def _image_existing(chain_id: int, logger: logging.Logger) -> int:
 # ─────────────────────────────────────────────────────────────────
 
 def _run_background(keyword: str, args, logger: logging.Logger) -> int:
-    """R5: Run pipeline in background (detached subprocess)."""
-    raise NotImplementedError("Wave 3 — _run_background not yet implemented")
+    """
+    R5: Run pipeline in background (detached subprocess).
+
+    Launches `python -m cli.mc <keyword> [flags] --pid-file <path>` in a detached session.
+    stdout/stderr redirected to the daily log file.
+    PID file: logs/mc-cli-<ts>.pid — deleted by subprocess on exit via atexit.
+    """
+    import subprocess
+    import sys
+    from datetime import datetime as _dt
+
+    today = _dt.now().strftime("%Y%m%d")
+    ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+    log_file = str(_LOG_DIR / f"mc-cli-{today}.log")
+    pid_file = str(_LOG_DIR / f"mc-cli-{ts}.pid")
+
+    # Build argv for the subprocess
+    argv = [sys.executable, "-m", "cli.mc", keyword]
+    if args.dry_run:
+        argv.append("--dry-run")
+    elif args.draft:
+        argv.append("--draft")
+    elif args.image or args.skip_publish:
+        argv.append("--image")
+    elif args.publish:
+        argv.append("--publish")
+    if args.site:
+        argv.extend(["--site", args.site])
+    argv.extend(["--pid-file", pid_file])
+
+    # Open log file (append mode) for subprocess output
+    log_fh = open(log_file, "a", encoding="utf-8")
+
+    proc = subprocess.Popen(
+        argv,
+        stdout=log_fh,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+        cwd=str(_PROJECT_ROOT),
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+    )
+
+    # Write subprocess PID to file (subprocess will overwrite with its own PID via atexit)
+    Path(pid_file).write_text(str(proc.pid), encoding="utf-8")
+
+    # Console: single-line summary
+    print(
+        f"[mc] Chain started in background — "
+        f"PID={proc.pid}  log={log_file}  pid_file={pid_file}",
+        file=sys.stdout,
+        flush=True,
+    )
+
+    return 0
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -332,6 +401,8 @@ def main() -> int:
     )
     parser.add_argument("keyword", nargs="?", help="Seed keyword for the chain")
     parser.add_argument("--chain-id", type=int, help="Existing chain ID (for --resume / --draft / --image)")
+    parser.add_argument("--pid-file", type=str, default=None,
+                        help="PID file to delete on exit (internal use by --background)")
 
     # Pipeline stage flags
     stage_group = parser.add_mutually_exclusive_group()
@@ -358,6 +429,13 @@ def main() -> int:
                         help="Run in background (detached process)")
 
     args = parser.parse_args()
+
+    # ── PID file cleanup on exit (for background subprocess) ───────
+    if args.pid_file:
+        import atexit as _atexit
+        _pid_file = Path(args.pid_file)
+        if _pid_file.exists():
+            _atexit.register(lambda: _pid_file.unlink(missing_ok=True))
 
     # Logging
     logger = _setup_logging()

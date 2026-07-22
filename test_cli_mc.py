@@ -371,5 +371,132 @@ class TestResumeChain(unittest.TestCase):
         mock_inject.assert_called_once()
 
 
+class TestSetupLogging(unittest.TestCase):
+    """W3: _setup_logging() dual handler + flush on emit."""
+
+    def test_dual_handler_count(self):
+        """_setup_logging() creates exactly 2 handlers (file + stdout)."""
+        from cli.mc import _setup_logging
+        logger = _setup_logging()
+        self.assertEqual(len(logger.handlers), 2)
+
+    def test_flush_on_emit(self):
+        """Both handlers flush on each emit (real-time stage visibility)."""
+        from cli.mc import _setup_logging
+        import logging
+        logger = _setup_logging()
+        handlers = logger.handlers
+        self.assertEqual(len(handlers), 2)
+        # Verify the custom Flush handlers are in place
+        handler_types = [type(h).__name__ for h in handlers]
+        self.assertIn("_FlushStreamHandler", handler_types)
+        self.assertIn("_FlushFileHandler", handler_types)
+
+
+class TestRunBackground(unittest.TestCase):
+    """W3: _run_background() subprocess + PID file."""
+
+    @patch("subprocess.Popen")
+    def test_popen_called_with_start_new_session(self, mock_popen):
+        """_run_background() calls subprocess.Popen with start_new_session=True."""
+        import argparse
+        from cli.mc import _run_background, _setup_logging
+
+        mock_proc = MagicMock()
+        mock_proc.pid = 12345
+        mock_popen.return_value = mock_proc
+
+        args = argparse.Namespace(
+            dry_run=True, draft=False, image=False, skip_publish=False,
+            publish=False, site=None, background=True, keyword="테스트",
+        )
+        logger = _setup_logging()
+        result = _run_background("테스트", args, logger)
+
+        mock_popen.assert_called_once()
+        call_kwargs = mock_popen.call_args.kwargs
+        self.assertTrue(call_kwargs.get("start_new_session"))
+        self.assertEqual(result, 0)
+
+    @patch("subprocess.Popen")
+    @patch("pathlib.Path.write_text")
+    def test_pid_file_created_with_pid(self, mock_write_text, mock_popen):
+        """_run_background() creates PID file containing the subprocess PID."""
+        import argparse
+        from cli.mc import _run_background, _setup_logging
+
+        mock_proc = MagicMock()
+        mock_proc.pid = 99999
+        mock_popen.return_value = mock_proc
+
+        args = argparse.Namespace(
+            dry_run=True, draft=False, image=False, skip_publish=False,
+            publish=False, site=None, background=True, keyword="테스트",
+        )
+        logger = _setup_logging()
+        _run_background("테스트", args, logger)
+
+        mock_write_text.assert_called()
+        # Last call should be write_text with the PID
+        last_call = mock_write_text.call_args
+        self.assertIn("99999", last_call[0][0])
+
+    @patch("subprocess.Popen")
+    def test_argv_includes_pid_file_flag(self, mock_popen):
+        """_run_background() passes --pid-file to subprocess argv."""
+        import argparse
+        from cli.mc import _run_background, _setup_logging
+
+        mock_proc = MagicMock()
+        mock_proc.pid = 11111
+        mock_popen.return_value = mock_proc
+
+        args = argparse.Namespace(
+            dry_run=False, draft=False, image=True, skip_publish=False,
+            publish=False, site=None, background=True, keyword="업클로젯",
+        )
+        logger = _setup_logging()
+        _run_background("업클로젯", args, logger)
+
+        call_args = mock_popen.call_args
+        argv = call_args[0][0] if call_args[0] else call_args.kwargs.get("argv")
+        if not argv:
+            argv = [a for a in call_args[0]]
+        self.assertIn("--pid-file", argv)
+
+    @patch("subprocess.Popen")
+    def test_console_single_line_output(self, mock_popen, mock_print=None):
+        """_run_background() prints exactly 1 line to console (PID + log + pid_file)."""
+        import argparse
+        import sys
+        from io import StringIO
+        from cli.mc import _run_background, _setup_logging
+
+        mock_proc = MagicMock()
+        mock_proc.pid = 55555
+        mock_popen.return_value = mock_proc
+
+        args = argparse.Namespace(
+            dry_run=True, draft=False, image=False, skip_publish=False,
+            publish=False, site=None, background=True, keyword="테스트",
+        )
+        logger = _setup_logging()
+
+        # Capture stdout
+        old_stdout = sys.stdout
+        captured = StringIO()
+        sys.stdout = captured
+        try:
+            _run_background("테스트", args, logger)
+        finally:
+            sys.stdout = old_stdout
+
+        output = captured.getvalue()
+        self.assertIn("55555", output)      # PID
+        self.assertIn("log=", output)        # log file
+        self.assertIn("pid_file=", output)  # pid file
+        self.assertEqual(output.count("\n"), 1)  # exactly 1 line
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
