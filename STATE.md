@@ -1,15 +1,16 @@
 # STATE.md — mc (Manual Chain)
 
 **Updated:** 2026-07-22
-**Phase:** Phase 13 — 콘텐츠 고도화 (Wave 1 + Wave 2)
-**Status:** ✅ 머지 완료
+**Phase:** Phase 14 W1 완료 — CLI 단일 진입점 `mc <keyword>` (W2 구현 진행 중)
+**Status:** 🚧 W1 머지 완료, W2 착수
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **130/130** ✅ (112 기존 + 18 신규) |
-| 라이브 (업클로젯 체인 #66) | **3/3** HTTP 200 + H2 + img + `<strong>` 렌더링 ✅ |
+| pytest | **155/155** ✅ (130 기존 + 25 W1 신규) |
+| 라이브 (업클로젯 --dry-run 체인 #67) | **1/1** derive 성공 ✅ |
+| Phase 13 라이브 (업클로젯 체인 #66) | **3/3** HTTP 200 + H2 + img + `<strong>` 렌더링 ✅ |
 | 작업 트리 | 깨끗함 (`git status --short` = untracked only) |
 | 브랜치 | `main` (최신) |
 
@@ -53,14 +54,31 @@
 | 2 | informationhot.kr | 업클로젯-20260722-s2 | 200 ✅ | 1 ✅ | 5 ✅ | 11 ✅ | 0 ✅ |
 | 3 | techpawz.com | 업클로젯-20260722-s3 | 200 ✅ | 1 ✅ | 1 ✅ | 11 ✅ | 0 ✅ |
 
+## Phase 14 완료 항목
+
+### Wave 1 — CLI Wrapper + _run_full() (R1, R2, R4)
+
+- **`cli/mc.py`** (320줄)
+  - `main()`: argparse + 라우팅 (dry-run/draft/image/skip-publish/publish/resume)
+  - `_run_full()`: `chain_publisher.run_chain()` 위임 (import delegation, 수정 금지)
+  - `_setup_logging()`: dual handler (file DEBUG + stdout INFO)
+  - `_build_blog_overrides()`: `--site rotcha/infohot/techpawz/aikorea24` → blog_overrides dict
+  - `--chain-id --draft/--image`: 기존 체인 operations
+- **`test_cli_mc.py`**: 25개 테스트 (argparse 10 + blog_overrides 7 + routing 8)
+- **Live verification**: `mc 업클로젯 --dry-run` → Chain #67 생성 성공 (27.2s)
+
+### Wave 2 — _resume_chain() 구현 중 (R3)
+
+- `cli/mc.py`에 `_resume_chain()` stub 존재 → NotImplementedError
+- 목표: 실패 체인 재개 (draft→image→publish 상태 감지)
+
 ## Recent Commits
 
 ```
+eb1b24a feat(phase-14-w1): cli/mc.py argparse + _run_full() 파이프라인 래퍼 + 25개 테스트
+9e6c3e9 plan(phase-14): CLI 단일 진입점 mc <keyword> — 기획 완료 (CONTEXT.md + PLAN.md)
 0b0a3a9 feat(phase-13): 콘텐츠 고도화 — markdown cleanup + contextual image + 130/130
-72fb5ec plan(phase-13): 4건 수정 — GFM 표 확인, API cache/fallback, Wave 순서 전환, 120/120 목표
-8374edc plan(phase-13): 콘텐츠 고도화 — image relevance + markdown cleanup + table fix
-bfa8606 docs: W6 완료 STATE.md/ROADMAP.md/.continue-here.md 갱신
-5b7267a fix(11-w6): chart fallback image_keyword auto-fill + prompt leak regex fix
+72fb5ec plan(phase-13): 4건 수정 — GFM 표 확인, API cache/fallback, Wave 순서 전환
 ```
 
 ## 인계 사항 (잔여 작업)
@@ -78,17 +96,18 @@ cd /Users/twinssn/projects2/mc
 # pytest 확인
 python -m pytest --tb=short -q
 
-# 체인 발행 (예시)
-python chain_publisher.py --seed "새키워드"
-python chain_publisher.py --chain-id <id> --draft
-python chain_publisher.py --chain-id <id> --image
-python chain_publisher.py --chain-id <id> --publish
+# Phase 14 CLI (새로운 방식 — W1 완료)
+python cli/mc.py "새키워드"           # full pipeline
+python cli/mc.py "새키워드" --dry-run  # derive only
+python cli/mc.py "새키워드" --draft    # derive + draft
+python cli/mc.py "새키워드" --image    # derive + draft + image (skip publish)
+python cli/mc.py --chain-id 67 --resume  # 재개
+python cli/mc.py "키워드" --site rotcha  # single-site override
 
-# Next: Phase 14 CLI 구현
-ls .planning/phase-14/PLAN.md
+# Phase 14 W2 구현 중: resume (cli/mc.py _resume_chain)
+# Phase 14 W3: logging + background
+# Phase 14 W4: pip install -e . + which mc
 
-# 라이브 검증
-curl -s -o /dev/null -w "%{http_code}" https://rotcha.kr/posts/<slug>/
-curl -s -o /dev/null -w "%{http_code}" https://informationhot.kr/posts/<slug>/
-curl -s -o /dev/null -w "%{http_code}" https://techpawz.com/<slug>/
+# Hugo 배포 (rotcha 예시)
+cd /Users/twinssn/Projects/rotcha-blog && HUGO_THEMESDIR=/Users/twinssn/Projects/shared-themes hugo --gc --minify && env -u CLOUDFLARE_API_TOKEN wrangler pages deploy ./public --project-name rotcha-blog
 ```
