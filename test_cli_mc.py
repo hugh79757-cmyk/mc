@@ -230,5 +230,146 @@ class TestSiteBlogKey(unittest.TestCase):
         self.assertEqual(set(_SITE_BLOG_KEY.keys()), expected)
 
 
+class TestResumeChain(unittest.TestCase):
+    """W2: _resume_chain() state detection and step skip logic."""
+
+    @patch("chain_db.get_chain")
+    @patch("chain_db.get_chain_posts")
+    @patch("chain_drafter.draft_chain")
+    @patch("chain_publisher.generate_chain_images")
+    @patch("chain_publisher.publish_chain")
+    @patch("chain_publisher.inject_cards_chain")
+    @patch("chain_publisher._preflight_check")
+    @patch("chain_db.update_chain_status")
+    def test_resume_all_complete_returns_0(
+        self, mock_update_status, mock_preflight, mock_inject, mock_publish,
+        mock_gen_img, mock_draft, mock_get_posts, mock_get_chain
+    ):
+        """(c) Already complete chain → 'already complete' + exit 0."""
+        import logging
+        from cli.mc import _resume_chain
+
+        # Chain exists, status=completed, all posts have published_url
+        mock_get_chain.return_value = {"id": 99, "seed": "테스트", "status": "completed"}
+        mock_get_posts.return_value = [
+            {"id": 1, "draft_md": "content", "image_url": "/img.jpg", "published_url": "https://rotcha.kr/1"},
+            {"id": 2, "draft_md": "content", "image_url": "/img.jpg", "published_url": "https://infohot/2"},
+            {"id": 3, "draft_md": "content", "image_url": "/img.jpg", "published_url": "https://techpawz/3"},
+        ]
+
+        logger = _setup_logging()
+        result = _resume_chain(99, None, logger)
+
+        self.assertEqual(result, 0)
+        mock_draft.assert_not_called()
+        mock_gen_img.assert_not_called()
+        mock_publish.assert_not_called()
+        # Should NOT update status since it's already completed
+        mock_update_status.assert_not_called()
+
+    @patch("chain_db.get_chain")
+    @patch("chain_db.get_chain_posts")
+    @patch("chain_drafter.draft_chain")
+    @patch("chain_publisher.generate_chain_images")
+    @patch("chain_publisher.publish_chain")
+    @patch("chain_publisher.inject_cards_chain")
+    @patch("chain_publisher._preflight_check")
+    @patch("chain_db.update_chain_status")
+    def test_resume_missing_draft_then_image_then_publish(
+        self, mock_update_status, mock_preflight, mock_inject, mock_publish,
+        mock_gen_img, mock_draft, mock_get_posts, mock_get_chain
+    ):
+        """(a) All steps missing → resume runs draft → image → publish sequentially."""
+        import logging
+        from cli.mc import _resume_chain
+
+        mock_get_chain.return_value = {"id": 66, "seed": "테스트", "status": "derived"}
+
+        # Initial: no draft_md, no image_url, no published_url
+        initial_posts = [
+            {"id": 1, "draft_md": None, "image_url": None, "published_url": None},
+            {"id": 2, "draft_md": None, "image_url": None, "published_url": None},
+            {"id": 3, "draft_md": None, "image_url": None, "published_url": None},
+        ]
+        # After draft: has draft_md, no image
+        draft_posts = [
+            {"id": 1, "draft_md": "content", "image_url": None, "published_url": None},
+            {"id": 2, "draft_md": "content", "image_url": None, "published_url": None},
+            {"id": 3, "draft_md": "content", "image_url": None, "published_url": None},
+        ]
+        # After image: has image, no published_url
+        image_posts = [
+            {"id": 1, "draft_md": "content", "image_url": "/img1.jpg", "published_url": None},
+            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": None},
+            {"id": 3, "draft_md": "content", "image_url": "/img3.jpg", "published_url": None},
+        ]
+        # After publish: all done
+        published_posts = [
+            {"id": 1, "draft_md": "content", "image_url": "/img1.jpg", "published_url": "https://rotcha.kr/1"},
+            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": "https://infohot/2"},
+            {"id": 3, "draft_md": "content", "image_url": "/img3.jpg", "published_url": "https://techpawz/3"},
+        ]
+
+        # 5 calls: initial(draft check) → draft_posts(image check) → image_posts(publish check) → published_posts(final)
+        mock_get_posts.side_effect = [initial_posts, draft_posts, image_posts, published_posts, published_posts]
+        mock_preflight.return_value = True
+
+        logger = _setup_logging()
+        result = _resume_chain(66, None, logger)
+
+        self.assertEqual(result, 0)
+        mock_draft.assert_called_once_with(66, "테스트")
+        mock_gen_img.assert_called_once_with(66)
+        mock_publish.assert_called_once()
+        mock_inject.assert_called_once()
+
+    @patch("chain_db.get_chain")
+    def test_resume_invalid_chain_id(self, mock_get_chain):
+        """(b) Invalid chain-id → error message + exit code 2."""
+        import logging
+        from cli.mc import _resume_chain
+
+        mock_get_chain.return_value = None  # Chain not found
+
+        logger = _setup_logging()
+        result = _resume_chain(99999, None, logger)
+
+        self.assertEqual(result, 2)
+
+    @patch("chain_db.get_chain")
+    @patch("chain_db.get_chain_posts")
+    @patch("chain_drafter.draft_chain")
+    @patch("chain_publisher.generate_chain_images")
+    @patch("chain_publisher.publish_chain")
+    @patch("chain_publisher.inject_cards_chain")
+    @patch("chain_publisher._preflight_check")
+    @patch("chain_db.update_chain_status")
+    def test_resume_partial_draft_only(
+        self, mock_update_status, mock_preflight, mock_inject, mock_publish,
+        mock_gen_img, mock_draft, mock_get_posts, mock_get_chain
+    ):
+        """Draft+image done, publish missing → skip draft+image, run publish only."""
+        import logging
+        from cli.mc import _resume_chain
+
+        mock_get_chain.return_value = {"id": 66, "seed": "테스트", "status": "image_generated"}
+
+        # Posts have draft_md and image_url but no published_url
+        mock_get_posts.return_value = [
+            {"id": 1, "draft_md": "content", "image_url": "/img1.jpg", "published_url": None},
+            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": None},
+            {"id": 3, "draft_md": "content", "image_url": "/img3.jpg", "published_url": None},
+        ]
+
+        logger = _setup_logging()
+        result = _resume_chain(66, None, logger)
+
+        self.assertEqual(result, 0)
+        mock_draft.assert_not_called()       # draft already done
+        mock_gen_img.assert_not_called()     # image already done
+        mock_publish.assert_called_once()    # publish still needed
+        mock_inject.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

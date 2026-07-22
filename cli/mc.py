@@ -161,8 +161,100 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
 # ─────────────────────────────────────────────────────────────────
 
 def _resume_chain(chain_id: int, site_override: str | None, logger: logging.Logger) -> int:
-    """R3: Resume chain from interrupted step (DB state detection)."""
-    raise NotImplementedError("Wave 2 — _resume_chain not yet implemented")
+    """
+    R3: Resume chain from interrupted step.
+
+    State detection:
+      - Any post missing draft_md     → run draft_chain()
+      - Any post missing image_url    → run generate_chain_images()
+      - Any post missing published_url → run publish_chain() + inject_cards_chain()
+      - All complete                  → "already complete", exit 0
+
+    Args:
+        chain_id: Chain ID to resume
+        site_override: Single-site override (or None)
+        logger: Logger instance
+
+    Returns:
+        0 on success, 1 on error
+    """
+    from chain_publisher import (
+        _preflight_check,
+        generate_chain_images,
+        publish_chain,
+        inject_cards_chain,
+    )
+    from chain_drafter import draft_chain
+    import chain_db as db
+
+    # ── Validate chain exists ────────────────────────────────────
+    chain = db.get_chain(chain_id)
+    if not chain:
+        logger.error(f"Chain #{chain_id} not found")
+        return 2  #明确的 exit code 2 for "not found"
+
+    # ── Already complete? ────────────────────────────────────────
+    if chain["status"] == "completed":
+        logger.info(f"Chain #{chain_id} already completed. Nothing to resume.")
+        return 0
+
+    posts = db.get_chain_posts(chain_id)
+    if not posts:
+        logger.error(f"Chain #{chain_id} has no posts")
+        return 1
+
+    seed = chain["seed"]
+    blog_overrides = _build_blog_overrides(site_override)
+    step_labels = {1: "rotcha", 2: "infohot", 3: "techpawz"}
+
+    logger.info(f"Resuming chain #{chain_id} (seed='{seed}', status={chain['status']})")
+    if site_override:
+        logger.info(f"Site override: {site_override}")
+
+    # ── Step 1: Draft (missing draft_md) ─────────────────────────
+    missing_draft = [p for p in posts if not p.get("draft_md")]
+    if missing_draft:
+        logger.info(f"[resume] Draft: {len(missing_draft)}/{len(posts)} posts missing — running draft_chain()")
+        draft_chain(chain_id, seed)
+        posts = db.get_chain_posts(chain_id)  # refresh after mutation
+    else:
+        logger.info(f"[resume] Draft: all {len(posts)} posts have drafts — skipping")
+
+    # ── Step 2: Image (missing image_url) ─────────────────────────
+    missing_image = [p for p in posts if not p.get("image_url")]
+    if missing_image:
+        logger.info(f"[resume] Image: {len(missing_image)}/{len(posts)} posts missing — running generate_chain_images()")
+        if not _preflight_check():
+            logger.warning("[resume] Preflight check failed — image generation may fail")
+        generate_chain_images(chain_id)
+        posts = db.get_chain_posts(chain_id)  # refresh
+    else:
+        logger.info(f"[resume] Image: all {len(posts)} posts have images — skipping")
+
+    # ── Step 3: Publish (missing published_url) ───────────────────
+    missing_publish = [p for p in posts if not p.get("published_url")]
+    if missing_publish:
+        logger.info(f"[resume] Publish: {len(missing_publish)}/{len(posts)} posts missing — running publish_chain()")
+        publish_chain(chain_id, mode="auto", blog_overrides=blog_overrides)
+        inject_cards_chain(chain_id)
+        posts = db.get_chain_posts(chain_id)  # refresh for final status
+    else:
+        logger.info(f"[resume] Publish: all {len(posts)} posts have published_url — skipping")
+
+    # ── Final status ──────────────────────────────────────────────
+    final_chain = db.get_chain(chain_id)
+    final_posts = db.get_chain_posts(chain_id)
+    all_done = all(p.get("published_url") for p in final_posts)
+
+    if all_done:
+        db.update_chain_status(chain_id, "completed")
+        logger.info(f"Chain #{chain_id} fully completed via resume")
+    else:
+        still_missing = [p["id"] for p in final_posts if not p.get("published_url")]
+        logger.warning(f"Chain #{chain_id} resume finished but {len(still_missing)} posts still unpublished: {still_missing}")
+
+    logger.info(f"Resume complete for chain #{chain_id}")
+    return 0
 
 
 def _draft_existing(chain_id: int, logger: logging.Logger) -> int:
