@@ -637,6 +637,39 @@ def build_contextual_prompt(
 
 ---
 
+## Hugo GFM Table Confirmation (Phase 13 Plan 수정 1)
+
+```bash
+# rotcha markup.toml
+[goldmark]
+  [goldmark.extensions]
+    strikethrough = false   # table 항목 없음 → 기본 활성화
+# infohot, techpawz: markup.toml 없음 → Hugo 기본값 사용
+# Goldmark table extension은 기본 활성화 (pkg.go.dev/github.com/yuin/goldmark)
+```
+
+**결론**: 세 사이트 모두 GFM table 활성화됨. `_convert_tables_to_html()` 폐기. 표는 마크다운 그대로 유지.
+
+## Phase 13 Plan 수정 2 — 외부 API 폴백/캐시 설계 결정
+
+Design decisions reflected in PLAN.md Task 2.2:
+- Cache: MD5 key, file-based JSON with 24h TTL
+- No retry on failure — caller retries on next publish cycle
+- API keys from `.env.common` (`UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`)
+- No hardcoded keys or fallback keys
+
+## Phase 13 Plan 수정 3 — Wave 순서 전환
+
+Wave 1(정제) → Wave 2(이미지). `_clean_markdown_symbols()`가 먼저 적용되어 마커/표/코드/수식을 보호한 후 이미지 파이프라인 동작.
+
+## Phase 13 Plan 수정 4 — 테스트 목표
+
+112 + 8 = 120/120. 신규 8개 테스트:
+- Task 1.1: 2 (marker/code protection)
+- Task 2.1: 1 (contextual prompt)
+- Task 2.2: 4 (success/empty/rate-limit/cache/api-key)
+- Task 3: 1 (integration wiring)
+
 ## Metadata
 
 **Confidence breakdown:**
