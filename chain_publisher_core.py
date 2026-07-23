@@ -1006,7 +1006,8 @@ def _clean_markdown_symbols(body: str) -> str:
     - <!--todo:image--> / <!--todo:chart--> markers
     - Code blocks (``` fences)
     - Inline code (backtick)
-    - Table lines (lines starting with | preceded by blank line)
+    - Table separator lines (---|---|--- or |---|---|)
+    - Table data lines (lines starting with |)
     - Math blocks ($$) and inline math ($)
 
     Rules:
@@ -1045,8 +1046,14 @@ def _clean_markdown_symbols(body: str) -> str:
             result.append(line)
             continue
 
-        # PROTECTED: table lines (starts with |, typical table row or separator)
-        if stripped.startswith('|') and re.match(r'^\||^[-|:\s]+$', stripped):
+        # PROTECTED: table separator lines (---|---|--- or |---|---|)
+        # Must check BEFORE pipe-escape rule since these may lack leading |
+        if re.match(r'^[-|:\s]+$', stripped) and ('|' in stripped) and ('-' in stripped):
+            result.append(line)
+            continue
+
+        # PROTECTED: table data rows (starts with |)
+        if stripped.startswith('|'):
             result.append(line)
             continue
 

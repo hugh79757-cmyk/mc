@@ -377,7 +377,7 @@ def publish_chain(chain_id: int, mode: str = "auto",
 # ── Phase 5: 카드 주입 (draft_md 기반) ──────────────────────────────
 
 def inject_cards_chain(chain_id: int) -> None:
-    """Step 1→2→3 정순으로 next 카드 주입 (draft_md 기반 + 재발행)."""
+    """3단계 카드 주입: Depth 0→1 다음 글 카드, Depth 2→외부 링크 카드."""
     if chain_id in _NON_INTENDED_CHAINS:
         _intended = {19: 20, 27: 28}
         print(f"[mc] BLOCKED: Chain #{chain_id}는 비의도 체인입니다 "
@@ -401,34 +401,118 @@ def inject_cards_chain(chain_id: int) -> None:
         print(f"[mc] Not enough posts for card injection")
         return
 
+    seed_keyword = chain.get("seed", "")
+
     print(f"\n{'='*60}")
-    print(f"[mc] Injecting cards for chain #{chain_id}")
+    print(f"[mc] Injecting cards for chain #{chain_id} ({len(posts)} posts)")
     print(f"{'='*60}")
 
-    for i in range(len(posts) - 1):
+    injected_blogs = set()
+    for i in range(len(posts)):
         post = posts[i]
-        next_post = posts[i + 1]
         step = post.get("step", 1)
         blog_key = _get_blog_for_step(chain_id, step, config)
         direction = chain.get("chain_type", "depth")
+        is_last = (i == len(posts) - 1)
 
-        if not next_post.get("published_url"):
-            print(f"  [inject] Step {step}: missing next URL, skipping")
+        if is_last:
+            # Depth 2: 외부 링크 카드 (공신력 우선순위)
+            success = injector.inject_into_post(
+                publisher_core=core,
+                post_id=post["id"],
+                next_title="",
+                next_url="",
+                blog_key=blog_key,
+                direction=direction,
+                is_last=True,
+                seed_keyword=seed_keyword,
+            )
+            if success:
+                db.update_card_injected(post["id"])
+                injected_blogs.add(blog_key)
+                print(f"  [inject] ✅ Step {step} external link card injected")
+            else:
+                print(f"  [inject] Step {step}: draft_md missing, skipping")
+        else:
+            # Depth 0/1: 다음 글 카드
+            next_post = posts[i + 1]
+            if not next_post.get("published_url"):
+                print(f"  [inject] Step {step}: missing next URL, skipping")
+                continue
+
+            success = injector.inject_into_post(
+                publisher_core=core,
+                post_id=post["id"],
+                next_title=next_post["title"],
+                next_url=next_post["published_url"],
+                blog_key=blog_key,
+                direction=direction,
+                is_last=False,
+                seed_keyword=seed_keyword,
+            )
+            if success:
+                db.update_card_injected(post["id"])
+                injected_blogs.add(blog_key)
+                print(f"  [inject] ✅ Step {step} next card injected")
+            else:
+                print(f"  [inject] Step {step}: draft_md missing, skipping")
+
+    # Deploy each blog once after all cards are injected
+    if injected_blogs:
+        print(f"\n[mc] Deploying {len(injected_blogs)} blog(s) after card injection...")
+        _deploy_blogs_after_inject(injected_blogs, config)
+
+
+def _deploy_blogs_after_inject(blog_keys: set, config: dict) -> None:
+    """카드 주입 후 각 블로그별 Hugo 빌드 + Wrangler 배포 (1회씩)."""
+    import subprocess
+    import shutil as _shutil
+
+    for blog_key in blog_keys:
+        blog_cfg = config.get("sites", {}).get(blog_key, {})
+        publisher_type = blog_cfg.get("publisher_type", "manual")
+        if publisher_type != "hugo":
             continue
 
-        success = injector.inject_into_post(
-            publisher_core=core,
-            post_id=post["id"],
-            next_title=next_post["title"],
-            next_url=next_post["published_url"],
-            blog_key=blog_key,
-            direction=direction,
+        hugo_root = blog_cfg.get("hugo_root") or blog_cfg.get("site_path")
+        if not hugo_root:
+            print(f"  [deploy] {blog_key}: hugo_root not found, skipping")
+            continue
+
+        cf_project = blog_cfg.get("cf_pages_project", "")
+        print(f"  [deploy] {blog_key}: Hugo build + deploy (project={cf_project})")
+
+        # Hugo build
+        hugo_bin = _shutil.which("hugo") or "/opt/homebrew/bin/hugo"
+        env = os.environ.copy()
+        env["PATH"] = "/opt/homebrew/bin:" + env.get("PATH", "")
+        build = subprocess.run(
+            [hugo_bin, "--gc", "--minify"],
+            cwd=hugo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
-        if success:
-            db.update_card_injected(post["id"])
-            print(f"  [inject] ✅ Step {step} card injected & re-published")
+        if build.returncode != 0:
+            print(f"  [deploy] {blog_key}: Hugo build FAILED: {build.stderr[:200]}")
+            continue
+
+        # Wrangler deploy
+        if cf_project:
+            public_dir = os.path.join(hugo_root, "public")
+            from chain_publisher_core import _run_wrangler
+            rc, stdout, stderr = _run_wrangler(
+                ["pages", "deploy", public_dir, "--project-name", cf_project,
+                 "--commit-dirty=true", "--commit-message", "deploy: card-injection"],
+                cwd=hugo_root,
+            )
+            if rc != 0:
+                print(f"  [deploy] {blog_key}: Wrangler deploy FAILED: {stderr[:200]}")
+            else:
+                print(f"  [deploy] {blog_key}: ✅ Deployed")
         else:
-            print(f"  [inject] Step {step}: draft_md missing, skipping")
+            print(f"  [deploy] {blog_key}: no cf_pages_project, build only")
 
 
 # ── Phase 3: 스케줄러 ────────────────────────────────────────────

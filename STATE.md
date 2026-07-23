@@ -1,20 +1,117 @@
 # STATE.md — mc (Manual Chain)
 
 **Updated:** 2026-07-23
-**Phase:** Phase 14 + P1 + P2 + R2 이미지 수정 + techpawz 버킷 분기 완료
-**Status:** ✅ 179/179, 라이브 3/3 R2 200
+**Phase:** Phase 14 + P1 + P2 + R2 이미지 수정 + techpawz 버킷 분기 + W3 카드 재설계
+**Status:** ✅ 215/215, 라이브 3/3 카드, BS4 제거, 화이트리스트 7/10
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **179/179** ✅ (130 기존 + 35 W1-W3 + 6 P1 + 3 published_md + 5 R2 bucket) |
+| pytest | **215/215** ✅ (179 기존 + 36 W3 신규) |
 | Phase 14 W4 | **완료** ✅ — `mc` 전역 명령 + 3/3 라이브 (Chain #71) |
 | Phase 14 P1 | **완료** ✅ — `_ensure_frontmatter` 정식 구현 + patch 제거 (Chain #72 --draft 검증) |
-| 라이브 (업클로젯 --dry-run 체인 #67) | **1/1** derive 성공 ✅ |
-| Phase 13 라이브 (업클로젯 체인 #66) | **3/3** HTTP 200 + H2 + img + `<strong>` 렌더링 ✅ |
+| W3 카드 재설계 | **완료** ✅ — 3단계 카드 + 외부링크(네이버 API) + 내용분담 + 이미지프롬프트 |
+| 라이브 (카드) | **3/3** 체인 카드 주입 + 배포 (#74, #50, #28 2/3) |
+| BS4 스크래핑 | **제거** ✅ — Naver API만 사용, fallback은 naver search URL |
+| 화이트리스트 | **7/10** — ferrypark/airbusan/phr 제거 (HTTP 검증 실패) |
 | 작업 트리 | 깨끗함 (`git status --short` = untracked only) |
 | 브랜치 | `main` (최신) |
+
+## W3 완료 항목
+
+### W3-A — 카드 3단계 체계
+
+- **Depth 0/1 (is_last=False)**: "다음 글" 카드 → 다음 포스트 URL
+- **Depth 2 (is_last=True)**: 외부 링크 카드 → 공신력 우선순위별 URL
+- **`inject_cards_chain()`**: `range(len(posts))` 확장 + Depth 2 외부링크 + `_deploy_blogs_after_inject()` 자동 배포
+- **pytest**: 4개
+
+### W3-B — 외부링크 추출 (네이버 API + fallback)
+
+- **1순위**: Naver Search API (공식/플랫폼 도메인 추출)
+- **최종 fallback**: `search.naver.com` URL
+- **화이트리스트**: 7개 도메인 (2026-07 HTTP 검증 완료)
+  - ✅ dhlottery, letskorail, ktx, jejuair, twayair, jinair, koreanair(403 경고)
+  - ❌ ferrypark(미해석), airbusan(미해석), phr(미해석) — 제거
+- **`scripts/verify_whitelist.py`**: 화이트리스트 HTTP 검증 스크립트 신규
+- **BS4 스크래핑 제거**: `_search_via_bs4()` 완전 삭제 (네이버 이용약관 리스크)
+- **pytest**: 10개
+
+### W3-C — 내용 겸침 방지 (프롬프트 역할 분담)
+
+- **rotcha**: 기초/정보형 — "무엇인가"
+- **informationhot**: 응용/실전형 — "어떻게 하는가"
+- **techpawz**: 전문/심화형 — "왜 그런가 / 딥다이브"
+- **`config/prompts.yaml`**: 역할 분담 + 중복 금지 + 독립 읽기 명시
+- **pytest**: 3개
+
+### W3-이미지 — Pollinations 프롬프트 규칙
+
+- **인물 금지**: `NO_PEOPLE_BLOCK` + `POLLINATIONS_NEGATIVE` 인물 키워드
+- **스타일 강제**: 주제별 매칭 (풍경→유화/수채화, 추상→스케치, 사물→파스텔)
+- **주제 시각화**: `_infer_topic_type()` → landscape/abstract/object 분류
+- **pytest**: 10개
+
+## 라이브 검증 (카드 3건)
+
+| 체인 | 주제 | rotcha(D0) | infohot(D1) | techpawz(D2) | 비고 |
+|------|------|------------|-------------|--------------|------|
+| #74 | 파주 옳은휴식하루 | ✅ 다음 글 | ✅ 다음 글 | ✅ Naver search | 3/3 |
+| #50 | 욕지도배편 | ✅ 다음 글 | ✅ 다음 글 | ✅ 공공기관 바로가기 | 3/3 |
+| #28 | 포천계곡펜션 | ❌ Hugo 빌드 실패 | ✅ 다음 글 | ✅ 공공기관 바로가기 | 2/3 |
+
+- Chain #28 rotcha 실패: 기존 콘텐츠의 ````json` 미정리 (카드 주입과 무관)
+
+## Recent Commits
+
+```
+W3 머지 (이 세션)
+6c79a09 docs(state): techpawz 버킷 분기 완료 — pytest 179/179, 라이브 3/3 R2 200
+e288be4 fix(r2): techpawz R2 업로드 버킷 분기 — hotissue-images → techpawz-images
+c4e8f06 fix(r2): published_md 컬럼으로 card injection R2 URL 보존
+82b734e refactor(phase-14-p1): _ensure_frontmatter 정식 구현 + cli/mc.py patch 제거
+```
+
+## 인계 사항 (잔여 작업)
+
+1. ~~Phase 14 CLI~~ ✅ 완료 (W1~W4 + P1)
+2. ~~고아 content_image_path~~ ✅ 완료 (P2: 15/15, (a)43건 이월)
+3. ~~R2 이미지 파이프라인~~ ✅ 완료 (published_md + techpawz 버킷 분기)
+4. ~~W3 카드 재설계~~ ✅ 완료 (3단계 + 네이버 API + 내용분담 + 이미지프롬프트)
+5. **#28 rotcha Hugo 빌드 실패**: ````json` 미정리 → 콘텐츠 수정 필요 (W3과 무관)
+6. **Phase 14.1 — cron/launchd 스케줄링, dashboard, audit 통합**: 별도 milestone 이월
+7. **(a) 43건 고아**: 신규 발행 W6 게이트로 차단, 기존 43건은 재발행 전까지 이미지 없음
+8. **P3 Blowfish CSS 복구**: 라이브 3/3 기능 정상, CSS 미세 복구 영역
+
+## Resume Instructions
+
+```bash
+cd /Users/twinssn/projects2/mc
+
+# pytest 확인
+python -m pytest --tb=short -q
+
+# 화이트리스트 검증
+python scripts/verify_whitelist.py
+
+# Phase 14 CLI (완료 — 전역 mc 명령 사용)
+mc "새키워드"                  # full pipeline (derive→draft→image→publish)
+mc "새키워드" --dry-run        # derive only
+mc "새키워드" --draft          # derive + draft
+mc "새키워드" --image          # derive + draft + image (skip publish)
+mc --chain-id 67 --resume      # 재개
+mc "키워드" --site rotcha      # single-site override
+mc "키워드" --background       # 백그라운드 실행
+
+# 카드 주입 (기존 체인)
+python -c "from chain_publisher import inject_cards_chain; inject_cards_chain(CHAIN_ID)"
+
+# Phase 14.1 이월: cron/launchd, dashboard, audit_chain 통합
+
+# Hugo 배포 (rotcha 예시)
+cd /Users/twinssn/Projects/rotcha-blog && HUGO_THEMESDIR=/Users/twinssn/Projects/shared-themes hugo --gc --minify && env -u CLOUDFLARE_API_TOKEN wrangler pages deploy ./public --project-name rotcha-blog
+```
 
 ## Phase 13 완료 항목
 

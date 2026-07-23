@@ -110,17 +110,23 @@ def search_body_image(keyword: str, slug: str) -> Optional[tuple[Path, str]]:
 # ── Helpers ──
 
 def _to_body_path(downloaded: Path, slug: str, source: str, photo_id: str) -> Path:
-    """Rename downloaded image to body_{slug}_{source}_{id}.webp in output/images."""
+    """Convert downloaded image to actual WebP and save as body_{slug}_{source}_{id}.webp."""
     IMAGE_DIR = Path("output/images")
     IMAGE_DIR.mkdir(parents=True, exist_ok=True)
     safe_id = re.sub(r"[^a-zA-Z0-9_-]", "", photo_id)[:20] if photo_id else "0"
     dest = IMAGE_DIR / f"body_{slug}_{source}_{safe_id}.webp"
     try:
-        import shutil
-        shutil.copy2(downloaded, dest)
+        from PIL import Image
+        with Image.open(downloaded) as img:
+            img.convert("RGB").save(dest, "WEBP", quality=85)
         return dest
-    except OSError:
-        return downloaded
+    except Exception:
+        import shutil
+        try:
+            shutil.copy2(downloaded, dest)
+        except OSError:
+            return downloaded
+        return dest
 
 
 

@@ -201,8 +201,8 @@ class TestPromptBuilder:
 
         assert isinstance(prompt, str)
         assert len(prompt) > 10
-        # rotcha style prompt contains English keywords
-        assert "k-pop" in prompt
+        # rotcha style prompt contains English keywords (pastel/oil/watercolor)
+        assert "pastel" in prompt or "oil painting" in prompt or "watercolor" in prompt
         assert "step 1 of depth chain" in prompt
 
     def test_get_image_style_for_blog(self):
@@ -333,7 +333,7 @@ class TestContextualPrompt:
     """build_contextual_prompt 테스트 (Phase 13 R1)."""
 
     def test_contextual_prompt_contains_title_and_keyword(self):
-        """컨텍스트 프롬프트에 제목과 키워드 포함."""
+        """컨텍스트 프롬프트에 image_keyword 기반 장면 + 스타일 포함."""
         from image.prompt_builder import build_contextual_prompt
 
         prompt = build_contextual_prompt(
@@ -344,9 +344,9 @@ class TestContextualPrompt:
             step=2,
             chain_type="depth",
         )
-        assert "Best Laptops 2026" in prompt
+        # 새 디자인: image_keyword 기반 장면 묘사
         assert "laptop" in prompt
-        assert "gaming performance" in prompt
+        assert "step 2 of depth chain" in prompt
 
     def test_contextual_prompt_no_raw_subject(self):
         """'主題:' 프리픽스가 없어야 함."""

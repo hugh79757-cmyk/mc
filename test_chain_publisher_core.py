@@ -903,6 +903,40 @@ class TestCleanMarkdownSymbols:
         result = _clean_markdown_symbols("")
         assert result == ""
 
+    def test_table_separator_without_leading_pipe(self):
+        """선행 | 없는 표 구분선 보호 (---|---|---)."""
+        from chain_publisher_core import _clean_markdown_symbols
+
+        text = "| 항목 | 내용 |\n------|------|\n| 위치 | 파주 |"
+        result = _clean_markdown_symbols(text)
+        assert "------|------|" in result
+        assert "\\|" not in result
+
+    def test_table_separator_with_leading_pipe(self):
+        """선행 | 있는 표 구분선 보호 (|---|---|)."""
+        from chain_publisher_core import _clean_markdown_symbols
+
+        text = "| 항목 | 내용 |\n|------|------|\n| 위치 | 파주 |"
+        result = _clean_markdown_symbols(text)
+        assert "|------|------|" in result
+        assert "\\|" not in result
+
+    def test_mixed_table_formats(self):
+        """혼합 표 형식 — AI가 선행 |를 빠뜨린 케이스."""
+        from chain_publisher_core import _clean_markdown_symbols
+
+        text = (
+            "| 도구 | 장점 | 단점 |\n"
+            "-----------|------|------|\n"
+            "| Selenium | 다양한 브라우저 지원 | 느린 실행 속도 |\n"
+            "| pytest | 간결한 문법 | Java 미지원 |"
+        )
+        result = _clean_markdown_symbols(text)
+        # 분석선 보호 확인
+        assert "-----------|------|------|" in result
+        # 파이프 이스케이프 없음
+        assert "\\|" not in result
+
 
 class TestCLI:
     """CLI 테스트 (해당 없음 - PublisherCore는 라이브러리)."""

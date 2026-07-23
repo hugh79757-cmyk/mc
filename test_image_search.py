@@ -6,6 +6,63 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PIL import Image
+
+
+class TestToBodyPath:
+    """_to_body_path 함수 — JPEG→WebP 실제 변환 테스트."""
+
+    def test_jpeg_to_webp_conversion(self, temp_dir):
+        """JPEG 파일을 .webp로 저장하면 실제 WebP 포맷이어야 함."""
+        from image.search_providers import _to_body_path
+
+        # Create a fake JPEG file
+        jpeg_path = temp_dir / "photo.jpg"
+        img = Image.new("RGB", (100, 100), color="red")
+        img.save(jpeg_path, "JPEG", quality=90)
+
+        # Verify it's actually JPEG
+        with open(jpeg_path, "rb") as f:
+            assert f.read(2) == b"\xff\xd8"
+
+        result = _to_body_path(jpeg_path, "test-slug", "pexels", "12345")
+
+        # Result should exist and be a real WebP
+        assert result.exists()
+        assert result.suffix == ".webp"
+        with open(result, "rb") as f:
+            header = f.read(4)
+        assert header == b"RIFF", f"Expected WebP (RIFF header), got {header.hex()}"
+
+    def test_already_webp_passthrough(self, temp_dir):
+        """WebP 파일이면 그대로 변환 후 저장."""
+        from image.search_providers import _to_body_path
+
+        webp_path = temp_dir / "photo.webp"
+        img = Image.new("RGB", (100, 100), color="blue")
+        img.save(webp_path, "WEBP", quality=85)
+
+        result = _to_body_path(webp_path, "test-slug", "unsplash", "abc-123")
+
+        assert result.exists()
+        with open(result, "rb") as f:
+            header = f.read(4)
+        assert header == b"RIFF"
+
+    def test_png_to_webp_conversion(self, temp_dir):
+        """PNG 파일도 WebP로 변환됨."""
+        from image.search_providers import _to_body_path
+
+        png_path = temp_dir / "photo.png"
+        img = Image.new("RGBA", (100, 100), color=(0, 128, 255, 200))
+        img.save(png_path, "PNG")
+
+        result = _to_body_path(png_path, "test-slug", "pexels", "99999")
+
+        assert result.exists()
+        with open(result, "rb") as f:
+            header = f.read(4)
+        assert header == b"RIFF"
 
 
 class TestSearchBodyImage:

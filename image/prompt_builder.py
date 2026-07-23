@@ -1,8 +1,13 @@
 """
 prompt_builder.py — 블로그별 이미지 프롬프트 조립
 
+Pollinations 프롬프트 규칙:
+  1. 인물 금지 (hard): no people, no humans, no characters, no faces, no portraits
+  2. 스타일 강제: 주제별 1개 선택 (파스텔/유화/크로키/수채화)
+  3. 주제 시각화: 인물 없이 풍경/추상/사물로 표현
+
 Image Keywords: 각 chain_post의 image_keyword를 기반으로
-블로그 시각 스타일 + 채널 성격에 맞는 영문 Pollinations 프롬프트 생성.
+블로그별 시각 스타일 + 채널 성격에 맞는 영문 Pollinations 프롬프트 생성.
 """
 
 import yaml
@@ -10,10 +15,36 @@ import yaml
 from mc_paths import CHAIN_CONFIG_PATH
 
 POLLINATIONS_STYLE_MAP = {
-    "rotcha": "k-pop inspired, vibrant colors, cute and energetic, Korean webtoon style, soft lighting",
+    "rotcha": "soft pastel illustration, gentle color palette, artistic",
     "informationhot": "clean infographic style, modern flat design, isometric, pastel palette, professional",
-    "techpawz": "tech devices and gadgets, futuristic retro-wave, neon accents, dark mode aesthetic, 3D render",
+    "techpawz": "sketch style, pencil drawing, monochrome, hand-drawn, artistic",
 }
+
+# 주제별 스타일 (라운드로빈 대신 image_keyword로 매칭)
+TOPIC_STYLES = {
+    # 풍경 주제
+    "landscape": "oil painting style, textured brushstrokes, warm tones",
+    "nature": "watercolor painting, soft wash, translucent colors",
+    "travel": "watercolor painting, soft wash, translucent colors",
+    "hotel": "oil painting style, textured brushstrokes, warm tones",
+    "pension": "oil painting style, textured brushstrokes, warm tones",
+    "cafe": "soft pastel illustration, gentle color palette, artistic",
+    # 추상/사물 주제
+    "tech": "sketch style, pencil drawing, monochrome, hand-drawn",
+    "ai": "sketch style, pencil drawing, monochrome, hand-drawn",
+    "market": "clean infographic style, modern flat design",
+    "finance": "clean infographic style, modern flat design",
+    "shopping": "soft pastel illustration, gentle color palette, artistic",
+    "fashion": "soft pastel illustration, gentle color palette, artistic",
+    "game": "sketch style, pencil drawing, monochrome, hand-drawn",
+    "food": "watercolor painting, soft wash, translucent colors",
+}
+
+# 인물 금지 키워드 (항상 포함)
+NO_PEOPLE_BLOCK = (
+    "no people, no humans, no characters, no faces, no portraits, "
+    "no figures, no hands, no eyes, no person, no crowd, no portrait"
+)
 
 POLLINATIONS_ASPECT_RATIOS = {
     "rotcha": (1024, 1024),      # 1:1
@@ -23,8 +54,45 @@ POLLINATIONS_ASPECT_RATIOS = {
 
 POLLINATIONS_NEGATIVE = (
     "text, watermark, signature, logo, text on image, blurry, low quality, distorted face, "
-    "nsfw, explicit, violent, scary, ugly, deformed"
+    "nsfw, explicit, violent, scary, ugly, deformed, "
+    "people, person, woman, man, character, human, portrait, face, crowd, figure"
 )
+
+
+def _infer_topic_type(image_keyword: str) -> str:
+    """image_keyword에서 주제 유형 추론 (풍경/추상/사물)."""
+    kw_lower = image_keyword.lower()
+    landscape_words = [
+        "valley", "mountain", "river", "sea", "ocean", "beach", "forest",
+        "pension", "hotel", "resort", "cafe", "restaurant", "village",
+        "city", "building", "architecture", "garden", "park",
+        "paju", "pocheon", "ucheon", "haeundae", "ukjido",
+        "travel", "trip", "tour", "healing", "relaxation",
+    ]
+    abstract_words = [
+        "ai", "market", "tech", "data", "algorithm", "digital",
+        "future", "trend", "analysis", "strategy", "platform",
+        "prompt", "code", "test", "software", "system",
+        "finance", "investment", "crypto", "blockchain",
+    ]
+    for w in landscape_words:
+        if w in kw_lower:
+            return "landscape"
+    for w in abstract_words:
+        if w in kw_lower:
+            return "abstract"
+    return "object"
+
+
+def _select_style(image_keyword: str, blog_key: str) -> str:
+    """image_keyword + blog_key로 스타일 선택."""
+    topic_type = _infer_topic_type(image_keyword)
+    # 1순위: 주제별 스타일 매칭
+    for key, style in TOPIC_STYLES.items():
+        if key in image_keyword.lower():
+            return style
+    # 2순위: 블로그 기본 스타일
+    return POLLINATIONS_STYLE_MAP.get(blog_key, "high quality, detailed, professional")
 
 
 def get_image_style_for_blog(blog_key: str) -> str:
@@ -54,7 +122,11 @@ def build_contextual_prompt(
 ) -> str:
     """
     Build a contextual Pollinations prompt using title + angle.
-    Replaces the generic '主題: {image_keyword}' prefix with article context.
+
+    Pollinations 프롬프트 규칙:
+      1. 인물 금지 (항상 포함)
+      2. 스타일 강제 (주제별 매칭)
+      3. 주제 시각화 (인물 없이)
 
     Args:
         image_keyword: Short keyword for image identity.
@@ -68,20 +140,25 @@ def build_contextual_prompt(
     Returns:
         Full English prompt string for Pollinations.
     """
-    style = get_image_style_for_blog(blog_key)
+    style = _select_style(image_keyword, blog_key)
     sites = _load_blog_config()
     site_cfg = sites.get(blog_key, {})
     extra_prompt = site_cfg.get("prompt", "")
 
-    # Contextual subject line (replaces bare '主題: {keyword}')
-    subject_line = f"Article about '{title}' focusing on {image_keyword}"
-    if post_angle:
-        subject_line += f" from the perspective of {post_angle}"
+    # 주제 시각화: image_keyword를 기반으로 구체적 장면 묘사
+    topic_type = _infer_topic_type(image_keyword)
+    if topic_type == "landscape":
+        scene = f"scenic landscape featuring {image_keyword}, natural beauty, peaceful atmosphere"
+    elif topic_type == "abstract":
+        scene = f"abstract concept art of {image_keyword}, geometric shapes, symbolic representation"
+    else:
+        scene = f"detailed still life of {image_keyword}, realistic objects, clean composition"
 
     parts = [
-        subject_line,
+        scene,
         style,
         extra_prompt,
+        NO_PEOPLE_BLOCK,
         f"step {step} of {chain_type} chain blog series, Korean cultural context",
         "masterpiece, best quality, 8k, trending on ArtStation",
         f"negative: {POLLINATIONS_NEGATIVE}",
@@ -99,17 +176,26 @@ def build_full_prompt(
     """
     image_keyword + blog_key → 완전한 영문 프롬프트.
     """
-    style = get_image_style_for_blog(blog_key)
+    style = _select_style(image_keyword, blog_key)
 
     # 블로그별 추가 프롬프트 규칙 (chain_config.yaml)
     sites = _load_blog_config()
     site_cfg = sites.get(blog_key, {})
     extra_prompt = site_cfg.get("prompt", "")
 
+    topic_type = _infer_topic_type(image_keyword)
+    if topic_type == "landscape":
+        scene = f"scenic landscape featuring {image_keyword}"
+    elif topic_type == "abstract":
+        scene = f"abstract concept art of {image_keyword}"
+    else:
+        scene = f"detailed still life of {image_keyword}"
+
     parts = [
-        f"主題: {image_keyword}",
+        scene,
         style,
         extra_prompt,
+        NO_PEOPLE_BLOCK,
         f"step {step} of {chain_type} chain blog series, Korean cultural context",
         "masterpiece, best quality, 8k, trending on ArtStation",
         f"negative: {POLLINATIONS_NEGATIVE}",
