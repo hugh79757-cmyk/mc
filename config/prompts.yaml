@@ -350,10 +350,10 @@ keyword_categories:
       - "## {keyword} — 입주민 후기와 단지 평가"
       - "## 마무리 — {keyword} 계약 전 꼭 확인할 것"
     step3_sections:
-      - "## {keyword} — 인프라와 교통 전망"
-      - "## {keyword} — 시세 전망과 수익률"
-      - "## {keyword} — 실제 거래 데이터"
-      - "## 마무리 — {keyword} 투자 결정 전 확인"
+      - "## {keyword} — 계약서 핵심 조항 살펴보기"
+      - "## {keyword} — 등기 이전과 소유권 확인"
+      - "## {keyword} — 입주 전 하자 보수 체크리스트"
+      - "## 마무리 — {keyword} 이사 계획과 입주 준비"
   automotive:
     patterns:
       - "(하이브리드|전기차|SUV|세단|RV|EV|내연기관|자동차|차량|신차|중고차|리스|할부|렌트카|카셰어링)"
@@ -369,7 +369,7 @@ keyword_categories:
       - "## 마무리 — {keyword} 계약 전 확인"
     step3_sections:
       - "## {keyword} — 유지비 따져보기"
-      - "## {keyword} — 중고차 시세 전망"
+      - "## {keyword} — 차량 인도 시 확인할 점검표"
       - "## {keyword} — 실제 리스크와 주의점"
       - "## 마무리 — {keyword} 결정 전 최종 점검"
   stock:
@@ -386,10 +386,10 @@ keyword_categories:
       - "## {keyword} — 포트폴리오에 담는 법"
       - "## 마무리 — {keyword} 실전 적용하기"
     step3_sections:
-      - "## {keyword} — 시장 전망과 전문가 시각"
-      - "## {keyword} — 과거 데이터로 본 패턴"
+      - "## {keyword} — 매수 타이밍 구체화하기"
+      - "## {keyword} — 손절과 익절 기준 세우기"
       - "## {keyword} — 리스크 관리와 분산 전략"
-      - "## 마무리 — {keyword} 장기 투자 관점"
+      - "## 마무리 — {keyword} 정기 리밸런싱과 배당 재투자"
   etc:
     patterns: []
     step1_sections:
