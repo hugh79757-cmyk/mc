@@ -195,6 +195,78 @@ class TestDeriveChain:
         assert result == 0
 
 
+class TestDeriveLateralCategoryDispatch:
+    """category별 lateral 프롬프트 분기 검증."""
+
+    LATERAL_ANGLES = {
+        "travel": "예약 확정과 현장 실전",
+        "real_estate": "계약 확정과 입주 완료",
+        "automotive": "구매 확정과 인도 완료",
+        "stock": "매수/매도 실행과 포트폴리오 관리",
+        "etc": "최종 구매 확정과 장기 활용",
+    }
+    OLD_GENERIC_ANGLE = "산업 구조와 수익화 전망"
+
+    @pytest.mark.parametrize("keyword,expected_category", [
+        ("하이바이풀빌라", "travel"),
+        ("아파트 분양", "real_estate"),
+        ("전기차 추천", "automotive"),
+        ("ETF 투자", "stock"),
+        ("아이폰 17", "etc"),
+    ])
+    @patch("chain_deriver.generate")
+    @patch("chain_deriver.load_config")
+    @patch("chain_deriver.load_prompts")
+    @patch("chain_deriver.db.create_chain")
+    @patch("chain_deriver.db.create_chain_post")
+    def test_lateral_category_uses_correct_angle(
+        self,
+        mock_create_post,
+        mock_create_chain,
+        mock_load_prompts,
+        mock_load_config,
+        mock_generate,
+        sample_chain_config,
+        sample_prompts,
+        keyword,
+        expected_category,
+    ):
+        """category별 lateral derive prompt에 올바른 angle 포함."""
+        mock_load_config.return_value = sample_chain_config
+        mock_load_prompts.return_value = sample_prompts
+        mock_create_chain.return_value = 42
+
+        mock_generate.return_value = {
+            "content": json.dumps([
+                {"title": "Step 1", "depth": 0, "step": 1, "angle": "기초", "category_guess": "일반", "bridge_logic": "다음"},
+                {"title": "Step 2", "depth": 1, "step": 2, "angle": "비교", "category_guess": "일반", "bridge_logic": "다음"},
+                {"title": "Step 3", "depth": 2, "step": 3, "angle": "실전", "category_guess": "일반", "bridge_logic": "완결"},
+            ]),
+            "model": "test-model",
+            "provider": "test",
+            "tier": "default",
+            "tokens_used": 100,
+        }
+
+        from chain_deriver import derive_chain
+        derive_chain(keyword, chain_type="lateral")
+
+        # capture the user_prompt sent to generate() (keyword arg)
+        user_prompt = mock_generate.call_args.kwargs["user_prompt"]
+
+        expected_angle = self.LATERAL_ANGLES[expected_category]
+
+        # ✅ category-specific angle must be present
+        assert expected_angle in user_prompt, (
+            f"[{expected_category}] '{expected_angle}' not in prompt:\n{user_prompt}"
+        )
+
+        # ❌ old generic angle must NOT be present
+        assert self.OLD_GENERIC_ANGLE not in user_prompt, (
+            f"[{expected_category}] Old generic angle '{self.OLD_GENERIC_ANGLE}' still present"
+        )
+
+
 class TestCLI:
     """CLI 엔트리포인트 테스트."""
 

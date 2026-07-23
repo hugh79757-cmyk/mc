@@ -151,6 +151,11 @@ def sample_prompts():
         "derive_user_depth": "Seed: {seed}\nCategory: {category}\nChain type: depth\nReturn JSON with 3 topics.",
         "derive_user_swallow": "Seed: {seed}\nCategory: {category}\nChain type: swallow\nReturn JSON with 3 topics.",
         "derive_user_lateral": "Seed: {seed}\nCategory: {category}\nChain type: lateral\nReturn JSON with 3 topics.",
+        "derive_user_lateral_travel": "Seed: {seed}\nCategory: {category}\nChain type: lateral (travel)\nStep 3 angle: 예약 확정과 현장 실전\nReturn JSON with 3 topics.",
+        "derive_user_lateral_real_estate": "Seed: {seed}\nCategory: {category}\nChain type: lateral (real_estate)\nStep 3 angle: 계약 확정과 입주 완료\nReturn JSON with 3 topics.",
+        "derive_user_lateral_automotive": "Seed: {seed}\nCategory: {category}\nChain type: lateral (automotive)\nStep 3 angle: 구매 확정과 인도 완료\nReturn JSON with 3 topics.",
+        "derive_user_lateral_stock": "Seed: {seed}\nCategory: {category}\nChain type: lateral (stock)\nStep 3 angle: 매수/매도 실행과 포트폴리오 관리\nReturn JSON with 3 topics.",
+        "derive_user_lateral_etc": "Seed: {seed}\nCategory: {category}\nChain type: lateral (etc)\nStep 3 angle: 최종 구매 확정과 장기 활용\nReturn JSON with 3 topics.",
         "draft_system": "You are a blog writer.",
         "draft_user": "Blog: {blog_name} ({blog_url})\nKeyword: {target_keyword}\nTitle: {title}\nAngle: {angle}\nCategory: {category}\n\nChain Context: {step} / {depth_role}\n\n{prev_context}\n\n{next_context}\n\n[STRUCTURE]\n{h2_guidelines}",
         "keyword_categories": {
