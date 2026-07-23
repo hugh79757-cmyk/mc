@@ -17,7 +17,7 @@ sites:
       depth: "더 깊이 알아보기 →"
       swallow: "이어서 실전 적용법 →"
       lateral: "관련 주제 보기 →"
-  infohot:
+  issue.techpawz:
     site_path: /Users/twinssn/Projects/issue-techpawz-hugo
     blog_id: manual_issue_techpawz
     base_url: https://issue.techpawz.com
@@ -89,24 +89,24 @@ chain_directions:
 
 # === 키워드 성격 → 체인 방향 매핑 ===
 keyword_mapping:
-  shopping: swallow
-  tech: depth
   travel: lateral
-  issue: depth
-  general: depth
+  real_estate: depth
+  automotive: depth
+  stock: depth
+  etc: depth
 
 # === 체인 뎁스별 블로그 할당 ===
 chain_blogs:
   0: rotcha
-  1: infohot
+  1: issue.techpawz
   2: techpawz
 
 # === 체인 방향별 기본 블로그 매핑 (Phase 3) ===
 chain_blog_mapping:
   default:
-    depth: [rotcha, infohot, techpawz]
-    swallow: [rotcha, infohot, techpawz]
-    lateral: [rotcha, infohot, techpawz]
+    depth: [rotcha, issue.techpawz, techpawz]
+    swallow: [rotcha, issue.techpawz, techpawz]
+    lateral: [rotcha, issue.techpawz, techpawz]
   overrides: {}
 
 # === AI Writer 설정 ===
