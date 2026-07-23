@@ -54,19 +54,19 @@ class TestResolveChainType:
         result = resolve_chain_type("Python", override="swallow")
         assert result == "swallow"
 
-    def test_tech_maps_to_depth(self):
-        """tech → depth (기본 매핑)."""
+    def test_etc_maps_to_depth_python(self):
+        """etc → depth (Python 키워드는 이제 etc 분류)."""
         from mc_paths import resolve_chain_type
 
         result = resolve_chain_type("Python 프로그래밍")
         assert result == "depth"
 
-    def test_shopping_maps_to_swallow(self):
-        """shopping → swallow (기본 매핑)."""
+    def test_etc_maps_to_depth(self):
+        """etc → depth (기본 매핑)."""
         from mc_paths import resolve_chain_type
 
         result = resolve_chain_type("아이폰 15 구매")
-        assert result == "swallow"
+        assert result == "depth"
 
     def test_travel_maps_to_lateral(self):
         """travel → lateral (기본 매핑)."""
@@ -75,8 +75,8 @@ class TestResolveChainType:
         result = resolve_chain_type("제주도 여행 코스")
         assert result == "lateral"
 
-    def test_general_maps_to_depth(self):
-        """general → depth (기본 매핑)."""
+    def test_etc_maps_to_depth_daily(self):
+        """etc → depth (일반 키워드는 etc 분류)."""
         from mc_paths import resolve_chain_type
 
         result = resolve_chain_type("일상 이야기")
@@ -87,7 +87,7 @@ class TestResolveChainType:
         from mc_paths import resolve_chain_type
 
         result = resolve_chain_type("Python", override="INVALID")
-        assert result == "depth"  # tech → depth
+        assert result == "depth"  # etc → depth (fallback)
 
 
 class TestDeriveChain:
