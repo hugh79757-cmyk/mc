@@ -249,3 +249,70 @@ class TestPollinationsPromptRules:
         prompt = build_full_prompt("valley-pension", "rotcha")
         assert "no people" in prompt
         assert "no humans" in prompt
+
+
+# ── 예방 조치: 미닫힌 펜스 감지 ──
+
+
+class TestUnclosedFence:
+    """미닫힌 코드 펜스 자동 닫기 테스트."""
+
+    def test_closed_fence_unchanged(self):
+        """닫힌 펜스는 수정 없음."""
+        from chain_card_injector import CardInjector
+        md = "---\ntitle: test\n---\n\n```json\n{}\n```\n\n본문"
+        result = CardInjector.fix_unclosed_fences(md)
+        assert result == md
+
+    def test_unclosed_fence_with_content_below(self):
+        """미닫힌 펜스 뒤에 내용이 있으면 닫기 추가."""
+        from chain_card_injector import CardInjector
+        md = "---\ntitle: test\n---\n\n```json\n{}\n\n본문입니다."
+        result = CardInjector.fix_unclosed_fences(md)
+        assert result.count("```") == 2  # 열기 + 닫기
+        assert "본문입니다" in result
+
+    def test_unclosed_fence_no_content_below(self):
+        """미닫힌 펜스 뒤에 내용이 없으면 펜스 제거."""
+        from chain_card_injector import CardInjector
+        md = "---\ntitle: test\n---\n\n본문\n\n```json"
+        result = CardInjector.fix_unclosed_fences(md)
+        assert "```" not in result
+        assert "본문" in result
+
+    def test_unclosed_fence_in_chain28_pattern(self):
+        """Chain #28 패턴: ````json` 끝에 미닫힘."""
+        from chain_card_injector import CardInjector
+        md = "---\ntitle: test\n---\n\n본문 끝.\n\n```json"
+        result = CardInjector.fix_unclosed_fences(md)
+        assert "```" not in result  # 펜스 제거됨
+
+    def test_inject_cards_auto_fixes_fence(self):
+        """카드 주입 시 미닫힌 펜스가 자동으로 닫힘."""
+        from chain_card_injector import CardInjector
+        injector = CardInjector.__new__(CardInjector)
+        injector.config = {}
+        injector.search_client = None
+        md = "---\ntitle: test\n---\n\n본문 끝.\n\n```json"
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="다음 글",
+            next_url="https://example.com",
+            blog_key="rotcha",
+            direction="next",
+        )
+        # 펜스가 닫혔거나 제거되어 shortcode가 정상적으로 주입됨
+        assert "{{<" in result  # shortcode 존재
+
+    def test_empty_md_unchanged(self):
+        """빈 입력은 그대로 반환."""
+        from chain_card_injector import CardInjector
+        result = CardInjector.fix_unclosed_fences("")
+        assert result == ""
+
+    def test_no_fence_unchanged(self):
+        """펜스가 없으면 그대로 반환."""
+        from chain_card_injector import CardInjector
+        md = "---\ntitle: test\n---\n\n본문만 있습니다."
+        result = CardInjector.fix_unclosed_fences(md)
+        assert result == md

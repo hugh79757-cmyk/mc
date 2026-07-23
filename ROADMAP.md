@@ -12,11 +12,12 @@
 | Phase 14 P1 | ✅ 완료 | `_ensure_frontmatter()` 정식 구현 + cli/mc.py patch 제거 |
 | Phase 14 P2 | ✅ 완료 | 고아 content_image_path 백필 15/15 |
 | R2 이미지 수정 | ✅ 완료 | published_md 컬럼 + card injection R2 보존 + techpawz 버킷 분기 |
+| W3 카드 재설계 | ✅ 완료 | 3단계 카드 + Naver API 외부링크 + 내용분담 + 이미지 프롬프트 + BS4 제거 |
 
 ## 현황
 
-- **pytest:** 179/179 ✅
-- **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
+- **pytest:** 215/215 ✅
+- **라이브:** 3/3 카드 주입 + 배포 (#74, #50, #28 2/3)
 - **이미지 파이프라인:** 전체 종료
 - **작업 트리:** 깨끗함 (untracked만)
 
@@ -28,3 +29,5 @@
 | (a) 43건 고아 content_image_path | 별도 milestone | 신규 발행 W6 게이트로 차단, 기존은 재발행 전까지 이미지 없음 |
 | slug 고유화 + 비의도 체인 자동 감지 | P2 | |
 | P3 Blowfish CSS 복구 | P3 | 라이브 3/3 기능 정상, CSS 미세 복구 영역 |
+| 미닫힌 펜스 예방 조치 | W3 예방 | card_injector 자동 닫기 + 기존 체인 스캔 |
+| Chain #28 rotcha 복구 | 대표 결정 | ````json` 제거 후 재발행 |

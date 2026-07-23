@@ -345,6 +345,56 @@ class CardInjector:
 
     # ── 메인 진입점 (draft_md 기반) ────────────────────────────────
 
+    @staticmethod
+    def fix_unclosed_fences(draft_md: str) -> str:
+        """미닫힌 코드 펜스(```)를 자동으로 닫거나 제거.
+
+        ````json ... ``` 이 닫히지 않은 경우:
+          - 펜스 뒤에 내용이 있으면 → 닫기 ``` 추가
+          - 펜스 뒤에 내용이 없으면 → 펜스 자체 제거
+
+        Returns:
+            수정된 draft_md (변경 없으면 원본 그대로)
+        """
+        lines = draft_md.split("\n")
+        fence_stack = []  # (line_index, fence_char)
+        fence_pattern = re.compile(r'^(`{3,})\s*(\w+)?')
+        in_frontmatter = False
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # frontmatter 처리 (--- 로 열고 닫힘)
+            if stripped == "---":
+                in_frontmatter = not in_frontmatter
+                continue
+            if in_frontmatter:
+                continue
+
+            m = fence_pattern.match(stripped)
+            if m:
+                fence_char = m.group(1)[:3]  # ```
+                if fence_stack and fence_stack[-1][1] == fence_char:
+                    fence_stack.pop()
+                else:
+                    fence_stack.append((i, fence_char))
+
+        if not fence_stack:
+            return draft_md  # 닫힌 펜스 없음
+
+        # 마지막 미닫힌 펜스 처리
+        last_open_line, fence_char = fence_stack[-1]
+        remaining_after = "\n".join(lines[last_open_line + 1:]).strip()
+
+        if remaining_after:
+            # 펜스 뒤에 내용이 있으면 → 닫기 추가
+            insert_at = last_open_line + 1
+            lines.insert(insert_at, fence_char)
+            return "\n".join(lines)
+        else:
+            # 펜스 뒤에 내용이 없으면 → 펜스 자체 제거
+            del lines[last_open_line]
+            return "\n".join(lines)
+
     def inject_cards_into_draft(
         self,
         draft_md: str,
@@ -370,6 +420,9 @@ class CardInjector:
           2. 다음 글 카드 (is_last=False일 때만)
           3. 중간 관련 카드 (H2 >= 3일 때 2번째 H2 직후)
         """
+        # 미닫힌 코드 펜스 자동 닫기
+        draft_md = self.fix_unclosed_fences(draft_md)
+
         # frontmatter 분리
         if draft_md.startswith("---"):
             end = draft_md.find("---", 3)
