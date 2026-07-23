@@ -112,16 +112,16 @@ derive_user_swallow: |
   - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
 
 # ─────────────────────────────────────────
-# DERIVE — 방향 C: Lateral (횡방향)
-# 여행/지역/맛집/리뷰 키워드용
+# DERIVE — 방향 C: Lateral (횡방향) — category별 분기
+# 각 category의 Step 3 angle은 실전 전환(Conversion) 중심
 # ─────────────────────────────────────────
-derive_user_lateral: |
+derive_user_lateral_travel: |
   시드 키워드: "{seed}"
   키워드 카테고리: {category}
 
   이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
-  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(비즈니스/확장형) 순서로 체인을 구성하세요.
-  독자가 하나의 주제에서 점점 더 넓은 관점으로 이동하게 만드는 것이 목표입니다.
+  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
+  독자가 하나의 주제에서 점점 더 실전적인 선택과 결정으로 이동하게 만드는 것이 목표입니다.
 
   다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
 
@@ -133,7 +133,7 @@ derive_user_lateral: |
       "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
       "angle": "기초 정보와 첫인상",
       "target_keyword": "메인 키워드",
-      "category_guess": "여행/문화",
+      "category_guess": "여행/숙박",
       "key_points": ["핵심 포인트 3-5개", "..."],
       "image_prompt": "이미지 생성을 위한 영어 프롬프트",
       "image_keyword": "이미지 파일명용 영문 키워드",
@@ -151,16 +151,257 @@ derive_user_lateral: |
       "step": 3,
       "depth": 2,
       "domain": "techpawz.com",
-      "title": "관련 산업/비즈니스 모델 분석 및 마케팅 전략 (비즈니스/확장형)",
-      "angle": "산업 구조와 수익화 전망",
+      "title": "실전 예약 꿀팁과 취소/변경 리스크 관리 (실전/확정형)",
+      "angle": "예약 확정과 현장 실전",
       ...
     }}
   ]
 
   규칙:
   - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - Step 1(정보) → Step 2(비교/비용) → Step 3(비즈니스/마케팅) 흐름 유지
-  - Step 3에서는 B2B 광고, 마케팅 도구 등 수익화 가능한 주제로 연결
+  - Step 1(정보) → Step 2(비교/비용) → Step 3(실전 예약/현장 활용) 흐름 유지
+  - Step 3에서는 예약 확정, 체크인 노하우, 취소/변경 리스크 관리 등 실전 정보로 수익화 유도
+  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
+
+derive_user_lateral_real_estate: |
+  시드 키워드: "{seed}"
+  키워드 카테고리: {category}
+
+  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
+  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
+  독자가 하나의 주제에서 점점 더 실전적인 계약과 입주 결정으로 이동하게 만드는 것이 목표입니다.
+
+  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
+
+  [
+    {{
+      "step": 1,
+      "depth": 0,
+      "domain": "rotcha.kr",
+      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
+      "angle": "기초 정보와 첫인상",
+      "target_keyword": "메인 키워드",
+      "category_guess": "부동산/분양",
+      "key_points": ["핵심 포인트 3-5개", "..."],
+      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
+      "image_keyword": "이미지 파일명용 영문 키워드",
+      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
+    }},
+    {{
+      "step": 2,
+      "depth": 1,
+      "domain": "issue.techpawz.com",
+      "title": "시드 키워드 관련 청약/계약 전략 비교 (비교/탐색형)",
+      "angle": "계약 조건과 대출 비교",
+      ...
+    }},
+    {{
+      "step": 3,
+      "depth": 2,
+      "domain": "techpawz.com",
+      "title": "계약서 조항 분석과 입주 체크리스트 (실전/확정형)",
+      "angle": "계약 확정과 입주 완료",
+      ...
+    }}
+  ]
+
+  규칙:
+  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
+  - Step 1(정보) → Step 2(비교/계약전략) → Step 3(계약 확정/입주) 흐름 유지
+  - Step 3에서는 계약서 조항, 등기 이전, 하자 보수, 이사 계획 등 계약 확정 정보로 수익화 유도
+  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
+
+derive_user_lateral_automotive: |
+  시드 키워드: "{seed}"
+  키워드 카테고리: {category}
+
+  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
+  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
+  독자가 하나의 주제에서 점점 더 실전적인 구매와 인도 결정으로 이동하게 만드는 것이 목표입니다.
+
+  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
+
+  [
+    {{
+      "step": 1,
+      "depth": 0,
+      "domain": "rotcha.kr",
+      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
+      "angle": "기초 정보와 첫인상",
+      "target_keyword": "메인 키워드",
+      "category_guess": "자동차/구매",
+      "key_points": ["핵심 포인트 3-5개", "..."],
+      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
+      "image_keyword": "이미지 파일명용 영문 키워드",
+      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
+    }},
+    {{
+      "step": 2,
+      "depth": 1,
+      "domain": "issue.techpawz.com",
+      "title": "시드 키워드 관련 구매 전략 비교 (비교/탐색형)",
+      "angle": "구매 조건과 할인 비교",
+      ...
+    }},
+    {{
+      "step": 3,
+      "depth": 2,
+      "domain": "techpawz.com",
+      "title": "차량 인도 점검표와 초기 유지비 (실전/확정형)",
+      "angle": "구매 확정과 인도 완료",
+      ...
+    }}
+  ]
+
+  규칙:
+  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
+  - Step 1(정보) → Step 2(비교/구매전략) → Step 3(구매 확정/인도) 흐름 유지
+  - Step 3에서는 시승 체크리스트, 인도 점검표, 등록 절차, 초기 유지비 등 구매 확정 정보로 수익화 유도
+  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
+
+derive_user_lateral_stock: |
+  시드 키워드: "{seed}"
+  키워드 카테고리: {category}
+
+  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
+  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/관리형) 순서로 체인을 구성하세요.
+  독자가 하나의 주제에서 점점 더 실전적인 매매 실행과 포트폴리오 관리로 이동하게 만드는 것이 목표입니다.
+
+  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
+
+  [
+    {{
+      "step": 1,
+      "depth": 0,
+      "domain": "rotcha.kr",
+      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
+      "angle": "기초 정보와 첫인상",
+      "target_keyword": "메인 키워드",
+      "category_guess": "투자/금융",
+      "key_points": ["핵심 포인트 3-5개", "..."],
+      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
+      "image_keyword": "이미지 파일명용 영문 키워드",
+      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
+    }},
+    {{
+      "step": 2,
+      "depth": 1,
+      "domain": "issue.techpawz.com",
+      "title": "시드 키워드 관련 실전 투자 전략 비교 (비교/탐색형)",
+      "angle": "매매 전략과 리스크 비교",
+      ...
+    }},
+    {{
+      "step": 3,
+      "depth": 2,
+      "domain": "techpawz.com",
+      "title": "매수 타이밍과 포트폴리오 리밸런싱 (실전/관리형)",
+      "angle": "매수/매도 실행과 포트폴리오 관리",
+      ...
+    }}
+  ]
+
+  규칙:
+  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
+  - Step 1(정보) → Step 2(비교/전략) → Step 3(매매 실행/관리) 흐름 유지
+  - Step 3에서는 매수 타이밍, 손절/익절 기준, 리밸런싱, 배당 재투자 등 실행 정보로 수익화 유도
+  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
+
+derive_user_lateral_etc: |
+  시드 키워드: "{seed}"
+  키워드 카테고리: {category}
+
+  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
+  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
+  독자가 하나의 주제에서 점점 더 실전적인 구매 결정과 장기 활용으로 이동하게 만드는 것이 목표입니다.
+
+  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
+
+  [
+    {{
+      "step": 1,
+      "depth": 0,
+      "domain": "rotcha.kr",
+      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
+      "angle": "기초 정보와 첫인상",
+      "target_keyword": "메인 키워드",
+      "category_guess": "쇼핑/소비",
+      "key_points": ["핵심 포인트 3-5개", "..."],
+      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
+      "image_keyword": "이미지 파일명용 영문 키워드",
+      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
+    }},
+    {{
+      "step": 2,
+      "depth": 1,
+      "domain": "issue.techpawz.com",
+      "title": "시드 키워드 관련 TOP 비교 + 가격 분석 (비교/탐색형)",
+      "angle": "객관적 비교와 선택 기준",
+      ...
+    }},
+    {{
+      "step": 3,
+      "depth": 2,
+      "domain": "techpawz.com",
+      "title": "최종 구매 결정과 장기 활용 전략 (실전/확정형)",
+      "angle": "최종 구매 확정과 장기 활용",
+      ...
+    }}
+  ]
+
+  규칙:
+  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
+  - Step 1(정보) → Step 2(비교/가격) → Step 3(구매 확정/활용) 흐름 유지
+  - Step 3에서는 가격 협상, 환불 정책, 업그레이드/교체 시기 등 구매 확정 정보로 수익화 유도
+  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
+
+# ── 구형 단일 템플릿 — category별 분기로 대체됨, fallback 경로 유지 ──
+derive_user_lateral: |
+  시드 키워드: "{seed}"
+  키워드 카테고리: {category}
+
+  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
+  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
+  독자가 하나의 주제에서 점점 더 실전적인 선택과 결정으로 이동하게 만드는 것이 목표입니다.
+
+  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
+
+  [
+    {{
+      "step": 1,
+      "depth": 0,
+      "domain": "rotcha.kr",
+      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
+      "angle": "기초 정보와 첫인상",
+      "target_keyword": "메인 키워드",
+      "category_guess": "일반",
+      "key_points": ["핵심 포인트 3-5개", "..."],
+      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
+      "image_keyword": "이미지 파일명용 영문 키워드",
+      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
+    }},
+    {{
+      "step": 2,
+      "depth": 1,
+      "domain": "issue.techpawz.com",
+      "title": "시드 키워드 관련 TOP 비교 + 비용 분석 (비교/탐색형)",
+      "angle": "객관적 비교와 선택 기준",
+      ...
+    }},
+    {{
+      "step": 3,
+      "depth": 2,
+      "domain": "techpawz.com",
+      "title": "최종 선택과 실전 활용 가이드 (실전/확정형)",
+      "angle": "최종 구매 확정과 장기 활용",
+      ...
+    }}
+  ]
+
+  규칙:
+  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
+  - Step 1(정보) → Step 2(비교/비용) → Step 3(실전/확정) 흐름 유지
+  - Step 3에서는 구매 확정, 가격 협상, 장기 활용 등 실전 정보로 수익화 유도
   - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
 
 # ─────────────────────────────────────────
