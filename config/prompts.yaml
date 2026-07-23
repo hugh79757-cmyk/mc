@@ -280,26 +280,54 @@ draft_user: |
   - 썸네일용: <!-- thumbnail: {target_keyword} -->
   - 본문 첫 번째 H2 직후: <!-- image: {target_keyword} {angle} -->
 
-  [STRUCTURE — depth별 H2 구성]
+  [STRUCTURE — 키워드 성격에 따른 H2 구성]
+  아래는 target_keyword의 성격(여행/숙소 vs IT/일반)에 따른 H2 가이드라인입니다.
+  반드시 아래 중 해당하는 쪽을 선택하여 H2를 구성하세요.
+  H2 제목은 그대로 복사하지 말고, target_keyword에 맞게 자연스럽게 변형하세요.
+
+  --- 키워드가 여행/숙소/장소(travel) 타입인 경우 ---
+
+  Step 1 (rotcha, 기초/정보형) — H2 4개:
+  1. ## {target_keyword} 위치 및 기본 정보 (주소, 교통, 주변 관광지 등)
+  2. ## {target_keyword} 시설 및 객실 구성 (객실 타입, 수용 인원, 편의시설)
+  3. ## {target_keyword} 요금 및 예약 기초 정보
+  4. ## 마무리 - {target_keyword} 핵심 요약
+
+  Step 2 (issue.techpawz, 응용/실전형) — H2 4개:
+  1. ## {target_keyword} 예약 전략 및 OTA 비교 (공홈 vs 야놀자 vs 에어비앤비)
+  2. ## {target_keyword} 시즌별 할인 및 꿀팁
+  3. ## {target_keyword} 실제 이용 후기 분석
+  4. ## 마무리 - {target_keyword}로 최상의 경험하는 법
+
+  Step 3 (techpawz, 전문/심화형) — H2 4개:
+  1. ## {target_keyword} 실제 가격 비교 (공홈 vs OTA vs 직접 예약)
+  2. ## {target_keyword} 시즌별 최적 예약 타이밍
+  3. ## {target_keyword} 체크인/체크아웃 실전 체크리스트
+  4. ## 마무리 - {target_keyword} 예약 전 최종 체크포인트
+
+  --- 키워드가 IT/기술/일반(tech/general) 타입인 경우 ---
+
   Step 1 (rotcha, 기초/정보형) — H2 4개:
   1. ## {target_keyword} 개요와 핵심 특징
   2. ## {target_keyword}의 주요 기능과 장점
   3. ## {target_keyword} 선택 시 고려사항
-  4. ## 마무리 - {target_keyword} 활용 전망
+  4. ## 마무리 - {target_keyword} 핵심 요약과 다음 단계
 
   Step 2 (issue.techpawz, 응용/실전형) — H2 4개:
   1. ## {target_keyword} 실전 활용법
   2. ## {target_keyword} 효과적인 설정과 팁
-  3. ## {target_keyword} 비교 분석 (유사 제품/서비스와)
-  4. ## 마무리 - {target_keyword}로 얻을 수 있는 가치
+  3. ## {target_keyword} 유사 서비스와 비교 분석
+  4. ## 마무리 - {target_keyword}로 얻을 수 있는 실전 가치
 
   Step 3 (techpawz, 전문/심화형) — H2 4개:
-  1. ## {target_keyword}의 기술적 원리와 구조
+  1. ## {target_keyword}의 핵심 기술 원리와 구조
   2. ## {target_keyword}가 산업에 미치는 영향
   3. ## {target_keyword}의 미래 전망과 혁신 방향
-  4. ## 마무리 - {target_keyword}가 바꿀 미래
+  4. ## 마무리 - {target_keyword} 업계 전망
 
-  각 H2 섹션은 최소 5문장 이상. H2 제목은 구체적 키워드를 포함할 것.
+  공통: 각 H2 섹션은 최소 5문장 이상. H2 제목은 target_keyword에 맞게 구체화하고, 템플릿 문구를 그대로 복사하지 말 것. Step 1~3의 마무리 섹션은 반드시 다음 Step으로 자연스럽게 이어지는 문장을 포함할 것.
+  Step 3의 경우 마지막에 예약/구매/신청 페이지로 연결되는 유도 문장을 포함할 것.
+  Step 3의 categories는 키워드 성격에 맞게 설정 (여행/숙소 키워드는 반드시 "여행/숙박", IT 키워드는 "IT/기술").
 
   [JSON METADATA — 마지막에 출력]
   아래 JSON을 본문 마지막에 출력하세요 (마크다운 코드블록 밖에, 들여쓰기 없이):
@@ -321,3 +349,97 @@ draft_user: |
 
   위 모든 규칙을 준수하여 Hugo 마크다운 포스트를 작성하세요.
   Frontmatter부터 시작해서 본문 전체를 출력하세요.
+
+# === 키워드 카테고리별 패턴 및 H2 템플릿 ===
+keyword_categories:
+  travel:
+    patterns:
+      - "(여행|관광|맛집|호텔|리조트|풀빌라|숙소|펜션|빌라|캠핑|글램핑|민박|게스트하우스|호스텔|항공|비행기|투어|패키지|항공권)"
+      - "(제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국|괌|사이판)"
+    step1_sections:
+      - "## {keyword} — 위치와 기본 정보"
+      - "## {keyword} — 시설과 객실 살펴보기"
+      - "## {keyword} — 요금과 예약 방법"
+      - "## 마무리 — {keyword} 핵심 요약"
+    step2_sections:
+      - "## {keyword} — 예약 전략과 채널 비교"
+      - "## {keyword} — 시즌별 할인 받는 법"
+      - "## {keyword} — 실제 이용 후기로 보는 장단점"
+      - "## 마무리 — {keyword} 최상의 경험하기"
+    step3_sections:
+      - "## {keyword} — 실제 가격 비교표"
+      - "## {keyword} — 언제 예약할까?"
+      - "## {keyword} — 체크인 전 체크리스트"
+      - "## 마무리 — {keyword} 예약 전 확인사항"
+  real_estate:
+    patterns:
+      - "(아파트|분양|청약|오피스텔|빌딩|상가|토지|재건축|재개발|리모델링)"
+      - "(전세|월세|매매|실거래가|시세|호가)"
+    step1_sections:
+      - "## {keyword} — 단지 기본 정보"
+      - "## {keyword} — 평면도와 타입별 특징"
+      - "## {keyword} — 분양가와 주변 시세"
+      - "## 마무리 — {keyword} 핵심 체크포인트"
+    step2_sections:
+      - "## {keyword} — 청약과 계약 전략"
+      - "## {keyword} — 대출과 세금 미리보기"
+      - "## {keyword} — 입주민 후기와 단지 평가"
+      - "## 마무리 — {keyword} 계약 전 꼭 확인할 것"
+    step3_sections:
+      - "## {keyword} — 인프라와 교통 전망"
+      - "## {keyword} — 시세 전망과 수익률"
+      - "## {keyword} — 실제 거래 데이터"
+      - "## 마무리 — {keyword} 투자 결정 전 확인"
+  automotive:
+    patterns:
+      - "(하이브리드|전기차|SUV|세단|RV|EV|내연기관|자동차|차량|신차|중고차|리스|할부|렌트카|카셰어링)"
+    step1_sections:
+      - "## {keyword} — 제품 개요와 스펙"
+      - "## {keyword} — 트림별 가격과 옵션"
+      - "## {keyword} — 경쟁 모델과 비교하기"
+      - "## 마무리 — {keyword} 선택 전에"
+    step2_sections:
+      - "## {keyword} — 구매 전략 (신차 vs 중고차)"
+      - "## {keyword} — 프로모션과 할인 혜택"
+      - "## {keyword} — 오너 후기로 보는 장단점"
+      - "## 마무리 — {keyword} 계약 전 확인"
+    step3_sections:
+      - "## {keyword} — 유지비 따져보기"
+      - "## {keyword} — 중고차 시세 전망"
+      - "## {keyword} — 실제 리스크와 주의점"
+      - "## 마무리 — {keyword} 결정 전 최종 점검"
+  stock:
+    patterns:
+      - "(주식|코스피|코스닥|나스닥|ETF|펀드|배당|IRP|연금|적립식|재테크|투자|매수|매도|증권|금리|환율|채권|원자재|선물|옵션)"
+    step1_sections:
+      - "## {keyword} — 기본 개념과 시장 흐름"
+      - "## {keyword} — 최근 성과와 수익률"
+      - "## {keyword} — 특징과 리스크 요인"
+      - "## 마무리 — {keyword} 투자 전 체크리스트"
+    step2_sections:
+      - "## {keyword} — 실전 투자 전략"
+      - "## {keyword} — 세금과 수수료 줄이기"
+      - "## {keyword} — 포트폴리오에 담는 법"
+      - "## 마무리 — {keyword} 실전 적용하기"
+    step3_sections:
+      - "## {keyword} — 시장 전망과 전문가 시각"
+      - "## {keyword} — 과거 데이터로 본 패턴"
+      - "## {keyword} — 리스크 관리와 분산 전략"
+      - "## 마무리 — {keyword} 장기 투자 관점"
+  etc:
+    patterns: []
+    step1_sections:
+      - "## {keyword} — 개요와 핵심 특징"
+      - "## {keyword} — 주요 기능과 장점"
+      - "## {keyword} — 선택 시 고려사항"
+      - "## 마무리 — {keyword} 핵심 요약"
+    step2_sections:
+      - "## {keyword} — 실전 활용법"
+      - "## {keyword} — 효과적인 설정과 팁"
+      - "## {keyword} — 유사 서비스와 비교"
+      - "## 마무리 — {keyword} 실전 가치"
+    step3_sections:
+      - "## {keyword} — 실제 사용 후기와 평점"
+      - "## {keyword} — 가격 비교와 구매처"
+      - "## {keyword} — 최종 추천과 선택 기준"
+      - "## 마무리 — {keyword} 종합 정리"
