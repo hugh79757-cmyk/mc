@@ -95,7 +95,7 @@ def sample_chain_config():
                 "permalink_pattern": "/posts/:slug/",
                 "content_dir": "content/posts",
             },
-            "infohot": {
+            "issue.techpawz": {
                 "site_path": "/fake/issue-techpawz-hugo",
                 "blog_id": "manual_issue_techpawz",
                 "base_url": "https://issue.techpawz.com",
@@ -124,7 +124,7 @@ def sample_chain_config():
             "lateral": {"label": "횡방향", "step_roles": {1: "주제", 2: "비교", 3: "비즈니스"}},
         },
         "keyword_mapping": {"tech": "depth", "shopping": "swallow", "travel": "lateral"},
-        "chain_blogs": {0: "rotcha", 1: "infohot", 2: "techpawz"},
+        "chain_blogs": {0: "rotcha", 1: "issue.techpawz", 2: "techpawz"},
         "ai_writer": {"tier": "default", "temperature": 0.85},
         "thumbnail": {
             "provider": "auto",
@@ -148,9 +148,9 @@ def sample_prompts():
     """Sample prompts.yaml content for testing - matches actual prompt keys."""
     return {
         "derive_system": "You are a blog chain planner.",
-        "derive_user_depth": "Seed: {seed}\nChain type: depth\nReturn JSON with 3 topics.",
-        "derive_user_swallow": "Seed: {seed}\nChain type: swallow\nReturn JSON with 3 topics.",
-        "derive_user_lateral": "Seed: {seed}\nChain type: lateral\nReturn JSON with 3 topics.",
+        "derive_user_depth": "Seed: {seed}\nCategory: {category}\nChain type: depth\nReturn JSON with 3 topics.",
+        "derive_user_swallow": "Seed: {seed}\nCategory: {category}\nChain type: swallow\nReturn JSON with 3 topics.",
+        "derive_user_lateral": "Seed: {seed}\nCategory: {category}\nChain type: lateral\nReturn JSON with 3 topics.",
         "draft_system": "You are a blog writer.",
         "draft_user": "Blog: {blog_name} ({blog_url})\nKeyword: {target_keyword}\nTitle: {title}\nAngle: {angle}\nCategory: {category}\n\nChain Context: {step} / {depth_role}\n\n{prev_context}\n\n{next_context}",
         "image_system": "Create image prompt.",

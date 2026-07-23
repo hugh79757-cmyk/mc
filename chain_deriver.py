@@ -48,7 +48,7 @@ def derive_chain(seed: str, chain_type: str = None,
         resolved_type = "depth"
 
     system_prompt = prompts.get("derive_system", prompts.get("derive_system_prompt", ""))
-    user_prompt = prompts[derive_key].format(seed=seed)
+    user_prompt = prompts[derive_key].format(seed=seed, category=category)
 
     # ── 3. AI derivation ──
     result = generate(
