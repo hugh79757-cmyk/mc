@@ -52,17 +52,17 @@
 | slug 고유화 + 비의도 체인 자동 감지 | P2 | |
 | P3 Blowfish CSS 복구 | P3 | 라이브 3/3 기능 정상, CSS 미세 복구 |
 
-| **15** | **informationhot → issue.techpawz 슬롯 교체** | **○ Planned** |
+| **15** | **informationhot → issue.techpawz 슬롯 교체** | **✅ Complete** |
 
 ## Phase 15 상세
 
 | 작업 | 상태 | 비고 |
 |------|------|------|
-| Wave-0 | 현황 스냅샷 + baseline | ○ |
-| Wave-1 | issue.techpawz-hugo 사이트 준비 | ○ |
-| Wave-2 | 체인 코드 교체 | ○ |
-| Wave-3 | 애드센스 Publisher ID 통일 | ○ |
-| Wave-4 | 최종 검증 + 커밋 | ○ |
+| Wave-0 | 현황 스냅샷 + baseline | ✅ |
+| Wave-1 | issue.techpawz-hugo 사이트 준비 | ✅ |
+| Wave-2 | 체인 코드 교체 | ✅ |
+| Wave-3 | 애드센스 Publisher ID 통일 | ✅ |
+| Wave-4 | 최종 검증 + 커밋 | ✅ |
 
 ## 현황
 
