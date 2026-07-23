@@ -140,11 +140,28 @@ def _ensure_frontmatter(draft_md: str, post: dict) -> str:
 
   # 이미 유효한 frontmatter가 있는지 확인 (열고 닫는 ---가 모두 존재)
   if draft_md.strip().startswith("---"):
-    end = draft_md.find("---", 3)
-    if end != -1:
-      return draft_md  # frontmatter 이미 있음 → 보존
+    # 닫는 ---는 반드시 독립 라인이어야 함 (테이블 구분선/수평선과 구분)
+    _lines = draft_md.split("\n")
+    for _li in range(1, min(len(_lines), 20)):
+      if _lines[_li].strip() == "---":
+        return draft_md  # frontmatter 이미 있음 → 보존
+    # 닫는 --- 없음 → 기존 FM 필드 보존 + 닫는 --- 삽입
+    _fm_end = 0
+    for _li in range(1, min(len(_lines), 20)):
+      _stripped = _lines[_li].strip()
+      if not _stripped:
+        _fm_end = _li
+        break
+      if ":" in _stripped:
+        _fm_end = _li + 1
+      else:
+        _fm_end = _li
+        break
+    _fm_block = "\n".join(_lines[:_fm_end])
+    _body = "\n".join(_lines[_fm_end:]).lstrip("\n")
+    return _fm_block + "\n---\n\n" + _body
 
-  # frontmatter 생성
+  # frontmatter 생성 (draft_md에 FM 없음)
   title = (post.get("title") or "").replace('"', '\\"')
   tags = post.get("tags", [])
   if isinstance(tags, str):
