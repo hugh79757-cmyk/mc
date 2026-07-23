@@ -2,9 +2,10 @@
 prompt_builder.py — 블로그별 이미지 프롬프트 조립
 
 Pollinations 프롬프트 규칙:
-  1. 인물 금지 (hard): no people, no humans, no characters, no faces, no portraits
-  2. 스타일 강제: 주제별 1개 선택 (파스텔/유화/크로키/수채화)
-  3. 주제 시각화: 인물 없이 풍경/추상/사물로 표현
+  1. 인물 금지 (hard): body parts 포함 (wrist/finger/hands/arm/limb)
+  2. 풍경 강제: "LANDSCAPE ONLY" 긍정문을 프롬프트 맨 앞에 배치
+  3. 스타일 강제: 주제별 1개 선택 (파스텔/유화/크로키/수채화)
+  4. 주제 시각화: 사물도 풍경 배경 안에 배치 (예: "스마트워치 on 도시 야경")
 
 Image Keywords: 각 chain_post의 image_keyword를 기반으로
 블로그별 시각 스타일 + 채널 성격에 맞는 영문 Pollinations 프롬프트 생성.
@@ -40,10 +41,16 @@ TOPIC_STYLES = {
     "food": "watercolor painting, soft wash, translucent colors",
 }
 
-# 인물 금지 키워드 (항상 포함)
+# 인물 금지 키워드 (항상 포함) — body parts까지 명시
 NO_PEOPLE_BLOCK = (
     "no people, no humans, no characters, no faces, no portraits, "
-    "no figures, no hands, no eyes, no person, no crowd, no portrait"
+    "no figures, no hands, no eyes, no person, no crowd, no portrait, "
+    "no wrist, no finger, no arm, no limb, no body part"
+)
+
+# Pollinations 프롬프트 맨 앞에 배치하는 강제 문장 (긍정 명령)
+FORCED_LANDSCAPE_PREAMBLE = (
+    "NO PEOPLE. NO HANDS. NO BODY PARTS. LANDSCAPE OR SCENERY ONLY."
 )
 
 POLLINATIONS_ASPECT_RATIOS = {
@@ -124,9 +131,9 @@ def build_contextual_prompt(
     Build a contextual Pollinations prompt using title + angle.
 
     Pollinations 프롬프트 규칙:
-      1. 인물 금지 (항상 포함)
-      2. 스타일 강제 (주제별 매칭)
-      3. 주제 시각화 (인물 없이)
+      1. LANDSCAPE ONLY 긍정문을 맨 앞에 배치
+      2. 인물 금지 (body parts 포함)
+      3. 스타일 강제 (주제별 매칭)
 
     Args:
         image_keyword: Short keyword for image identity.
@@ -150,11 +157,12 @@ def build_contextual_prompt(
     if topic_type == "landscape":
         scene = f"scenic landscape featuring {image_keyword}, natural beauty, peaceful atmosphere"
     elif topic_type == "abstract":
-        scene = f"abstract concept art of {image_keyword}, geometric shapes, symbolic representation"
+        scene = f"abstract concept art of {image_keyword}, geometric shapes, symbolic representation, serene background"
     else:
-        scene = f"detailed still life of {image_keyword}, realistic objects, clean composition"
+        scene = f"scenic landscape background with {image_keyword}, still life object in natural setting, outdoor environment, peaceful scenery"
 
     parts = [
+        FORCED_LANDSCAPE_PREAMBLE,
         scene,
         style,
         extra_prompt,
@@ -175,10 +183,10 @@ def build_full_prompt(
 ) -> str:
     """
     image_keyword + blog_key → 완전한 영문 프롬프트.
+    LANDSCAPE ONLY + 인물금지 + 스타일강제 + 풍경배경.
     """
     style = _select_style(image_keyword, blog_key)
 
-    # 블로그별 추가 프롬프트 규칙 (chain_config.yaml)
     sites = _load_blog_config()
     site_cfg = sites.get(blog_key, {})
     extra_prompt = site_cfg.get("prompt", "")
@@ -187,11 +195,12 @@ def build_full_prompt(
     if topic_type == "landscape":
         scene = f"scenic landscape featuring {image_keyword}"
     elif topic_type == "abstract":
-        scene = f"abstract concept art of {image_keyword}"
+        scene = f"abstract concept art of {image_keyword}, serene background"
     else:
-        scene = f"detailed still life of {image_keyword}"
+        scene = f"scenic landscape background with {image_keyword}, outdoor natural setting"
 
     parts = [
+        FORCED_LANDSCAPE_PREAMBLE,
         scene,
         style,
         extra_prompt,

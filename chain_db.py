@@ -449,6 +449,18 @@ def update_post_image(post_id: int, image_url: str):
     conn.close()
 
 
+def update_post_image_prompt(post_id: int, image_prompt: str):
+    """실제 Pollinations 전달 프롬프트를 DB image_prompt에 저장."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET image_prompt = ?, updated_at = ? WHERE id = ?",
+        (image_prompt, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 from chain_models import ImageMeta as ImageMetaDB
 
 def update_image_meta(post_id: int, image_meta: ImageMetaDB):

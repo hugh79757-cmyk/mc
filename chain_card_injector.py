@@ -445,19 +445,10 @@ class CardInjector:
             if external_card:
                 body = self.inject_bottom_card(body, external_card)
         else:
-            # Depth 0/1: 다음 글 카드
+            # Depth 0/1: 다음 글 카드 (1개만)
             cta = self.get_cta(blog_key, direction)
             next_card = self.build_card_html(next_title, next_url, cta)
             body = self.inject_bottom_card(body, next_card)
-            if self.should_inject_middle_card(body):
-                middle_card = self.build_card_html(next_title, next_url, cta)
-                body = self.inject_middle_card(body, middle_card)
-
-            # 공식 안내 링크 카드 (Depth 0/1도 마지막에)
-            official_link = self.find_official_link(post_title, post_keyword, body)
-            official_card = self.build_official_card_html(official_link)
-            if official_card:
-                body = self.inject_bottom_card(body, official_card)
 
         return fm + "\n\n" + body if fm else body
 

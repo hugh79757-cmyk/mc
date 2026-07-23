@@ -209,6 +209,8 @@ def generate_chain_images(chain_id: int) -> None:
                 chain_type=chain.get("chain_type", "depth"),
                 step=post.get("step", 1),
             )
+            # DB image_prompt를 실제 전달값으로 갱신 (W3)
+            db.update_post_image_prompt(post_id, full_prompt)
             image_result = img_gen(full_prompt, slug=_slug)
             if image_result and image_result.ok:
                 image_path = image_result.value

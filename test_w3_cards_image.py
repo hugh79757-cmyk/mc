@@ -185,17 +185,37 @@ class TestPollinationsPromptRules:
         assert "no people" in prompt
         assert "no humans" in prompt
         assert "no faces" in prompt
+        assert "no hands" in prompt
+
+    def test_no_people_block_has_body_parts(self):
+        """NO_PEOPLE_BLOCK에 wrist/finger/arm/limb 포함."""
+        from image.prompt_builder import NO_PEOPLE_BLOCK
+        for kw in ["wrist", "finger", "arm", "limb", "body part"]:
+            assert kw in NO_PEOPLE_BLOCK
+
+    def test_forced_landscape_preamble_exists(self):
+        """FORCED_LANDSCAPE_PREAMBLE이 정의되어 있음."""
+        from image.prompt_builder import FORCED_LANDSCAPE_PREAMBLE
+        assert "LANDSCAPE OR SCENERY ONLY" in FORCED_LANDSCAPE_PREAMBLE
+        assert "NO PEOPLE" in FORCED_LANDSCAPE_PREAMBLE
+        assert "NO HANDS" in FORCED_LANDSCAPE_PREAMBLE
+        assert "NO BODY PARTS" in FORCED_LANDSCAPE_PREAMBLE
+
+    def test_forced_landscape_at_beginning(self):
+        """LANDSCAPE ONLY가 프롬프트 맨 앞에 배치됨."""
+        from image.prompt_builder import build_full_prompt, FORCED_LANDSCAPE_PREAMBLE
+        prompt = build_full_prompt("smartwatch", "rotcha")
+        assert prompt.startswith(FORCED_LANDSCAPE_PREAMBLE)
 
     def test_landscape_topic_style(self):
-        """풍경 주제는 유화/수채화 스타일 적용."""
+        """풍경 주제는 유화/수채화 스타일 + landscape scenic 적용."""
         from image.prompt_builder import build_contextual_prompt
         prompt = build_contextual_prompt(
             image_keyword="pocheon-valley-pension",
             title="포천계곡펜션",
             blog_key="rotcha",
         )
-        # 풍경 키워드가 포함되어야 함
-        assert "landscape" in prompt or "natural" in prompt or "watercolor" in prompt or "oil painting" in prompt
+        assert "landscape" in prompt or "scenic" in prompt or "watercolor" in prompt or "oil painting" in prompt
 
     def test_abstract_topic_style(self):
         """추상 주제는 스케치/인포그래픽 스타일 적용."""
@@ -205,17 +225,20 @@ class TestPollinationsPromptRules:
             title="AI 프롬프트 마켓",
             blog_key="informationhot",
         )
-        assert "sketch" in prompt or "infographic" in prompt or "abstract" in prompt
+        assert "abstract" in prompt
+        assert "serene background" in prompt or "symbolic" in prompt
 
-    def test_object_topic_style(self):
-        """사물 주제는 적절한 스타일 적용."""
+    def test_object_topic_has_scenic_background(self):
+        """사물 주제도 풍경 배경 안에 배치."""
         from image.prompt_builder import build_contextual_prompt
         prompt = build_contextual_prompt(
-            image_keyword="fashion-platform",
-            title="업클로젯 패션 플랫폼",
+            image_keyword="blau-font-smartwatch",
+            title="블라우풍트 스마트워치",
             blog_key="rotcha",
         )
-        assert "pastel" in prompt or "illustration" in prompt or "fashion" in prompt
+        # "detailed still life" 대신 "scenic landscape background with" 사용
+        assert "scenic" in prompt or "landscape background" in prompt
+        assert "detailed still life" not in prompt
 
     def test_infer_topic_type_landscape(self):
         """풍경 키워드 추론."""
@@ -244,11 +267,12 @@ class TestPollinationsPromptRules:
         assert "portrait" in POLLINATIONS_NEGATIVE
 
     def test_build_full_prompt_no_people(self):
-        """build_full_prompt에도 인물 금지 포함."""
-        from image.prompt_builder import build_full_prompt
+        """build_full_prompt에 인물 금지 + LANDSCAPE ONLY 포함."""
+        from image.prompt_builder import build_full_prompt, FORCED_LANDSCAPE_PREAMBLE
         prompt = build_full_prompt("valley-pension", "rotcha")
         assert "no people" in prompt
         assert "no humans" in prompt
+        assert prompt.startswith(FORCED_LANDSCAPE_PREAMBLE)
 
 
 # ── 예방 조치: 미닫힌 펜스 감지 ──
@@ -316,3 +340,123 @@ class TestUnclosedFence:
         md = "---\ntitle: test\n---\n\n본문만 있습니다."
         result = CardInjector.fix_unclosed_fences(md)
         assert result == md
+
+
+# ── W1 카드 수정: D0/D1에 official_card 금지 ──
+
+
+class TestCardFixW1:
+    """W1 수정: D0/D1은 다음 글 카드 1개만, D2는 외부 링크 1개만."""
+
+    def _make_injector(self):
+        from chain_card_injector import CardInjector
+        injector = CardInjector.__new__(CardInjector)
+        injector.config = {}
+        injector.search_client = None
+        return injector
+
+    def test_d0_has_only_next_card(self):
+        """D0 (is_last=False)는 다음 글 카드 1개만."""
+        injector = self._make_injector()
+        md = "---\ntitle: D0\n---\n\n본문입니다."
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="D1 글",
+            next_url="https://example.com/d1",
+            blog_key="rotcha",
+            direction="next",
+            is_last=False,
+        )
+        # 다음 글 카드 1개
+        assert result.count("chain-card") == 1
+        # official-card 없음
+        assert "chain-official-card" not in result
+        # external link 카드 없음
+        assert "바로가기" not in result
+
+    def test_d1_has_only_next_card(self):
+        """D1 (is_last=False)는 다음 글 카드 1개만."""
+        injector = self._make_injector()
+        md = "---\ntitle: D1\n---\n\n본문입니다."
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="D2 글",
+            next_url="https://example.com/d2",
+            blog_key="informationhot",
+            direction="next",
+            is_last=False,
+        )
+        assert result.count("chain-card") == 1
+        assert "chain-official-card" not in result
+
+    def test_d2_has_only_external_card(self, monkeypatch):
+        """D2 (is_last=True)는 외부 링크 카드 1개만."""
+        from chain_card_injector import CardInjector
+        injector = CardInjector.__new__(CardInjector)
+        injector.config = {}
+        # find_external_links mock
+        def _mock_external(*a, **kw):
+            return {
+                "primary": {"url": "https://example.com", "label": "공식 사이트", "priority": 1},
+                "secondary": [],
+                "fallback": {"url": "https://search.naver.com", "label": "검색"},
+            }
+        monkeypatch.setattr(injector, "find_external_links", _mock_external)
+        md = "---\ntitle: D2\n---\n\n본문입니다."
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="",
+            next_url="",
+            blog_key="techpawz",
+            direction="next",
+            is_last=True,
+            seed_keyword="테스트",
+        )
+        # 외부 링크 카드 1개 (바로가기 링크 포함)
+        assert "바로가기" in result
+        # 다음 글 카드 없음
+        assert result.count("chain-card") == 0
+
+    def test_d0_no_duplicate_next_card(self):
+        """D0에 다음 글 카드가 중복 주입되지 않음 (중간+하단)."""
+        injector = self._make_injector()
+        # H2가 3개 이상인 본문 (중간 카드 조건)
+        md = "---\ntitle: D0\n---\n\n## H1\n본문1\n\n## H2\n본문2\n\n## H3\n본문3\n"
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="D1 글",
+            next_url="https://example.com/d1",
+            blog_key="rotcha",
+            direction="next",
+            is_last=False,
+        )
+        # 다음 글 카드 1개만 (중간 카드 제거됨)
+        assert result.count("chain-card") == 1
+
+    def test_d0_card_points_to_d1(self):
+        """D0 카드가 D1 URL을 가리킴."""
+        injector = self._make_injector()
+        md = "---\ntitle: D0\n---\n\n본문입니다."
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="D1 글",
+            next_url="https://informationhot.kr/d1",
+            blog_key="rotcha",
+            direction="next",
+            is_last=False,
+        )
+        assert "informationhot.kr/d1" in result
+
+    def test_d1_card_points_to_d2(self):
+        """D1 카드가 D2 URL을 가리킴."""
+        injector = self._make_injector()
+        md = "---\ntitle: D1\n---\n\n본문입니다."
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="D2 글",
+            next_url="https://techpawz.com/d2",
+            blog_key="informationhot",
+            direction="next",
+            is_last=False,
+        )
+        assert "techpawz.com/d2" in result
