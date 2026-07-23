@@ -18,13 +18,13 @@ sites:
       swallow: "이어서 실전 적용법 →"
       lateral: "관련 주제 보기 →"
   infohot:
-    site_path: /Users/twinssn/Projects/informationhot-hugo
-    blog_id: manual_informationhot
-    base_url: https://informationhot.kr
+    site_path: /Users/twinssn/Projects/issue-techpawz-hugo
+    blog_id: manual_issue_techpawz
+    base_url: https://issue.techpawz.com
     publisher_type: hugo
-    hugo_root: /Users/twinssn/Projects/informationhot-hugo
-    theme: PaperMod
-    cf_pages_project: informationhot-hugo
+    hugo_root: /Users/twinssn/Projects/issue-techpawz-hugo
+    theme: Blowfish
+    cf_pages_project: issue-techpawz-hugo
     permalink_pattern: "/posts/:slug/"
     content_dir: content/posts
     card_cta:

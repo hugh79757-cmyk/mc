@@ -148,7 +148,7 @@ class TestContentOverlapPrevention:
         draft_user = prompts.get("draft_user", "")
         assert "역할 분담" in draft_user
         assert "rotcha" in draft_user
-        assert "informationhot" in draft_user
+        assert "issue.techpawz" in draft_user
         assert "techpawz" in draft_user
 
     def test_prompts_yaml_has_no_overlap_rule(self):
@@ -223,7 +223,7 @@ class TestPollinationsPromptRules:
         prompt = build_contextual_prompt(
             image_keyword="ai-prompt-market",
             title="AI 프롬프트 마켓",
-            blog_key="informationhot",
+            blog_key="issue.techpawz",
         )
         assert "abstract" in prompt
         assert "serene background" in prompt or "symbolic" in prompt
@@ -382,7 +382,7 @@ class TestCardFixW1:
             draft_md=md,
             next_title="D2 글",
             next_url="https://example.com/d2",
-            blog_key="informationhot",
+            blog_key="issue.techpawz",
             direction="next",
             is_last=False,
         )
@@ -440,12 +440,12 @@ class TestCardFixW1:
         result = injector.inject_cards_into_draft(
             draft_md=md,
             next_title="D1 글",
-            next_url="https://informationhot.kr/d1",
+            next_url="https://issue.techpawz.com/d1",
             blog_key="rotcha",
             direction="next",
             is_last=False,
         )
-        assert "informationhot.kr/d1" in result
+        assert "issue.techpawz.com/d1" in result
 
     def test_d1_card_points_to_d2(self):
         """D1 카드가 D2 URL을 가리킴."""
@@ -455,7 +455,7 @@ class TestCardFixW1:
             draft_md=md,
             next_title="D2 글",
             next_url="https://techpawz.com/d2",
-            blog_key="informationhot",
+            blog_key="issue.techpawz",
             direction="next",
             is_last=False,
         )

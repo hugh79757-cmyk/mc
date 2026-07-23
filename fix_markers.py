@@ -13,7 +13,7 @@ from pathlib import Path
 DB_PATH = "/Users/twinssn/Projects/5000/data/mc_chains.db"
 HUGO_SITES = {
     "rotcha": "/Users/twinssn/Projects/rotcha-blog",
-    "informationhot": "/Users/twinssn/Projects/informationhot-hugo",
+    "issue.techpawz": "/Users/twinssn/Projects/issue-techpawz-hugo",
     "techpawz": "/Users/twinssn/Projects/techpawz-hugo",
 }
 

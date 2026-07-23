@@ -36,9 +36,9 @@ HUGO_SITES = {
         "path": Path("/Users/twinssn/Projects/rotcha-blog"),
         "project": "rotcha-blog",
     },
-    "informationhot": {
-        "path": Path("/Users/twinssn/Projects/informationhot-hugo"),
-        "project": "informationhot-hugo",
+    "issue.techpawz": {
+        "path": Path("/Users/twinssn/Projects/issue-techpawz-hugo"),
+        "project": "issue-techpawz-hugo",
     },
     "techpawz": {
         "path": Path("/Users/twinssn/Projects/techpawz-hugo"),

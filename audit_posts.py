@@ -2,7 +2,7 @@ import os, re
 
 sites = {
     'rotcha': '/Users/twinssn/Projects/rotcha-blog/content/posts',
-    'informationhot': '/Users/twinssn/Projects/informationhot-hugo/content/posts',
+    'issue.techpawz': '/Users/twinssn/Projects/issue-techpawz-hugo/content/posts',
     'techpawz': '/Users/twinssn/Projects/techpawz-hugo/content/posts',
 }
 

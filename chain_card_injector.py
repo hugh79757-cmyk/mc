@@ -4,7 +4,7 @@ chain_card_injector.py — 발행된 체인 포스트에 카드 후처리 삽입
 카드 삽입 규칙 (정규화, AI 임의 결정 금지):
   3단계 카드 체계:
     - Depth 0 (rotcha): "더 알아보기" → Depth 1 URL
-    - Depth 1 (informationhot): "더 깊이 분석" → Depth 2 URL
+    - Depth 1 (issue.techpawz): "더 깊이 분석" → Depth 2 URL
     - Depth 2 (techpawz): 외부 링크 → 가장 공신력 있는 출처
   - 하단 Next 카드: 모든 글 기본 삽입 (본문 마지막 H2 섹션 이후)
   - 중간 관련 카드: H2가 3개 이상일 때 2번째 H2 직후 1개 삽입

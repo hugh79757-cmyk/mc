@@ -721,8 +721,8 @@ class PublisherCore:
                     r2_domain = domain
                     break
             else:
-                r2_prefix = r2_prefix or "images/informationhot"
-                r2_domain = r2_domain or "https://img.informationhot.kr"
+                r2_prefix = r2_prefix or "images/issue-techpawz"
+                r2_domain = r2_domain or "https://img.issue.techpawz.com"
 
         # 임시 디렉토리에 draft 저장
         with tempfile.TemporaryDirectory() as post_temp_dir:
