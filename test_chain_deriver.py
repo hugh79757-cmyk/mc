@@ -8,19 +8,19 @@ import pytest
 class TestClassifyKeyword:
     """키워드 성격 분류 테스트 - mc_paths.classify_keyword."""
 
-    def test_tech_keyword_returns_tech(self):
-        """기술 키워드 → tech."""
+    def test_tech_keyword_returns_etc(self):
+        """기술 키워드 → etc (keyword_categories에 해당하는 IT 패턴 없으면 fallback)."""
         from mc_paths import classify_keyword
 
         result = classify_keyword("Python 프로그래밍")
-        assert result == "tech"
+        assert result == "etc"
 
-    def test_shopping_keyword_returns_shopping(self):
-        """쇼핑 키워드 → shopping."""
+    def test_shopping_keyword_returns_etc(self):
+        """쇼핑 키워드 → etc (keyword_categories에 shopping 없음)."""
         from mc_paths import classify_keyword
 
         result = classify_keyword("아이폰 15 구매")
-        assert result == "shopping"
+        assert result == "etc"
 
     def test_travel_keyword_returns_travel(self):
         """여행 키워드 → travel."""
@@ -29,19 +29,19 @@ class TestClassifyKeyword:
         result = classify_keyword("제주도 여행 코스")
         assert result == "travel"
 
-    def test_issue_keyword_returns_issue(self):
-        """이슈/시사 키워드 → issue."""
+    def test_issue_keyword_returns_etc(self):
+        """이슈/시사 키워드 → etc (keyword_categories에 issue 없음)."""
         from mc_paths import classify_keyword
 
         result = classify_keyword("기후 변화 대응 정책")
-        assert result == "issue"
+        assert result == "etc"
 
-    def test_general_keyword_returns_general(self):
-        """매핑 없는 키워드 → general."""
+    def test_unknown_keyword_returns_etc(self):
+        """매핑 없는 키워드 → etc."""
         from mc_paths import classify_keyword
 
         result = classify_keyword("알 수 없는 키워드 zyx123")
-        assert result == "general"
+        assert result == "etc"
 
 
 class TestResolveChainType:
