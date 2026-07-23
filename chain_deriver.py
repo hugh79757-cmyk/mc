@@ -19,6 +19,22 @@ from shared.ai_writer import generate
 
 import chain_db as db
 
+# ── Category-specific lateral prompt keys for validation ──
+_LATERAL_CATEGORY_KEYS = [
+    "derive_user_lateral_travel",
+    "derive_user_lateral_real_estate",
+    "derive_user_lateral_automotive",
+    "derive_user_lateral_stock",
+    "derive_user_lateral_etc",
+]
+
+
+def _validate_lateral_prompts(prompts: dict) -> None:
+    """로드 시점에 5개 category별 lateral 프롬프트 존재 여부 검증."""
+    missing = [k for k in _LATERAL_CATEGORY_KEYS if k not in prompts]
+    if missing:
+        print(f"[mc] ⚠️ Missing lateral prompt(s): {', '.join(missing)}")
+
 
 def derive_chain(seed: str, chain_type: str = None,
                  review_callback=None, edit_callback=None) -> int:
@@ -41,7 +57,23 @@ def derive_chain(seed: str, chain_type: str = None,
 
     # ── 2. 방향별 프롬프트 선택 ──
     prompts = load_prompts()
+    _validate_lateral_prompts(prompts)
+
     derive_key = f"derive_user_{resolved_type}"
+
+    # category-specific lateral prompt (category-aware Step 3 angle)
+    if resolved_type == "lateral":
+        category_key = f"derive_user_lateral_{category}"
+        if category_key in prompts:
+            derive_key = category_key
+            print(f"    [lateral] Using category-specific prompt: {category_key}")
+        else:
+            etc_fallback = "derive_user_lateral_etc"
+            if etc_fallback in prompts:
+                derive_key = etc_fallback
+                print(f"[mc] ⚠️ No lateral prompt for category '{category}', falling back to 'etc'")
+            # else: keep fallback key (= derive_user_lateral generic)
+
     if derive_key not in prompts:
         print(f"[mc] ⚠️ Prompt '{derive_key}' not found, falling back to depth")
         derive_key = "derive_user_depth"
