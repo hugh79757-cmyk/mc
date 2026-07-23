@@ -98,52 +98,22 @@ def get_chain_direction_role(chain_type: str, step: int) -> str:
 def classify_keyword(keyword: str) -> str:
     """
     시드 키워드 성격 자동 분류.
-    Returns: "shopping" | "tech" | "travel" | "issue" | "general"
+    prompts.yaml의 keyword_categories 패턴을 읽어 판별.
+    Returns: "travel" | "real_estate" | "automotive" | "stock" | "etc"
     """
     import re
 
     kw = keyword.lower()
+    prompts = load_prompts()
+    categories = prompts.get("keyword_categories", {})
 
-    # 쇼핑/소비/브랜드 관련
-    shopping_patterns = [
-        r"(쇼핑|구매|가격|할인|브랜드|쇼핑몰|코디|옷|의류|패션|신발|가방|악세서리|화장품)",
-        r"(mall|shop|store|brand|price|discount|coupon|review\s*product)",
-        r"(츄니|츄니토리|무신사|지그재그|에이블리|W컨셉)",
-    ]
-    for pat in shopping_patterns:
-        if re.search(pat, kw):
-            return "shopping"
+    for cat_name, cat_config in categories.items():
+        patterns = cat_config.get("patterns", [])
+        for pat in patterns:
+            if re.search(pat, kw):
+                return cat_name
 
-    # IT/기술 관련
-    tech_patterns = [
-        r"(ai|인공지능|머신러닝|딥러닝|gpt|llm|api|개발|프로그래밍|코딩|클라우드|서버|데이터)",
-        r"(it|tech|software|app|애플|아이폰|갤럭시|ios|안드로이드|윈도우|리눅스)",
-        r"(파이썬|자바스크립트|타입스크립트|리액트|노드|장고|플라스크)",
-    ]
-    for pat in tech_patterns:
-        if re.search(pat, kw):
-            return "tech"
-
-    # 여행/지역/맛집 관련
-    travel_patterns = [
-        r"(여행|관광|맛집|호텔|리조트|항공|비행기|투어|패키지|배낭|국내여행|해외여행)",
-        r"(travel|trip|tour|hotel|restaurant|맛|음식|요리|카페|디저트)",
-        r"(제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국)",
-    ]
-    for pat in travel_patterns:
-        if re.search(pat, kw):
-            return "travel"
-
-    # 이슈/시사 관련
-    issue_patterns = [
-        r"(이슈|시사|뉴스|정치|경제|사회|환경|기후|전쟁|선거|법률|규제|정책)",
-        r"(issue|news|politics|election|war|climate|regulation|policy|trend)",
-    ]
-    for pat in issue_patterns:
-        if re.search(pat, kw):
-            return "issue"
-
-    return "general"
+    return "etc"
 
 
 def resolve_chain_type(keyword: str, override: str = None) -> str:
