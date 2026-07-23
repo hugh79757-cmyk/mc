@@ -152,7 +152,51 @@ def sample_prompts():
         "derive_user_swallow": "Seed: {seed}\nCategory: {category}\nChain type: swallow\nReturn JSON with 3 topics.",
         "derive_user_lateral": "Seed: {seed}\nCategory: {category}\nChain type: lateral\nReturn JSON with 3 topics.",
         "draft_system": "You are a blog writer.",
-        "draft_user": "Blog: {blog_name} ({blog_url})\nKeyword: {target_keyword}\nTitle: {title}\nAngle: {angle}\nCategory: {category}\n\nChain Context: {step} / {depth_role}\n\n{prev_context}\n\n{next_context}",
+        "draft_user": "Blog: {blog_name} ({blog_url})\nKeyword: {target_keyword}\nTitle: {title}\nAngle: {angle}\nCategory: {category}\n\nChain Context: {step} / {depth_role}\n\n{prev_context}\n\n{next_context}\n\n[STRUCTURE]\n{h2_guidelines}",
+        "keyword_categories": {
+            "travel": {
+                "patterns": ["(여행|호텔|풀빌라|숙소)"],
+                "step1_sections": [
+                    "## {keyword} — 위치와 기본 정보",
+                    "## {keyword} — 시설과 객실 살펴보기",
+                    "## {keyword} — 요금과 예약 방법",
+                    "## 마무리 — {keyword} 핵심 요약",
+                ],
+                "step2_sections": [
+                    "## {keyword} — 예약 전략과 채널 비교",
+                    "## {keyword} — 시즌별 할인 받는 법",
+                    "## {keyword} — 실제 이용 후기로 보는 장단점",
+                    "## 마무리 — {keyword} 최상의 경험하기",
+                ],
+                "step3_sections": [
+                    "## {keyword} — 실제 가격 비교표",
+                    "## {keyword} — 언제 예약할까?",
+                    "## {keyword} — 체크인 전 체크리스트",
+                    "## 마무리 — {keyword} 예약 전 확인사항",
+                ],
+            },
+            "etc": {
+                "patterns": [],
+                "step1_sections": [
+                    "## {keyword} — 개요와 핵심 특징",
+                    "## {keyword} — 주요 기능과 장점",
+                    "## {keyword} — 선택 시 고려사항",
+                    "## 마무리 — {keyword} 핵심 요약",
+                ],
+                "step2_sections": [
+                    "## {keyword} — 실전 활용법",
+                    "## {keyword} — 효과적인 설정과 팁",
+                    "## {keyword} — 유사 서비스와 비교",
+                    "## 마무리 — {keyword} 실전 가치",
+                ],
+                "step3_sections": [
+                    "## {keyword} — 실제 사용 후기와 평점",
+                    "## {keyword} — 가격 비교와 구매처",
+                    "## {keyword} — 최종 추천과 선택 기준",
+                    "## 마무리 — {keyword} 종합 정리",
+                ],
+            },
+        },
         "image_system": "Create image prompt.",
         "image_user": "Keyword: {keyword}, Blog: {blog}, Step: {step}",
     }
@@ -192,6 +236,7 @@ def sample_chain_post():
         "id": 1,
         "chain_id": 1,
         "step": 1,
+        "depth": 0,
         "slug": "test-post-1",
         "title": "Test Post Title",
         "target_keyword": "test keyword",

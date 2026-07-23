@@ -718,3 +718,60 @@ featureimage: ""
 
         assert "tags: []" in result
         assert 'categories: ["일반"]' in result
+
+
+class TestKeywordCategoriesH2E2E:
+    """End-to-end: keyword_categories H2가 실제 prompt에 주입되는지 검증."""
+
+    @patch("chain_drafter._load_chain_cfg")
+    @patch("chain_drafter._load_prompts")
+    @patch("chain_drafter.generate")
+    def test_travel_keyword_uses_travel_h2_template(
+        self,
+        mock_gen,
+        mock_prompts,
+        mock_cfg,
+        sample_chain_config,
+        sample_prompts,
+        sample_chain_post,
+    ):
+        """travel 키워드 → user_prompt에 travel H2 템플릿 포함, IT 템플릿 미포함."""
+        mock_cfg.return_value = sample_chain_config
+        mock_prompts.return_value = sample_prompts
+        mock_gen.return_value = {
+            "content": "---\ntitle: Mock\n---\n\n## Mock heading\nbody",
+            "model": "test",
+            "provider": "test",
+        }
+
+        from chain_drafter import draft_single_post
+
+        # sample_chain_post의 step=1, seed="하이바이풀빌라" → classify_keyword→travel
+        draft_md, meta = draft_single_post(
+            sample_chain_post,
+            [sample_chain_post],
+            "하이바이풀빌라",
+        )
+
+        # capture the user_prompt that was sent to generate()
+        user_prompt = mock_gen.call_args[0][1]
+
+        # ✅ Travel H2 must be present
+        assert "위치와 기본 정보" in user_prompt, (
+            f"Travel step1 H2 누락. prompt:\n{user_prompt[:500]}"
+        )
+        assert "시설과 객실 살펴보기" in user_prompt, (
+            "Travel step1 H2 #2 누락"
+        )
+
+        # ❌ Old IT/general templates must NOT be present
+        assert "기술적 원리와 구조" not in user_prompt, (
+            "IT H2가 prompt에 남아있음"
+        )
+        assert "유사 서비스와 비교" not in user_prompt, (
+            "General H2가 prompt에 남아있음"
+        )
+
+        # Verify generate() was called with valid args
+        assert len(draft_md) > 0
+        assert meta is not None

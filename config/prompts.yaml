@@ -283,50 +283,11 @@ draft_user: |
   - 썸네일용: <!-- thumbnail: {target_keyword} -->
   - 본문 첫 번째 H2 직후: <!-- image: {target_keyword} {angle} -->
 
-  [STRUCTURE — 키워드 성격에 따른 H2 구성]
-  아래는 target_keyword의 성격(여행/숙소 vs IT/일반)에 따른 H2 가이드라인입니다.
-  반드시 아래 중 해당하는 쪽을 선택하여 H2를 구성하세요.
-  H2 제목은 그대로 복사하지 말고, target_keyword에 맞게 자연스럽게 변형하세요.
+  [STRUCTURE — H2 가이드라인]
+  아래 H2 가이드라인을 반드시 따라주세요.
+  H2 제목은 그대로 복사하지 말고, {target_keyword}에 맞게 변형하세요.
 
-  --- 키워드가 여행/숙소/장소(travel) 타입인 경우 ---
-
-  Step 1 (rotcha, 기초/정보형) — H2 4개:
-  1. ## {target_keyword} 위치 및 기본 정보 (주소, 교통, 주변 관광지 등)
-  2. ## {target_keyword} 시설 및 객실 구성 (객실 타입, 수용 인원, 편의시설)
-  3. ## {target_keyword} 요금 및 예약 기초 정보
-  4. ## 마무리 - {target_keyword} 핵심 요약
-
-  Step 2 (issue.techpawz, 응용/실전형) — H2 4개:
-  1. ## {target_keyword} 예약 전략 및 OTA 비교 (공홈 vs 야놀자 vs 에어비앤비)
-  2. ## {target_keyword} 시즌별 할인 및 꿀팁
-  3. ## {target_keyword} 실제 이용 후기 분석
-  4. ## 마무리 - {target_keyword}로 최상의 경험하는 법
-
-  Step 3 (techpawz, 전문/심화형) — H2 4개:
-  1. ## {target_keyword} 실제 가격 비교 (공홈 vs OTA vs 직접 예약)
-  2. ## {target_keyword} 시즌별 최적 예약 타이밍
-  3. ## {target_keyword} 체크인/체크아웃 실전 체크리스트
-  4. ## 마무리 - {target_keyword} 예약 전 최종 체크포인트
-
-  --- 키워드가 IT/기술/일반(tech/general) 타입인 경우 ---
-
-  Step 1 (rotcha, 기초/정보형) — H2 4개:
-  1. ## {target_keyword} 개요와 핵심 특징
-  2. ## {target_keyword}의 주요 기능과 장점
-  3. ## {target_keyword} 선택 시 고려사항
-  4. ## 마무리 - {target_keyword} 핵심 요약과 다음 단계
-
-  Step 2 (issue.techpawz, 응용/실전형) — H2 4개:
-  1. ## {target_keyword} 실전 활용법
-  2. ## {target_keyword} 효과적인 설정과 팁
-  3. ## {target_keyword} 유사 서비스와 비교 분석
-  4. ## 마무리 - {target_keyword}로 얻을 수 있는 실전 가치
-
-  Step 3 (techpawz, 전문/심화형) — H2 4개:
-  1. ## {target_keyword}의 핵심 기술 원리와 구조
-  2. ## {target_keyword}가 산업에 미치는 영향
-  3. ## {target_keyword}의 미래 전망과 혁신 방향
-  4. ## 마무리 - {target_keyword} 업계 전망
+  {h2_guidelines}
 
   공통: 각 H2 섹션은 최소 5문장 이상. H2 제목은 target_keyword에 맞게 구체화하고, 템플릿 문구를 그대로 복사하지 말 것. Step 1~3의 마무리 섹션은 반드시 다음 Step으로 자연스럽게 이어지는 문장을 포함할 것.
   Step 3의 경우 마지막에 예약/구매/신청 페이지로 연결되는 유도 문장을 포함할 것.

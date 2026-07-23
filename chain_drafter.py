@@ -263,6 +263,28 @@ def draft_single_post(
     prev_ctx = _build_prev_context(posts, post.get("step", 1))
     next_ctx = _build_next_context(posts, post.get("step", 1))
 
+    # ── H2 가이드라인 동적 선택 (keyword_categories 기반) ──
+    kc = prompts.get("keyword_categories", {})
+    kw_category = classify_keyword(seed_keyword)
+    cat_config = kc.get(kw_category) or kc.get("etc")
+    if not cat_config:
+        raise ValueError(
+            f"keyword_categories에 '{kw_category}' 카테고리와 etc fallback이 없습니다. "
+            f"prompts.yaml keyword_categories 섹션을 확인하세요."
+        )
+    step_key = f"step{post.get('step', 1)}_sections"
+    raw_sections = cat_config.get(step_key)
+    if not raw_sections:
+        raise ValueError(
+            f"keyword_categories.{kw_category}.{step_key}가 비었거나 없습니다. "
+            f"카테고리 설정을 확인하세요."
+        )
+    h2_lines = []
+    for i, tmpl in enumerate(raw_sections, 1):
+        h2_lines.append(f"{i}. {tmpl.replace('{keyword}', seed_keyword)}")
+    h2_guidelines = "\n".join(h2_lines)
+
+    # ── 프롬프트 조립 ──
     draft_user = prompts["draft_user"]
     user_prompt = draft_user.format(
         blog_name=blog_key,
@@ -270,11 +292,12 @@ def draft_single_post(
         target_keyword=seed_keyword,
         title=post["title"],
         angle=post.get("angle", ""),
-        category=classify_keyword(seed_keyword),
+        category=kw_category,
         step=post.get("step", 1),
         depth_role=depth_role,
         prev_context=prev_ctx,
         next_context=next_ctx,
+        h2_guidelines=h2_guidelines,
     )
 
     # ── Search context injection (Phase 7) ──
