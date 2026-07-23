@@ -23,7 +23,7 @@ from chain_models import parse_ai_output, AIParseError, AIOutput
 import mc_paths  # noqa: F401 — side effect: sys.path + 5000 주입
 from mc_paths import (
     PROMPTS_PATH, CHAIN_CONFIG_PATH, DRAFTS_DIR,
-    get_chain_direction_role, resolve_chain_type
+    get_chain_direction_role, resolve_chain_type, classify_keyword
 )
 from shared.ai_writer import generate
 from chain_db import get_chain, get_chain_posts, update_post_draft
@@ -270,7 +270,7 @@ def draft_single_post(
         target_keyword=seed_keyword,
         title=post["title"],
         angle=post.get("angle", ""),
-        category=post.get("category_guess", ""),
+        category=classify_keyword(seed_keyword),
         step=post.get("step", 1),
         depth_role=depth_role,
         prev_context=prev_ctx,
