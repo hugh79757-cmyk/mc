@@ -93,10 +93,11 @@
 
 ## Definition of Done
 
-- 모든 Wave Pass 조건 충족
-- `PLAN.md` 각 항목 체크 표시 완료
-- `.continue-here.md` 갱신
-- 배포는 별도 승인 후 진행
+- [x] 모든 Wave Pass 조건 충족
+- [x] `PLAN.md` 각 항목 체크 표시 완료
+- [x] STATE.md 갱신 (Phase 15 추가 + pytest 231/231)
+- [x] 커밋 완료: `99979d5`
+- [x] 배포는 별도 승인 후 진행 (미배포)
 
 ## Repository
 
