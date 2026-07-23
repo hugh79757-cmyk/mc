@@ -160,7 +160,11 @@ def sample_prompts():
         "draft_user": "Blog: {blog_name} ({blog_url})\nKeyword: {target_keyword}\nTitle: {title}\nAngle: {angle}\nCategory: {category}\n\nChain Context: {step} / {depth_role}\n\n{prev_context}\n\n{next_context}\n\n[STRUCTURE]\n{h2_guidelines}",
         "keyword_categories": {
             "travel": {
-                "patterns": ["(여행|호텔|풀빌라|숙소)"],
+                "patterns": [
+                    "(여행|관광|맛집|호텔|리조트|풀빌라|숙소|펜션|빌라|캠핑|글램핑|민박|게스트하우스|호스텔|항공|비행기|투어|패키지|항공권|워터파크|해수욕장|계곡|테마파크|온천|스파|사우나|액티비티|렌트카|렌터카)",
+                    "(제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국|괌|사이판|인천|대구|대전|광주|울산|수원|창원|청주|전주|안동|담양|보성|남해|거제|포항|울릉도|춘천|양양|평창|정선|태백|삼척|영덕|남원|부안|군산|익산)",
+                    "(소노벨|소노문|소노인|한화리조트|대명리조트|신라스테이|신라호텔|제일리조트|금호리조트)",
+                ],
                 "step1_sections": [
                     "## {keyword} — 위치와 기본 정보",
                     "## {keyword} — 시설과 객실 살펴보기",
@@ -178,6 +182,69 @@ def sample_prompts():
                     "## {keyword} — 언제 예약할까?",
                     "## {keyword} — 체크인 전 체크리스트",
                     "## 마무리 — {keyword} 예약 전 확인사항",
+                ],
+            },
+            "real_estate": {
+                "patterns": ["(아파트|분양|청약|오피스텔|빌딩|상가|토지|재건축|재개발|리모델링)"],
+                "step1_sections": [
+                    "## {keyword} — 단지 기본 정보",
+                    "## {keyword} — 평면도와 타입별 특징",
+                    "## {keyword} — 분양가와 주변 시세",
+                    "## 마무리 — {keyword} 핵심 체크포인트",
+                ],
+                "step2_sections": [
+                    "## {keyword} — 청약과 계약 전략",
+                    "## {keyword} — 대출과 세금 미리보기",
+                    "## {keyword} — 입주민 후기와 단지 평가",
+                    "## 마무리 — {keyword} 계약 전 꼭 확인할 것",
+                ],
+                "step3_sections": [
+                    "## {keyword} — 계약서 핵심 조항 살펴보기",
+                    "## {keyword} — 등기 이전과 소유권 확인",
+                    "## {keyword} — 입주 전 하자 보수 체크리스트",
+                    "## 마무리 — {keyword} 이사 계획과 입주 준비",
+                ],
+            },
+            "automotive": {
+                "patterns": ["(하이브리드|전기차|SUV|세단|RV|EV|내연기관|자동차|차량|신차|중고차|리스|할부|렌트카|카셰어링)"],
+                "step1_sections": [
+                    "## {keyword} — 제품 개요와 스펙",
+                    "## {keyword} — 트림별 가격과 옵션",
+                    "## {keyword} — 경쟁 모델과 비교하기",
+                    "## 마무리 — {keyword} 선택 전에",
+                ],
+                "step2_sections": [
+                    "## {keyword} — 구매 전략 (신차 vs 중고차)",
+                    "## {keyword} — 프로모션과 할인 혜택",
+                    "## {keyword} — 오너 후기로 보는 장단점",
+                    "## 마무리 — {keyword} 계약 전 확인",
+                ],
+                "step3_sections": [
+                    "## {keyword} — 유지비 따져보기",
+                    "## {keyword} — 차량 인도 시 확인할 점검표",
+                    "## {keyword} — 실제 리스크와 주의점",
+                    "## 마무리 — {keyword} 결정 전 최종 점검",
+                ],
+            },
+            "stock": {
+                "patterns": ["(주식|코스피|코스닥|나스닥|ETF|펀드|배당|IRP|연금|적립식|재테크|투자|매수|매도|증권|금리|환율|채권|원자재|선물|옵션|주가)"],
+                "step1_sections": [
+                    "## {keyword} — 기본 개념과 시장 흐름",
+                    "## {keyword} — 최근 성과와 수익률",
+                    "## {keyword} — 특징과 리스크 요인",
+                    "## 마무리 — {keyword} 투자 전 체크리스트",
+                ],
+                "step2_sections": [
+                    "## {keyword} — 실전 투자 전략",
+                    "## {keyword} — 세금과 수수료 줄이기",
+                    "## {keyword} — 포트폴리오에 담는 법",
+                    "## 마무리 — {keyword} 실전 적용하기",
+                ],
+                "step3_sections": [
+                    "## {keyword} — 매수 타이밍 구체화하기",
+                    "## {keyword} — 손절과 익절 기준 세우기",
+                    "## {keyword} — 리스크 관리와 분산 전략",
+                    "## 마무리 — {keyword} 정기 리밸런싱과 배당 재투자",
                 ],
             },
             "etc": {

@@ -104,16 +104,29 @@ def classify_keyword(keyword: str) -> str:
     import re
 
     kw = keyword.lower()
+
+    # 후처리: ~주가 키워드는 pattern 매칭보다 우선 stock
+    if kw.endswith("주가"):
+        return "stock"
+
     prompts = load_prompts()
     categories = prompts.get("keyword_categories", {})
 
-    for cat_name, cat_config in categories.items():
+    for cat_name in ("travel", "stock", "real_estate", "automotive", "etc"):
+        cat_config = categories.get(cat_name, {})
         patterns = cat_config.get("patterns", [])
         for pat in patterns:
             if re.search(pat, kw):
                 return cat_name
 
-    return "etc"
+    return _postprocess_stock_priority(kw, "etc")
+
+
+def _postprocess_stock_priority(keyword: str, category: str) -> str:
+    """키워드가 ~주가로 끝나면 stock 우선."""
+    if keyword.endswith("주가"):
+        return "stock"
+    return category
 
 
 def resolve_chain_type(keyword: str, override: str = None) -> str:

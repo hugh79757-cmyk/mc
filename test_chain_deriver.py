@@ -43,6 +43,52 @@ class TestClassifyKeyword:
         result = classify_keyword("알 수 없는 키워드 zyx123")
         assert result == "etc"
 
+    def test_stock_suffix_gaja_forces_stock(self):
+        """~주가 키워드는 후처리로 stock 우선."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("삼성전자주가") == "stock"
+        assert classify_keyword("제주항공주가") == "stock"
+
+    def test_travel_waterpark_expansion(self):
+        """워터파크/온천 등 신규 P1 패턴."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("서울 워터파크") == "travel"
+        assert classify_keyword("강릉 온천") == "travel"
+        assert classify_keyword("해수욕장 펜션") == "travel"
+
+    def test_travel_location_expansion(self):
+        """신규 지명 P2 패턴."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("춘천 여행") == "travel"
+        assert classify_keyword("담양 숙소") == "travel"
+        assert classify_keyword("영덕파나크") == "travel"
+
+    def test_travel_resort_brand_expansion(self):
+        """리조트 브랜드 P3 패턴."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("소노문해운대") == "travel"
+        assert classify_keyword("한화리조트") == "travel"
+        assert classify_keyword("신라스테이") == "travel"
+
+    def test_stock_pattern_gaja_added(self):
+        """주가 stock 패턴 추가."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("삼성전자 주가") == "stock"
+        assert classify_keyword("NAVER 주가") == "stock"
+
+    def test_classification_order_and_postprocess(self):
+        """travel→stock→real_estate→automotive→etc 순서 + ~주가 후처리."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("ETF 투자") == "stock"
+        assert classify_keyword("제주항공주가") == "stock"
+        assert classify_keyword("소노벨 리조트") == "travel"
+
 
 class TestResolveChainType:
     """체인 타입 결정 테스트 - mc_paths.resolve_chain_type."""
