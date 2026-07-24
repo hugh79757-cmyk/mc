@@ -72,25 +72,21 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
 
     allowed_lines = []
     in_code_block = False
+    skip_json_block = False
 
     for line in body.split("\n"):
         stripped = line.strip()
 
+        if skip_json_block:
+            if stripped.startswith("```"):
+                skip_json_block = False
+            continue
+
         if stripped.startswith("```"):
             lang = stripped[3:].strip()
             if lang.lower() == "json":
-                try:
-                    code_content = ""
-                    temp_lines = []
-                    for inner_line in body.split("\n"):
-                        temp_lines.append(inner_line)
-                    raise BodyExtractionError(
-                        "JSON 코드 펜스는 본문에서 허용되지 않습니다. "
-                        "AI 메타데이터는 parse_ai_output()에서 이미 추출되어야 합니다."
-                    )
-                except BodyExtractionError:
-                    in_code_block = not in_code_block
-                    continue
+                skip_json_block = True
+                continue
             else:
                 in_code_block = not in_code_block
                 allowed_lines.append(line)
@@ -167,6 +163,13 @@ def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -
     json_fence = re.search(r'```json\s*\n?\{', content)
     if json_fence:
         raise DeployValidationError("index.md에 JSON 코드 펜스 잔류")
+
+    # Phase 19: also catch bare JSON (fence stripped but content remains)
+    bare_json = re.search(r'(?<!\`)\n\s*\{\s*"image_type"', content)
+    if bare_json:
+        raise DeployValidationError(
+            f"index.md에 bare JSON 잔류: {bare_json.group()[:60]}"
+        )
 
     html_comment = re.search(r'<!--.*?-->', content, re.DOTALL)
     if html_comment:
@@ -625,6 +628,31 @@ class PublisherCore:
             except BodyExtractionError as e:
                 logger.error(f"본문 추출 실패: {e}")
                 return ("", "hugo", "")
+            # D8: CTA 텍스트 릭 스캐너 — 본문에 CTA 문구/플레이스홀더 직접 노출 검출
+            _cta_leak_patterns = [
+                r'더 알아보기', r'더 깊이 알아보기', r'계속 읽기',
+                r'관련 주제', r'아래 버튼', r'링크를 클릭',
+                r'관련 글', r'시리즈 보기',
+            ]
+            _leaks_found = []
+            for _pat in _cta_leak_patterns:
+                for _m in re.finditer(_pat, text):
+                    _ctx = text[max(0, _m.start()-20):_m.end()+20].replace('\n', ' ')
+                    _leaks_found.append(f"  ⚠ CTA leak: '{_m.group()}' @ pos {_m.start()} (ctx: ...{_ctx}...)")
+            # 플레이스홀더 검출: {{...}} 패턴 (shortcode {{< >}} 제외)
+            for _m in re.finditer(r'\{\{(?!<|%)([^}]+)\}\}', text):
+                _ctx = text[max(0, _m.start()-20):_m.end()+20].replace('\n', ' ')
+                _leaks_found.append(f"  ⚠ Placeholder leak: '{{{{{_m.group(1)}}}}}' @ pos {_m.start()} (ctx: ...{_ctx}...)")
+            if _leaks_found:
+                logger.warning(f"[D8-GATE] CTA/placeholder leak detected in {slug} — {len(_leaks_found)} matches")
+                for _l in _leaks_found:
+                    logger.warning(_l)
+                # 자동 제거: CTA 문구를 본문에서 삭제
+                for _pat in _cta_leak_patterns:
+                    text = re.sub(_pat, '', text)
+                # 플레이스홀더 자동 제거
+                text = re.sub(r'\{\{(?!<|%)([^}]+)\}\}', '', text)
+                logger.warning(f"[D8-GATE] Auto-removed {len(_leaks_found)} leak(s) from {slug}")
             index_md.write_text(text, encoding="utf-8")
 
             # 4-b. R2 교체 결과를 DB published_md에 저장 (card injection용)

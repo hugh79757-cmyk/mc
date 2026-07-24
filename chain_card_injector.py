@@ -20,9 +20,13 @@ chain_card_injector.py — 발행된 체인 포스트에 카드 후처리 삽입
 import re
 import os
 import json
+import logging
 from datetime import datetime
 
 from mc_paths import load_config, CHAIN_CONFIG_PATH
+
+
+logger = logging.getLogger(__name__)
 from chain_db import get_post
 from search_retriever import NaverSearchClient
 
@@ -420,6 +424,13 @@ class CardInjector:
           2. 다음 글 카드 (is_last=False일 때만)
           3. 중간 관련 카드 (H2 >= 3일 때 2번째 H2 직후)
         """
+        # D9: 기존 chain-card/chain-official-card shortcode 제거 (중복 주입 방지)
+        _old_count = len(re.findall(r'\{\{<\s*chain-(?:card|official-card)\s', draft_md))
+        if _old_count > 0:
+            draft_md = re.sub(r'\{\{<\s*chain-card\s+.*?\}\}', '', draft_md)
+            draft_md = re.sub(r'\{\{<\s*chain-official-card\s+.*?\}\}', '', draft_md)
+            logger.warning(f"[D9-GATE] Removed {_old_count} existing chain-card/chain-official-card shortcode(s) from draft")
+
         # 미닫힌 코드 펜스 자동 닫기
         draft_md = self.fix_unclosed_fences(draft_md)
 
