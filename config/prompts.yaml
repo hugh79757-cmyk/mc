@@ -238,6 +238,10 @@ keyword_categories:
     - (여행|관광|맛집|호텔|리조트|풀빌라|숙소|펜션|빌라|캠핑|글램핑|민박|게스트하우스|호스텔|항공|비행기|투어|패키지|항공권|워터파크|해수욕장|계곡|테마파크|온천|스파$|사우나|액티비티|렌트카|렌터카)
     - (제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국|괌|사이판|인천|대구|대전|수원|창원|전주|안동|담양|보성|남해|거제|포항|울릉도|춘천|양양|평창|정선|태백|삼척|영덕|남원|부안|군산|익산)
     - (소노벨|소노문|소노인|한화리조트|대명리조트|신라스테이|신라호텔|제일리조트|금호리조트|홀리데이인)
+    cta_phrases:
+      next_post: "더 알아보기 →"
+      entry_funnel: "{{ENTRY_LINK}}"
+      fallback: "관련 주제 보기 →"
     step1_sections:
     - '## {keyword} — 위치와 기본 정보'
     - '## {keyword} — 시설과 특징 살펴보기'
@@ -257,6 +261,10 @@ keyword_categories:
     patterns:
     - (아파트|분양|청약|오피스텔|빌딩|상가|토지|재건축|재개발|리모델링)
     - (전세|월세|매매|실거래가|시세|호가)
+    cta_phrases:
+      next_post: "더 알아보기 →"
+      entry_funnel: "{{ENTRY_LINK}}"
+      fallback: "관련 주제 보기 →"
     step1_sections:
     - '## {keyword} — 단지 기본 정보'
     - '## {keyword} — 평면도와 타입별 특징'
@@ -275,6 +283,10 @@ keyword_categories:
   automotive:
     patterns:
     - (하이브리드|전기차|SUV|세단|RV|EV|내연기관|자동차|차량|신차|중고차|리스|할부|렌트카|카셰어링)
+    cta_phrases:
+      next_post: "더 알아보기 →"
+      entry_funnel: "{{ENTRY_LINK}}"
+      fallback: "관련 주제 보기 →"
     step1_sections:
     - '## {keyword} — 제품 개요와 스펙'
     - '## {keyword} — 트림별 가격과 옵션'
@@ -293,6 +305,10 @@ keyword_categories:
   stock:
     patterns:
     - (주식|코스피|코스닥|나스닥|ETF|펀드|배당|IRP|연금|적립식|재테크|투자|매수|매도|증권|금리|환율|채권|원자재|선물|옵션|주가)
+    cta_phrases:
+      next_post: "더 알아보기 →"
+      entry_funnel: "{{ENTRY_LINK}}"
+      fallback: "관련 주제 보기 →"
     step1_sections:
     - '## {keyword} — 기본 개념과 시장 흐름'
     - '## {keyword} — 최근 성과와 수익률'
@@ -310,6 +326,10 @@ keyword_categories:
     - '## 마무리 — {keyword} 정기 리밸런싱과 배당 재투자'
   etc:
     patterns: []
+    cta_phrases:
+      next_post: "더 알아보기 →"
+      entry_funnel: "{{ENTRY_LINK}}"
+      fallback: "관련 주제 보기 →"
     step1_sections:
     - '## {keyword} — 개요와 핵심 특징'
     - '## {keyword} — 주요 기능과 장점'

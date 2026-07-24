@@ -1,14 +1,14 @@
 # STATE.md — mc (Manual Chain)
 
-**Updated:** 2026-07-23
-**Phase:** Phase 14 + P1 + P2 + R2 이미지 수정 + techpawz 버킷 분기 + W3 카드 재설계
-**Status:** ✅ 215/215, 라이브 3/3 카드, BS4 제거, 화이트리스트 7/10
+**Updated:** 2026-07-24
+**Phase:** Phase 14 + P1 + P2 + R2 이미지 수정 + techpawz 버킷 분기 + W3 카드 재설계 + Phase 15 card URL 마이그레이션
+**Status:** ✅ 246/246, 라이브 3/3 카드, BS4 제거, 화이트리스트 7/10, issue.techpawz.com 마이그레이션 완료
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **215/215** ✅ (179 기존 + 36 W3 신규) |
+| pytest | **246/246** ✅ (179 기존 + 36 W3 신규 + 31 misc/fixes) |
 | Phase 14 W4 | **완료** ✅ — `mc` 전역 명령 + 3/3 라이브 (Chain #71) |
 | Phase 14 P1 | **완료** ✅ — `_ensure_frontmatter` 정식 구현 + patch 제거 (Chain #72 --draft 검증) |
 | W3 카드 재설계 | **완료** ✅ — 3단계 카드 + 외부링크(네이버 API) + 내용분담 + 이미지프롬프트 |
@@ -53,6 +53,17 @@
 - **주제 시각화**: `_infer_topic_type()` → landscape/abstract/object 분류
 - **pytest**: 10개
 
+## Phase 15 완료 항목
+
+### Phase 15 Hotfix — Card URL 마이그레이션 (informationhot.kr → issue.techpawz.com)
+
+- **배경**: 26개 기존 포스트의 카드 URL이 informationhot.kr을 가리키고 있어 issue.techpawz.com으로 마이그레이션 필요
+- **콘텐츠 마이그레이션**: 20개 고유 슬러그를 informationhot-hugo에서 issue-techpawz-hugo로 복사
+- **DB 업데이트**: 26개 영향받은 포스트의 `published_url` + `hugo_file_path` 갱신
+- **카드 재주입**: 26개 체인의 rotcha 포스트 카드 → issue.techpawz.com 링크 갱신
+- **재배포**: issue.techpawz.com + rotcha.kr 2개 사이트 배포
+- **pytest**: 246/246 통과 (코드 변경 없음, DB + 콘텐츠 + 배포만 변경)
+
 ## 라이브 검증 (카드 3건)
 
 | 체인 | 주제 | rotcha(D0) | infohot(D1) | techpawz(D2) | 비고 |
@@ -66,7 +77,8 @@
 ## Recent Commits
 
 ```
-W3 머지 (이 세션)
+Phase 15 hotfix (이 세션)
+fix(phase15): card URL migration — 26 old posts informationhot.kr → issue.techpawz.com
 6c79a09 docs(state): techpawz 버킷 분기 완료 — pytest 179/179, 라이브 3/3 R2 200
 e288be4 fix(r2): techpawz R2 업로드 버킷 분기 — hotissue-images → techpawz-images
 c4e8f06 fix(r2): published_md 컬럼으로 card injection R2 URL 보존
@@ -79,10 +91,11 @@ c4e8f06 fix(r2): published_md 컬럼으로 card injection R2 URL 보존
 2. ~~고아 content_image_path~~ ✅ 완료 (P2: 15/15, (a)43건 이월)
 3. ~~R2 이미지 파이프라인~~ ✅ 완료 (published_md + techpawz 버킷 분기)
 4. ~~W3 카드 재설계~~ ✅ 완료 (3단계 + 네이버 API + 내용분담 + 이미지프롬프트)
-5. **#28 rotcha Hugo 빌드 실패**: ````json` 미정리 → 콘텐츠 수정 필요 (W3과 무관)
+5. ~~Phase 15 card URL 마이그레이션~~ ✅ 완료 (26건 informationhot.kr → issue.techpawz.com)
 6. **Phase 14.1 — cron/launchd 스케줄링, dashboard, audit 통합**: 별도 milestone 이월
 7. **(a) 43건 고아**: 신규 발행 W6 게이트로 차단, 기존 43건은 재발행 전까지 이미지 없음
 8. **P3 Blowfish CSS 복구**: 라이브 3/3 기능 정상, CSS 미세 복구 영역
+9. **Chain #28 rotcha 복구**: ````json` 제거 후 재발행
 
 ## Resume Instructions
 
@@ -266,6 +279,8 @@ cd /Users/twinssn/Projects/rotcha-blog && HUGO_THEMESDIR=/Users/twinssn/Projects
 ## Recent Commits
 
 ```
+Phase 15 hotfix (이 세션)
+fix(phase15): card URL migration — 26 old posts informationhot.kr → issue.techpawz.com
 6c79a09 docs(state): techpawz 버킷 분기 완료 — pytest 179/179, 라이브 3/3 R2 200
 e288be4 fix(r2): techpawz R2 업로드 버킷 분기 — hotissue-images → techpawz-images
 c4e8f06 fix(r2): published_md 컬럼으로 card injection R2 URL 보존
@@ -277,9 +292,12 @@ c4e8f06 fix(r2): published_md 컬럼으로 card injection R2 URL 보존
 1. ~~Phase 14 CLI~~ ✅ 완료 (W1~W4 + P1)
 2. ~~고아 content_image_path~~ ✅ 완료 (P2: 15/15, (a)43건 이월)
 3. ~~R2 이미지 파이프라인~~ ✅ 완료 (published_md + techpawz 버킷 분기)
-4. **Phase 14.1 — cron/launchd 스케줄링, dashboard, audit 통합**: 별도 milestone 이월
-5. **(a) 43건 고아**: 신규 발행 W6 게이트로 차단, 기존 43건은 재발행 전까지 이미지 없음
-6. **P3 Blowfish CSS 복구**: 라이브 3/3 기능 정상, CSS 미세 복구 영역
+4. ~~W3 카드 재설계~~ ✅ 완료 (3단계 + 네이버 API + 내용분담 + 이미지프롬프트)
+5. ~~Phase 15 card URL 마이그레이션~~ ✅ 완료 (26건 informationhot.kr → issue.techpawz.com)
+6. **Phase 14.1 — cron/launchd 스케줄링, dashboard, audit 통합**: 별도 milestone 이월
+7. **(a) 43건 고아**: 신규 발행 W6 게이트로 차단, 기존 43건은 재발행 전까지 이미지 없음
+8. **P3 Blowfish CSS 복구**: 라이브 3/3 기능 정상, CSS 미세 복구 영역
+9. **Chain #28 rotcha 복구**: ````json` 제거 후 재발행
 
 ## Resume Instructions
 

@@ -1,0 +1,43 @@
+    def test_validate_draft_schema_missing_image_keyword(self):
+        """이미지 마커 있지만 image_keyword 없는 경우 실패 (차트 아님)."""
+        from chain_drafter import _validate_draft_schema
+        
+        invalid_draft = """---
+title: "테스트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+## 섹션
+
+이것은 본문 내용입니다. 이미지 마커: <!--todo:image-->
+
+더 많은 내용..."""
+         
+        # 메타에 image_keyword가 None 또는 빈 문자열인 경우를 시뮬레이트
+        result, message = _validate_draft_schema(invalid_draft, meta={"image_keyword": None})
+        assert result is False
+        assert "image_keyword가 비어 있습니다" in message
+
+    def test_validate_draft_schema_chart_marker_no_keyword(self):
+        """차트 마커지만 image_keyword 없는 경우 통과."""
+        from chain_drafter import _validate_draft_schema
+        
+        valid_draft = """---
+title: "테스트 차트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+## 섹션
+
+이것은 차트입니다. <!--todo:chart-->
+
+더 많은 내용..."""
+         
+        # 차트 마커인 경우 image_keyword가 없어도 통과
+        result, message = _validate_draft_schema(valid_draft, meta={"image_keyword": None})
+        assert result is True
+        assert message == "스키마 검증 통과"

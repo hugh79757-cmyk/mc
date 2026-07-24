@@ -623,7 +623,8 @@ class PublisherCore:
             _cta_leak_patterns = [
                 r'더 알아보기', r'더 깊이 알아보기', r'계속 읽기',
                 r'관련 주제', r'아래 버튼', r'링크를 클릭',
-                r'관련 글', r'시리즈 보기',
+                r'관련 글', r'시리즈 보기', r'이 시리즈 보기',
+                r'전체 글 모아보기', r'모아보기',
             ]
             _leaks_found = []
             for _pat in _cta_leak_patterns:

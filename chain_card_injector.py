@@ -228,7 +228,7 @@ class CardInjector:
         """블로그별 + 방향별 CTA 문구. 없으면 기본값."""
         site = self.config.get("sites", {}).get(blog_key, {})
         cta_map = site.get("card_cta", {})
-        return cta_map.get(direction, "계속 읽기 →")
+        return cta_map.get(direction, "더 알아보기 →")
 
     # ── 카드 HTML 생성 ────────────────────────────────────────
 
@@ -539,15 +539,16 @@ class CardInjector:
 
 
 class DualCTAInjector:
-    """Dual CTA (정보성 + 전환성) 카드 주입. Blowfish-compatible Tailwind HTML."""
+    """Dual CTA (정보성 only — 전환성 CTA 폐기, v2) 카드 주입. Blowfish-compatible Tailwind HTML."""
 
     def __init__(self, config: dict = None):
         self.config = config or load_config()
         loop_cfg = self.config.get("loop", {})
         cta_cfg = loop_cfg.get("cta", {})
-        self.info_cta_text = cta_cfg.get("info_cta_text", "관련 글 모두 보기 →")
-        self.conv_cta_text = cta_cfg.get("conv_cta_text", "추천 상품 보기 →")
-        self.conv_cta_url = cta_cfg.get("conv_cta_url", "")
+        self.info_cta_text = cta_cfg.get("info_cta_text", "이 시리즈 보기 →")
+        # conv CTA 폐기 (애드센스 모델에서 목적지 없음)
+        self.conv_cta_text = ""
+        self.conv_cta_url = ""
 
     # ── HTML 생성 ──────────────────────────────────────────
 
@@ -557,10 +558,7 @@ class DualCTAInjector:
         hub_title: str,
         conv_cta_url: str = None,
     ) -> str:
-        """Dual CTA shortcode."""
-        conv_url = conv_cta_url if conv_cta_url else self.conv_cta_url
-        if not conv_url:
-            conv_url = "#"
+        """Dual CTA shortcode — info CTA only (conv CTA removed in v2)."""
         return (
             f'{{{{< dual-cta '
             f'hub_url="{hub_url}" '
@@ -568,11 +566,11 @@ class DualCTAInjector:
             f'info_url="{hub_url}" '
             f'info_title="이 시리즈 전체 보기" '
             f'info_desc="이 시리즈의 모든 글을 한곳에서 확인하세요." '
-            f'info_cta="시리즈 보기 →" '
-            f'conv_url="{conv_url}" '
-            f'conv_title="추천 상품" '
-            f'conv_desc="이 주제와 관련된 추천 상품을 확인해보세요." '
-            f'conv_cta="상품 보기 →" >}}}}'
+            f'info_cta="이 시리즈 보기 →" '
+            f'conv_url="" '
+            f'conv_title="" '
+            f'conv_desc="" '
+            f'conv_cta="" >}}}}'
         )
 
     # ── draft_md 주입 ──────────────────────────────────────

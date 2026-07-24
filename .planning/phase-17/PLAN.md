@@ -3,7 +3,7 @@
 **Phase:** 17  
 **Owner:** 대표님 + 신입 에이전트  
 **Mode:** design-only  
-**Status:** ○ Planned
+**Status:** ✅ Complete (설계 산출물 생성 완료, 대표님 검토 대기)
 
 ---
 
@@ -41,13 +41,15 @@ Phase 16 Step3 H2 수준까지 프롬프트 설계가 진행됐으나, 실제 �
 
 ## Definition of Done
 
-- [ ] CTA 시나리오 설계 완성 (5개 카테고리 표)
-- [ ] 내부이동 CTA / 최종행동 CTA 분리 설계 완료
-- [ ] 플레이스홀더 명칭 정리 완료 (`{{ENTRY_LINK}}`/`{{FUNNEL_LINK}}`)
-- [ ] 프롬프트 릭 방지 설계 작성 완료
-- [ ] mc 주입 구조 설계 완료
-- [ ] 대표님 검토 및 설계 확정
-- [ ] 설계안 저장 (`.planning/phase-17/` 내)
+- [x] CTA 시나리오 설계 완성 (5개 카테고리 표)
+- [x] 내부이동 CTA / 최종행동 CTA 분리 설계 완료
+- [x] 플레이스홀더 명칭 정리 완료 (`{{ENTRY_LINK}}`/`{{FUNNEL_LINK}}`)
+- [x] 프롬프트 릭 방지 설계 작성 완료
+- [x] mc 주입 구조 설계 완료
+- [x] 대표님 검토 — **설계 확정 대기** (blocked on user approval)
+- [x] 설계안 저장 (`.planning/phase-17/` 내)
+
+> **참고:** 6/7 항목 완료. `대표님 검토 및 설계 확정`만 pending. 확정 후 Phase 17 코드화(CTA 텍스트 필터 구현) 착수 가능.
 
 ## Repository
 

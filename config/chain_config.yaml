@@ -25,7 +25,7 @@ sites:
     hugo_root: /Users/twinssn/Projects/issue-techpawz-hugo
     theme: Blowfish
     cf_pages_project: issue-techpawz-hugo
-    permalink_pattern: "/posts/:slug/"
+    permalink_pattern: "/:slug/"
     content_dir: content/posts
     card_cta:
       depth: "더 알아보기 →"
