@@ -19,20 +19,24 @@
 | Path | Description |
 |------|-------------|
 | `chain_publisher_core.py` | 발행 코어 (Hugo/Blogger/Manual 분기) |
-| `chain_drafter.py` | AI 초안 생성 모듈 |
-| `chain_deriver.py` | 키워드 분류 + 체인 방향 파생 |
-| `chain_db.py` | SQLite 체인 DB |
-| `config/chain_config.yaml` | 사이트·발행 설정 |
-| `config/prompts.yaml` | AI 프롬프트 템플릿 |
-| `image/` | 이미지 파이프라인 (thumbnail, injector, pollinations, krea) |
+| `chain_drafter.py` | AI 초안 생성 모듈 + frontmatter 보존 |
+| `chain_deriver.py` | 키워드 분류 + 체인 방향 파생 + stock/automotive 분류 |
+| `chain_db.py` | SQLite 체인 DB + published_md 컬럼 |
+| `chain_card_injector.py` | 카드 주입 시스템 (3단계 + 외부링크) + D8/D9 게이트 |
+| `config/chain_config.yaml` | 사이트·발행 설정 + CTA 통일 + keyword_mapping |
+| `config/prompts.yaml` | AI 프롬프트 템플릿 + 내용분담 + CTA guideline |
+| `image/` | 이미지 파이프라인 (Unsplash/Pexels + contextual prompt) |
+| `image/prompt_builder.py` | 컨텍스트 기반 프롬프트 생성기 |
+| `image/search_providers.py` | Unsplash/Pexels API 통합 검색 |
 | `pillow_chart.py` | 차트 이미지 렌더러 |
 
 ## Hugo Sites
-| Site | Path | CF Project |
-|------|------|------------|
-| rotcha | `/Users/twinssn/Projects/rotcha-blog` | rotcha-blog |
-| informationhot | `/Users/twinssn/Projects/informationhot-hugo` | informationhot-hugo |
-| techpawz | `/Users/twinssn/Projects/techpawz-hugo` | techpawz-hugo |
+| Site | Path | CF Project | R2 Bucket |
+|------|------|------------|----------|
+| rotcha | `/Users/twinssn/Projects/rotcha-blog` | rotcha-blog | hotissue-images |
+| informationhot | `/Users/twinssn/Projects/informationhot-hugo` | informationhot-hugo | hotissue-images |
+| techpawz | `/Users/twinssn/Projects/techpawz-hugo` | techpawz-hugo | techpawz-images |
+| issue.techpawz | `/Users/twinssn/Projects/issue-techpawz-hugo` | issue-techpawz-hugo | hotissue-images |
 
 ## Dev Commands
 ```bash
@@ -53,3 +57,8 @@ wrangler pages deploy ./public --project-name rotcha-blog
 - 미해소 플레이스홀더 제거: `_sanitize_markdown_body()` (chain_publisher_core.py)
 - 배포 시 `CLOUDFLARE_API_TOKEN` 등 env를 unset 후 hugh79757 프로필로 실행
 - `.planning/` 디렉토리에 phase별 PLAN, RESEARCH, CONTEXT 관리
+- 카드 주입: 3단계 체계 + 공신력 우선순위 + 네이버 API 검색 (BS4 스크래핑 금지)
+- 이미지 검색: Unsplash/Pexels API + contextual prompt (Pollinations 제거)
+- CTA 통일: 모든 사이트에서 "더 알아보기 →" 사용
+- 코드 펜스 자동 수정: `fix_unclosed_fences()` (미닫힌 ````json` 처리)
+- D8/D9 게이트: CTA 텍스트 필터 + 기존 shortcode 중복 제거

@@ -1,22 +1,25 @@
 # STATE.md — mc (Manual Chain)
 
 **Updated:** 2026-07-24
-**Phase:** Phase 14 + P1 + P2 + R2 이미지 수정 + techpawz 버킷 분기 + W3 카드 재설계 + Phase 15 card URL 마이그레이션
-**Status:** ✅ 246/246, 라이브 3/3 카드, BS4 제거, 화이트리스트 7/10, issue.techpawz.com 마이그레이션 완료
+**Phase:** Phase 14~20 완료 + P1~P3 기술부채 해소 + Phase 17~19 신규 기능 구현
+**Status:** ✅ 246/246, 라이브 3/3 카드, BS4 제거, 화이트리스트 7/10, issue.techpawz.com 마이그레이션 완료, 이미지 검색 엔진 전환, CTA 통일
 
 ## Current Baseline
 
 | 항목 | 값 |
 |------|-----|
-| pytest | **246/246** ✅ (179 기존 + 36 W3 신규 + 31 misc/fixes) |
+| pytest | **246/246** ✅ (179 기존 + 36 W3 + 31 misc) |
 | Phase 14 W4 | **완료** ✅ — `mc` 전역 명령 + 3/3 라이브 (Chain #71) |
 | Phase 14 P1 | **완료** ✅ — `_ensure_frontmatter` 정식 구현 + patch 제거 (Chain #72 --draft 검증) |
 | W3 카드 재설계 | **완료** ✅ — 3단계 카드 + 외부링크(네이버 API) + 내용분담 + 이미지프롬프트 |
 | 라이브 (카드) | **3/3** 체인 카드 주입 + 배포 (#74, #50, #28 2/3) |
 | BS4 스크래핑 | **제거** ✅ — Naver API만 사용, fallback은 naver search URL |
 | 화이트리스트 | **7/10** — ferrypark/airbusan/phr 제거 (HTTP 검증 실패) |
-| 작업 트리 | 깨끗함 (`git status --short` = untracked only) |
-| 브랜치 | `main` (최신) |
+| Phase 17 CTA 설계 | **완료** ✅ — CTA 텍스트 필터 + 시나리오 설계 + 통일 |
+| Phase 19 이미지 전환 | **완료** ✅ — Pollinations 제거, Unsplash/Pexels로 전면 교체 |
+| Phase 20 검색 유효성 | **완료** ✅ --search global default + stock/automotive GROUNDING |
+| 작업 트리 | `feat/keyword-category-template` 브랜치, `chain_card_injector.py` 수정 중 |
+| 브랜치 | `feat/keyword-category-template` (origin과 동기화) |
 
 ## W3 완료 항목
 
@@ -52,6 +55,54 @@
 - **스타일 강제**: 주제별 매칭 (풍경→유화/수채화, 추상→스케치, 사물→파스텔)
 - **주제 시각화**: `_infer_topic_type()` → landscape/abstract/object 분류
 - **pytest**: 10개
+
+## Phase 17 완료 항목
+
+### Phase 17 — CTA 텍스트 필터 + 시나리오 설계
+
+- **CTA 텍스트 통일**: 모든 사이트에서 "더 알아보기 →"로 통일 (이전 CTA 제거)
+- **CTA 시나리오 설계**: 카테고리별 CTA 문구 시나리오 설계 완료 (대표님 검토 대기 중)
+- **D8 게이트**: CTA 텍스트 필터 구현 (`get_cta()` 함수 통일)
+- **CTA 브릿지 카드 통일**: 전 카테고리에서 동일한 CTA 문구 사용
+- **Dual CTA 폐기**: 전환성 CTA 제거, 정보성 CTA만 사용 (`conv_cta_text = ""`)
+- **CTA guideline 지시 블록**: `draft_user`에 CTA 가이드라인 추가 (prompt leak 방지)
+
+## Phase 19 완료 항목
+
+### Phase 19 — 이미지 검색 엔진 전면 교체
+
+- **Pollinations 제거**: 기존 Pollinations 이미지 생성 전면 폐기
+- **Unsplash/Pexels API 통합**: `search_providers.py` 모듈 신규 추가
+  - 24h 메모리 캐시 (LRU, dict)
+  - 상호 fallback (둘 다 실패 시 Pollinations fallback)
+- **Contextual Image Enhancement**: `build_contextual_prompt()`로 이미지 프롬프트 생성
+- **이미지 파이프라인 완전 수정**:
+  - `search_providers.py`: Unsplash API + Pexels API 통합
+  - `image/prompt_builder.py`: 포스트 기반 프롬프트 생성
+  - `chain_publisher_core.py`: body-image 경로 변경 (search → contextual Pollinates)
+- **Environment 키**: `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`
+- **pytest**: 8개 신규 테스트 통과 (`test_image_search.py`)
+
+### Phase 19 추가 수정
+
+- **썸네일 업로드 파이프라인**: `img-issue.techpawz.com` 버킷 매핑 수정
+- **D9 게이트**: 기존 chain-card/chain-official-card shortcode 자동 제거 (중복 주입 방지)
+- **미닫힌 코드 펜스 자동 수정**: `fix_unclosed_fences()` 함수 추가
+- **Naver Search API 전환**: BS4 스크래핑 완전 제거 (네이버 이용약관 리스크 해소)
+
+## Phase 20 완료 항목
+
+### Phase 20 — 검색 유효성 분류 및 최적화
+
+- **--search global default**: 모든 체인에 `--search` 옵션 기본 적용
+- **STOCK & AUTOMOTIVE GROUNDING block**: 해당 카테고리에 대한 검색 결과 필터링
+- **검색 유효성 실측 결과**:
+  - ✅ **Stock**: 효과적 (Investing.com 구조화 데이터 직접 반환)
+  - ✅ **Travel**: 효과적 (실제 펜션명, 거리, 리뷰 수 등 반환)
+  - ❌ **Automotive**: 무효 (Naver가 자동차 스펙 데이터 제공하지 않음)
+  - ⚠️ **Real Estate**: 아직 실측 안 함
+- **팩트 기준선 정책**: 상위노출 검색 결과를 사실 기준선으로 신뢰 (무한검증 회피 목적)
+- **키워드 매핑 확장**: `keyword_mapping`에 stock, automotive, real_estate 추가
 
 ## Phase 15 완료 항목
 
@@ -279,12 +330,16 @@ cd /Users/twinssn/Projects/rotcha-blog && HUGO_THEMESDIR=/Users/twinssn/Projects
 ## Recent Commits
 
 ```
-Phase 15 hotfix (이 세션)
-fix(phase15): card URL migration — 26 old posts informationhot.kr → issue.techpawz.com
-6c79a09 docs(state): techpawz 버킷 분기 완료 — pytest 179/179, 라이브 3/3 R2 200
-e288be4 fix(r2): techpawz R2 업로드 버킷 분기 — hotissue-images → techpawz-images
-c4e8f06 fix(r2): published_md 컬럼으로 card injection R2 URL 보존
-82b734e refactor(phase-14-p1): _ensure_frontmatter 정식 구현 + cli/mc.py patch 제거
+feat/keyword-category-template 브랜치 (현재 작업 중)
+wip: save before pause — Phase 17 CTA 코드화 + Phase 15 hotfix 잔여 + planning artifacts
+f1549cc Phase 19: 규격 완전 적용 — Pollinations 제거, Unsplash/Pexels로 전면 교체
+5e80da4 Phase 20: update STATE.md + CONTEXT.md with 검증 results
+4ef341f Phase 20: --search global default + stock/automotive GROUNDING block
+2cb9cc9 feat: 썸네일 업로드 파이프라인 (Phase 19) + img-issue.techpawz.com 버킷 매핑 수정
+9ea6484 feat: draft_user에 CTA guideline 지시 블록 추가 (prompt leak 방지)
+d6fb443 feat: 발행 파이프라인 릭 게이트 (D8: CTA scanner + D9: shortcode 중복 제거)
+aac815b feat: 브릿지 카드 CTA 문구 통일 — '더 알아보기 →' (전 카테고리)
+515bdd7 plan(phase-17): CTA 시나리오 설계
 ```
 
 ## 인계 사항 (잔여 작업)
@@ -315,6 +370,10 @@ mc "새키워드" --image          # derive + draft + image (skip publish)
 mc --chain-id 67 --resume      # 재개
 mc "키워드" --site rotcha      # single-site override
 mc "키워드" --background       # 백그라운드 실행
+
+# Phase 21 — keyword-category-template 작업 중
+git checkout feat/keyword-category-template
+# chain_card_injector.py 작업 계속
 
 # Phase 14.1 이월: cron/launchd, dashboard, audit_chain 통합
 

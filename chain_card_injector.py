@@ -324,29 +324,6 @@ class CardInjector:
             return before + "\n\n" + card_html + "\n" + after
         return content + "\n\n" + card_html
 
-    def should_inject_middle_card(self, content: str) -> bool:
-        """H2가 3개 이상인지 확인."""
-        count = len(re.findall(r"^##\s", content, re.MULTILINE))
-        return count >= 3
-
-    def inject_middle_card(self, content: str, card_html: str) -> str:
-        """2번째 H2 직후에 중간 카드 삽입."""
-        h2_positions = [
-            m.start() for m in re.finditer(r"^##\s", content, re.MULTILINE)
-        ]
-        if len(h2_positions) < 2:
-            return content
-        insert_at = h2_positions[1]
-        next_section = content[insert_at:]
-        next_h2 = re.search(r"\n##\s", next_section[3:])
-        if next_h2:
-            section_end = insert_at + 3 + next_h2.start()
-        else:
-            section_end = len(content)
-        before = content[:section_end].rstrip()
-        after = content[section_end:]
-        return before + "\n\n" + card_html + "\n" + after
-
     # ── 메인 진입점 (draft_md 기반) ────────────────────────────────
 
     @staticmethod

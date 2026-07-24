@@ -154,6 +154,12 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
 
     # _ensure_frontmatter is now implemented in chain_drafter.py (Phase 14 P1).
     # draft_chain calls _ensure_frontmatter internally — no patch needed.
+    # Phase 20: --search global default (default=True), --no-search to disable
+    use_context = not args.no_search
+    if args.search and args.no_search:
+        logger.error("Cannot specify both --search and --no-search")
+        return 1
+    
     chain_id = run_chain(
         seed=keyword,
         dry_run=args.dry_run,
@@ -161,6 +167,7 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
         image_only=image_only,
         publish_mode=publish_mode,
         blog_overrides=blog_overrides,
+        use_context=use_context,
     )
 
     elapsed = (datetime.now() - start).total_seconds()
@@ -425,6 +432,12 @@ def main() -> int:
     parser.add_argument("--site", type=str,
                         choices=list(_SITE_BLOG_KEY.keys()),
                         help="Single site override (rotcha / issue.techpawz / techpawz / aikorea24)")
+
+    # Search context flags (Phase 20: --search global default)
+    parser.add_argument("--search", action="store_true", default=True,
+                        help="Enable Naver search context (default)")
+    parser.add_argument("--no-search", action="store_true",
+                        help="Disable Naver search context")
 
     # Execution mode
     parser.add_argument("--background", action="store_true",
