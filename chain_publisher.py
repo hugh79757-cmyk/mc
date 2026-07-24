@@ -684,7 +684,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
               image_only: bool = False, chain_type: str = None,
               publish_mode: str = None, blog_overrides: dict = None,
               theme_override: str = None, cf_project_override: str = None,
-              use_context: bool = False) -> int:
+              use_context: bool = True) -> int:
     config = load_config()
     chain_id = derive_chain(seed, chain_type=chain_type)
     if not chain_id:
@@ -905,9 +905,9 @@ if __name__ == "__main__":
 
     # Phase 7: Search context flags
     parser.add_argument("--search", action="store_true",
-                        help="Enable Naver search context for drafting")
+                        help="Enable Naver search context for drafting (default)")
     parser.add_argument("--no-search", action="store_true",
-                        help="Disable search context (default)")
+                        help="Disable Naver search context")
     
     parser.add_argument("--blog-step1", type=str, help="Blog key for step 1 (override)")
     parser.add_argument("--blog-step2", type=str, help="Blog key for step 2 (override)")
@@ -1016,7 +1016,7 @@ if __name__ == "__main__":
         if args.blog_step3:
             blog_overrides[3] = args.blog_step3
 
-        use_context = args.search and not args.no_search
+        use_context = not args.no_search
 
         run_chain(
             args.seed,
@@ -1038,7 +1038,7 @@ if __name__ == "__main__":
                 print(f"Chain #{args.chain_id} not found.")
                 sys.exit(1)
             print(f"\n{'='*60}\n[mc] Drafting chain #{args.chain_id}\n{'='*60}\n")
-            use_context = args.search and not args.no_search
+            use_context = not args.no_search
             drafted = draft_chain(args.chain_id, chain['seed'], use_context=use_context)
             print(f"\n[mc] Draft complete: {len(drafted)} posts")
             sys.exit(0)

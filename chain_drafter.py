@@ -243,7 +243,7 @@ def draft_single_post(
     post: dict,
     posts: list[dict],
     seed_keyword: str,
-    use_context: bool = False,
+    use_context: bool = True,
 ) -> tuple[str, dict]:
     """
     post       : chain_posts 행 dict
@@ -432,7 +432,7 @@ def _strip_prompt_leak(text: str) -> str:
 
 # ── 체인 전체 초안 생성 ────────────────────────────────────────────
 
-def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = False) -> list[dict]:
+def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> list[dict]:
     """
     chain_id의 모든 포스트 초안 생성.
     각 초안을 DB + output/drafts/{chain_id}/ 에 저장.

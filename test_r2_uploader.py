@@ -14,10 +14,10 @@ class TestResolveBucket:
         from image.r2_uploader import _resolve_bucket
         assert _resolve_bucket("images/rotcha") == "hotissue-images"
 
-    def test_issue_techpawz_uses_hotissue_images(self):
-        """issue.techpawz은 기본 hotissue-images 버킷 사용 (비회귀)."""
+    def test_issue_techpawz_uses_issue_techpawz_bucket(self):
+        """issue.techpawz은 issue-techpawz 버킷 사용 (img-issue.techpawz.com 바인딩)."""
         from image.r2_uploader import _resolve_bucket
-        assert _resolve_bucket("images/issue-techpawz") == "hotissue-images"
+        assert _resolve_bucket("images/issue-techpawz") == "issue-techpawz"
 
     def test_unknown_prefix_uses_default(self):
         """미등록 prefix는 기본 버킷 반환."""
