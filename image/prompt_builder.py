@@ -17,7 +17,7 @@ from mc_paths import CHAIN_CONFIG_PATH
 
 POLLINATIONS_STYLE_MAP = {
     "rotcha": "soft pastel illustration, gentle color palette, artistic",
-    "infohot": "clean infographic style, modern flat design, isometric, pastel palette, professional",
+    "issue.techpawz": "clean infographic style, modern flat design, isometric, pastel palette, professional",
     "techpawz": "sketch style, pencil drawing, monochrome, hand-drawn, artistic",
 }
 
@@ -55,7 +55,7 @@ FORCED_LANDSCAPE_PREAMBLE = (
 
 POLLINATIONS_ASPECT_RATIOS = {
     "rotcha": (1024, 1024),      # 1:1
-    "infohot": (1024, 1024),  # 1:1
+    "issue.techpawz": (1024, 1024),  # 1:1
     "techpawz": (1024, 1024),    # 1:1
 }
 
@@ -138,7 +138,7 @@ def build_contextual_prompt(
     Args:
         image_keyword: Short keyword for image identity.
         title: Article title for contextualization.
-        blog_key: Blog identifier (rotcha/infohot/techpawz).
+        blog_key: Blog identifier (rotcha/issue.techpawz/techpawz).
         post_angle: Article angle/perspective.
         seed_keyword: Original seed keyword.
         step: Chain step number.

@@ -137,12 +137,15 @@ class TestAIOutputValidation:
             AIOutputMeta(image_type="photo", image_keyword="")
 
     def test_aioutput_requires_chart_data_for_chart(self):
-        """image_type='chart' + chart_data=None → ValidationError."""
-        from pydantic import ValidationError
+        """image_type='chart' + chart_data=None → lenient (Phase 19), no error."""
         from chain_models import AIOutputMeta
 
-        with pytest.raises(ValidationError, match="chart_data"):
-            AIOutputMeta(image_type="chart", chart_type="bar", chart_data=None)
+        # Phase 19: chart_data=null no longer raises;
+        # downstream (chain_drafter.py) handles via image_type="none" fallback.
+        meta = AIOutputMeta(image_type="chart", chart_type="bar", chart_data=None)
+        assert meta.image_type == "chart"
+        assert meta.chart_type == "bar"
+        assert meta.chart_data is None
 
     def test_parse_ai_output_removes_json_fence_from_body(self):
         """parse_ai_output 결과 body에 JSON 코드블록이 없어야 함."""
@@ -760,7 +763,7 @@ class TestKeywordCategoriesH2E2E:
         assert "위치와 기본 정보" in user_prompt, (
             f"Travel step1 H2 누락. prompt:\n{user_prompt[:500]}"
         )
-        assert "시설과 객실 살펴보기" in user_prompt, (
+        assert "시설과 특징 살펴보기" in user_prompt, (
             "Travel step1 H2 #2 누락"
         )
 

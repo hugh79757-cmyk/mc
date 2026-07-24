@@ -106,9 +106,9 @@ class TestBuildBlogOverrides(unittest.TestCase):
         result = _build_blog_overrides("rotcha")
         self.assertEqual(result, {1: "rotcha", 2: "rotcha", 3: "rotcha"})
 
-    def test_infohot_override(self):
-        result = _build_blog_overrides("infohot")
-        self.assertEqual(result, {1: "infohot", 2: "infohot", 3: "infohot"})
+    def test_issue_techpawz_override(self):
+        result = _build_blog_overrides("issue.techpawz")
+        self.assertEqual(result, {1: "issue.techpawz", 2: "issue.techpawz", 3: "issue.techpawz"})
 
     def test_techpawz_override(self):
         result = _build_blog_overrides("techpawz")
@@ -226,7 +226,7 @@ class TestSiteBlogKey(unittest.TestCase):
     """Test that all expected sites are in the mapping."""
 
     def test_all_expected_sites_present(self):
-        expected = {"rotcha", "infohot", "techpawz", "aikorea24"}
+        expected = {"rotcha", "issue.techpawz", "techpawz", "aikorea24"}
         self.assertEqual(set(_SITE_BLOG_KEY.keys()), expected)
 
 
@@ -253,7 +253,7 @@ class TestResumeChain(unittest.TestCase):
         mock_get_chain.return_value = {"id": 99, "seed": "테스트", "status": "completed"}
         mock_get_posts.return_value = [
             {"id": 1, "draft_md": "content", "image_url": "/img.jpg", "published_url": "https://rotcha.kr/1"},
-            {"id": 2, "draft_md": "content", "image_url": "/img.jpg", "published_url": "https://infohot/2"},
+            {"id": 2, "draft_md": "content", "image_url": "/img.jpg", "published_url": "https://issue.techpawz/2"},
             {"id": 3, "draft_md": "content", "image_url": "/img.jpg", "published_url": "https://techpawz/3"},
         ]
 
@@ -306,7 +306,7 @@ class TestResumeChain(unittest.TestCase):
         # After publish: all done
         published_posts = [
             {"id": 1, "draft_md": "content", "image_url": "/img1.jpg", "published_url": "https://rotcha.kr/1"},
-            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": "https://infohot/2"},
+            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": "https://issue.techpawz/2"},
             {"id": 3, "draft_md": "content", "image_url": "/img3.jpg", "published_url": "https://techpawz/3"},
         ]
 

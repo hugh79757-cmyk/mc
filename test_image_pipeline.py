@@ -106,27 +106,17 @@ class TestThumbnailGeneration:
 
     @patch("image.thumbnail.UnsplashProvider.search", return_value=[])
     @patch("image.thumbnail.PexelsProvider.search", return_value=[])
-    @patch("image.thumbnail._pollinations_fallback")
-    def test_generate_thumbnail_fallback_to_pollinations(
-        self, mock_pollinations, mock_pexels, mock_unsplash, temp_dir, monkeypatch
+    def test_generate_thumbnail_all_fail(
+        self, mock_pexels, mock_unsplash, temp_dir, monkeypatch
     ):
-        """Pexels 실패 시 Pollinations 폴백."""
+        """Unsplash, Pexels 모두 실패 시 None 반환 (Pollinations 폴백 제거)."""
         from image.thumbnail import generate_thumbnail
 
         monkeypatch.setenv("UNSPLASH_ACCESS_KEY", "test")
         monkeypatch.setenv("PEXELS_API_KEY", "test")
 
-        mock_pollinations.return_value = temp_dir / "thumb_pollinations.webp"
-        (temp_dir / "thumb_pollinations.webp").write_bytes(b"fake")
-
-        with patch("image.thumbnail.add_text_overlay") as mock_overlay:
-            mock_overlay.return_value = temp_dir / "thumb_final.webp"
-            (temp_dir / "thumb_final.webp").write_bytes(b"fake")
-
-            result = generate_thumbnail("Title", "keyword", "slug")
-            assert result is not None
-            _, source = result
-            assert source == "pollinations"
+        result = generate_thumbnail("Title", "keyword", "slug")
+        assert result is None
 
     def test_generate_thumbnail_idempotent(self, temp_dir, monkeypatch):
         """이미 파일 존재 시 재생성 안 함 (멱등성)."""
@@ -211,7 +201,7 @@ class TestPromptBuilder:
 
         styles = {
             "rotcha": get_image_style_for_blog("rotcha"),
-            "infohot": get_image_style_for_blog("infohot"),
+            "issue.techpawz": get_image_style_for_blog("issue.techpawz"),
             "techpawz": get_image_style_for_blog("techpawz"),
         }
 

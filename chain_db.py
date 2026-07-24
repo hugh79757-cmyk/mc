@@ -335,6 +335,14 @@ def get_chain(chain_id: int) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def get_all_chains() -> list[dict]:
+    """Return all chains ordered by id descending."""
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM chains ORDER BY id DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def update_chain_status(chain_id: int, status: str):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_conn()
@@ -463,9 +471,13 @@ def update_post_image_prompt(post_id: int, image_prompt: str):
 
 from chain_models import ImageMeta as ImageMetaDB
 
-def update_image_meta(post_id: int, image_meta: ImageMetaDB):
+def update_image_meta(post_id: int, image_meta):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    meta_json = image_meta.model_dump_json()
+    if isinstance(image_meta, dict):
+        meta = ImageMetaDB(**image_meta)
+    else:
+        meta = image_meta
+    meta_json = meta.model_dump_json()
     conn = get_conn()
     conn.execute(
         "UPDATE chain_posts SET image_meta=?, updated_at=? WHERE id=?",

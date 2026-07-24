@@ -61,18 +61,21 @@ def derive_chain(seed: str, chain_type: str = None,
 
     derive_key = f"derive_user_{resolved_type}"
 
-    # category-specific lateral prompt (category-aware Step 3 angle)
-    if resolved_type == "lateral":
-        category_key = f"derive_user_lateral_{category}"
-        if category_key in prompts:
-            derive_key = category_key
+    # Phase 19: category-specific prompt for ALL chain types, not just lateral.
+    # stock/automotive/real_estate → depth 방향에서도 category-aware angle 사용.
+    category_key = f"derive_user_lateral_{category}"
+    if category_key in prompts:
+        derive_key = category_key
+        if resolved_type == "lateral":
             print(f"    [lateral] Using category-specific prompt: {category_key}")
         else:
-            etc_fallback = "derive_user_lateral_etc"
-            if etc_fallback in prompts:
-                derive_key = etc_fallback
-                print(f"[mc] ⚠️ No lateral prompt for category '{category}', falling back to 'etc'")
-            # else: keep fallback key (= derive_user_lateral generic)
+            print(f"    [{resolved_type}] Using category-specific prompt: {category_key}")
+    elif resolved_type == "lateral":
+        etc_fallback = "derive_user_lateral_etc"
+        if etc_fallback in prompts:
+            derive_key = etc_fallback
+            print(f"[mc] ⚠️ No lateral prompt for category '{category}', falling back to 'etc'")
+        # else: keep fallback key (= derive_user_lateral generic)
 
     if derive_key not in prompts:
         print(f"[mc] ⚠️ Prompt '{derive_key}' not found, falling back to depth")

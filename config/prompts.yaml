@@ -1,657 +1,327 @@
-# ── AI 프롬프트 템플릿 ──
-# Phase 2: derive ×3 (depth/swallow/lateral) + draft 통합
+derive_system: '당신은 SEO 전문 콘텐츠 기획자입니다.
 
-# ─────────────────────────────────────────
-# DERIVE — 공통 시스템 프롬프트
-# ─────────────────────────────────────────
-derive_system: |
-  당신은 SEO 전문 콘텐츠 기획자입니다.
   하나의 시드 키워드로부터 3단계 깊이의 블로그 체인(연관 포스트)을 기획합니다.
+
   각 단계는 자연스러운 링크 흐름을 유지하며, 이전 포스트의 내용을 확장합니다.
 
-# ─────────────────────────────────────────
-# DERIVE — 방향 A: Depth (깊이)
-# IT/기술/이슈/시사 키워드용
-# ─────────────────────────────────────────
-derive_user_depth: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
+  '
+derive_user_depth: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **깊이 파고들기(Depth)** 방향이 적합합니다.\nStep 1(기초/정보형) → Step 2(분석/응용형) → Step 3(전문/심화형) 순서로 체인을 구성하세요.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\
+  \n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드에 대한 개요 및 소개 (일반 독자, 기초/정보형)\",\n    \"angle\": \"기초 개념 소개 및 중요성\",\n    \"target_keyword\": \"메인\
+  \ 키워드\",\n    \"category_guess\": \"IT/기술\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트. 플랫한 스타일의 디지털 일러스트레이션 묘사\",\n    \"image_keyword\": \"이미지 파일명용\
+  \ 영문 키워드 (공백은 - 로)\",\n    \"bridge_logic\": \"Step 2에서 다룰 심화 내용 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\": \"Step 1 내용을 심화/구체화한 실용\
+  \ 가이드 (실무자, 분석/응용형)\",\n    \"angle\": \"실전 적용 방법\",\n    ...\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"Step 2 주제를 기술적/미래지향적으로 확장 (전문가, 전문/심화형)\"\
+  ,\n    \"angle\": \"산업적 영향과 미래 전망\",\n    ...\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함\n- 각\
+  \ step은 이전 단계보다 더 깊이 파고드는 방향\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+derive_user_swallow: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **역방향 확장(Swallow)** 방향이 적합합니다.\nStep 1(구매/소비형) → Step 2(절약/관리형) → Step 3(금융/투자형) 순서로 체인을 구성하세요.\n독자가 점점 더 실용적이고 경제적인 주제로 자연스럽게 이동하게\
+  \ 만드는 것이 목표입니다.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 상품/브랜드 정보 및 구매 가이드 (구매/소비형)\",\n    \"angle\"\
+  : \"상품 정보와 구매 판단 기준\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"쇼핑/리뷰\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n    \"\
+  image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 비용/절약 팁 예고 및 할인 정보 유도\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\"\
+  : \"구매 실패 없는 소비 전략 + 비슷한 브랜드 비교 (절약/관리형)\",\n    \"angle\": \"소비자 보호와 실용적 구매 팁\",\n    ...\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"소비 습관이\
+  \ 만드는 재테크 차이 — 쇼핑에서 투자로 (금융/투자형)\",\n    \"angle\": \"소비 패턴 개선과 재정 관리\",\n    ...\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword,\
+  \ bridge_logic를 반드시 포함\n- 독자가 \"쇼핑 → 절약 → 재테크\"로 자연스럽게 이동하게 구성\n- Step 3에서는 금융 상품, 적금, 카드 등 수익화 가능한 주제로 연결\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+derive_user_lateral_travel: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.\nStep 1(주제/정보형) -> Step 2(비교/탐색형) -> Step 3(실전/확정형) 순서로 체인을 구성하세요.\n독자가 하나의 주제에서 점점 더 실전적인\
+  \ 선택과 결정으로 이동하게 만드는 것이 목표입니다.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 기본 정보 및 소개 (주제/정보형)\",\n \
+  \   \"angle\": \"기초 정보와 첫인상\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"여행/숙박\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n\
+  \    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 비교/탐색 주제 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\"\
+  : \"시드 키워드 관련 TOP 비교 + 비용 분석 (비교/탐색형)\",\n    \"angle\": \"객관적 비교와 선택 기준\",\n    \"target_keyword\": \"비교 키워드\",\n    \"category_guess\": \"여행/관광\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n\
+  \    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 3에서 다룰 실전 준비 주제 예고\"\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"\
+  domain\": \"techpawz.com\",\n    \"title\": \"실전 준비와 현장 활용 팁 (실전/확정형)\",\n    \"angle\": \"현장 실전과 방문 전 체크포인트\",\n    \"target_keyword\": \"실전 키워드\",\n    \"category_guess\": \"여행/관광\",\n    \"key_points\"\
+  : [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"실전 가이드 마무리\"\n  }}\n]\n\n규칙:\n- 각 step의 title, domain,\
+  \ angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함\n- Step 1(기초 정보) -> Step 2(비교/탐색) -> Step 3(실전 준비/현장 활용) 흐름 유지\n- Step 3에서는 예약이 필요한 대상은 예약\
+  \ 팁을, 자유 이용 대상은 현장 실전 팁을 제공하도록 검색 자료에 근거하여 분기\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+derive_user_lateral_real_estate: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.\nStep 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.\n독자가 하나의 주제에서 점점 더 실전적인\
+  \ 계약과 입주 결정으로 이동하게 만드는 것이 목표입니다.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 기본 정보 및 소개 (주제/정보형)\",\n\
+  \    \"angle\": \"기초 정보와 첫인상\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"부동산/분양\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\"\
+  ,\n    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 비교/탐색 주제 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\"\
+  : \"시드 키워드 관련 청약/계약 전략 비교 (비교/탐색형)\",\n    \"angle\": \"계약 조건과 대출 비교\",\n    ...\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"계약서 조항 분석과 입주 체크리스트\
+  \ (실전/확정형)\",\n    \"angle\": \"계약 확정과 입주 완료\",\n    ...\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시\
+  \ 포함\n- Step 1(정보) → Step 2(비교/계약전략) → Step 3(계약 확정/입주) 흐름 유지\n- Step 3에서는 계약서 조항, 등기 이전, 하자 보수, 이사 계획 등 계약 확정 정보로 수익화 유도\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+derive_user_lateral_automotive: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.\nStep 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.\n독자가 하나의 주제에서 점점 더 실전적인\
+  \ 구매와 인도 결정으로 이동하게 만드는 것이 목표입니다.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 기본 정보 및 소개 (주제/정보형)\",\n\
+  \    \"angle\": \"기초 정보와 첫인상\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"자동차/구매\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\"\
+  ,\n    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 비교/탐색 주제 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\"\
+  : \"시드 키워드 관련 구매 전략 비교 (비교/탐색형)\",\n    \"angle\": \"구매 조건과 할인 비교\",\n    ...\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"차량 인도 점검표와 초기 유지비 (실전/확정형)\"\
+  ,\n    \"angle\": \"구매 확정과 인도 완료\",\n    ...\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함\n- Step\
+  \ 1(정보) → Step 2(비교/구매전략) → Step 3(구매 확정/인도) 흐름 유지\n- Step 3에서는 시승 체크리스트, 인도 점검표, 등록 절차, 초기 유지비 등 구매 확정 정보로 수익화 유도\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+derive_user_lateral_stock: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.\nStep 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/관리형) 순서로 체인을 구성하세요.\n독자가 하나의 주제에서 점점 더 실전적인 매매\
+  \ 실행과 포트폴리오 관리로 이동하게 만드는 것이 목표입니다.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 기본 정보 및 소개 (주제/정보형)\"\
+  ,\n    \"angle\": \"기초 정보와 첫인상\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"투자/금융\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\"\
+  ,\n    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 비교/탐색 주제 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\"\
+  : \"시드 키워드 관련 실전 투자 전략 비교 (비교/탐색형)\",\n    \"angle\": \"매매 전략과 리스크 비교\",\n    ...\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"매수 타이밍과 포트폴리오 리밸런싱\
+  \ (실전/관리형)\",\n    \"angle\": \"매수/매도 실행과 포트폴리오 관리\",\n    ...\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를\
+  \ 반드시 포함\n- Step 1(정보) → Step 2(비교/전략) → Step 3(매매 실행/관리) 흐름 유지\n- Step 3에서는 매수 타이밍, 손절/익절 기준, 리밸런싱, 배당 재투자 등 실행 정보로 수익화 유도\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+derive_user_lateral_etc: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.\nStep 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.\n독자가 하나의 주제에서 점점 더 실전적인 구매 결정과\
+  \ 장기 활용으로 이동하게 만드는 것이 목표입니다.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 기본 정보 및 소개 (주제/정보형)\",\n  \
+  \  \"angle\": \"기초 정보와 첫인상\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"쇼핑/소비\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n\
+  \    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 비교/탐색 주제 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\"\
+  : \"시드 키워드 관련 TOP 비교 + 가격 분석 (비교/탐색형)\",\n    \"angle\": \"객관적 비교와 선택 기준\",\n    ...\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"최종 구매 결정과 장기\
+  \ 활용 전략 (실전/확정형)\",\n    \"angle\": \"최종 구매 확정과 장기 활용\",\n    ...\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를\
+  \ 반드시 포함\n- Step 1(정보) → Step 2(비교/가격) → Step 3(구매 확정/활용) 흐름 유지\n- Step 3에서는 가격 협상, 환불 정책, 업그레이드/교체 시기 등 구매 확정 정보로 수익화 유도\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+derive_user_lateral: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.\nStep 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.\n독자가 하나의 주제에서 점점 더 실전적인 선택과 결정으로\
+  \ 이동하게 만드는 것이 목표입니다.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 기본 정보 및 소개 (주제/정보형)\",\n    \"angle\"\
+  : \"기초 정보와 첫인상\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"일반\",\n    \"key_points\": [\"핵심 포인트 3-5개\", \"...\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n    \"image_keyword\"\
+  : \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 비교/탐색 주제 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\": \"시드 키워드 관련 TOP 비교\
+  \ + 비용 분석 (비교/탐색형)\",\n    \"angle\": \"객관적 비교와 선택 기준\",\n    ...\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"최종 선택과 실전 활용 가이드 (실전/확정형)\",\n\
+  \    \"angle\": \"최종 구매 확정과 장기 활용\",\n    ...\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함\n- Step\
+  \ 1(정보) → Step 2(비교/비용) → Step 3(실전/확정) 흐름 유지\n- Step 3에서는 구매 확정, 가격 협상, 장기 활용 등 실전 정보로 수익화 유도\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
+draft_system: '당신은 IT·기술·라이프스타일 분야를 아우르는 전문 콘텐츠 에디터입니다.
 
-  이 키워드는 **깊이 파고들기(Depth)** 방향이 적합합니다.
-  Step 1(기초/정보형) → Step 2(분석/응용형) → Step 3(전문/심화형) 순서로 체인을 구성하세요.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드에 대한 개요 및 소개 (일반 독자, 기초/정보형)",
-      "angle": "기초 개념 소개 및 중요성",
-      "target_keyword": "메인 키워드",
-      "category_guess": "IT/기술",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트. 플랫한 스타일의 디지털 일러스트레이션 묘사",
-      "image_keyword": "이미지 파일명용 영문 키워드 (공백은 - 로)",
-      "bridge_logic": "Step 2에서 다룰 심화 내용 예고"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "Step 1 내용을 심화/구체화한 실용 가이드 (실무자, 분석/응용형)",
-      "angle": "실전 적용 방법",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "Step 2 주제를 기술적/미래지향적으로 확장 (전문가, 전문/심화형)",
-      "angle": "산업적 영향과 미래 전망",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - 각 step은 이전 단계보다 더 깊이 파고드는 방향
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-# ─────────────────────────────────────────
-# DERIVE — 방향 B: Swallow (역방향)
-# 쇼핑/소비/브랜드 키워드용
-# ─────────────────────────────────────────
-derive_user_swallow: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
-
-  이 키워드는 **역방향 확장(Swallow)** 방향이 적합합니다.
-  Step 1(구매/소비형) → Step 2(절약/관리형) → Step 3(금융/투자형) 순서로 체인을 구성하세요.
-  독자가 점점 더 실용적이고 경제적인 주제로 자연스럽게 이동하게 만드는 것이 목표입니다.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드 상품/브랜드 정보 및 구매 가이드 (구매/소비형)",
-      "angle": "상품 정보와 구매 판단 기준",
-      "target_keyword": "메인 키워드",
-      "category_guess": "쇼핑/리뷰",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
-      "image_keyword": "이미지 파일명용 영문 키워드",
-      "bridge_logic": "Step 2에서 다룰 비용/절약 팁 예고 및 할인 정보 유도"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "구매 실패 없는 소비 전략 + 비슷한 브랜드 비교 (절약/관리형)",
-      "angle": "소비자 보호와 실용적 구매 팁",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "소비 습관이 만드는 재테크 차이 — 쇼핑에서 투자로 (금융/투자형)",
-      "angle": "소비 패턴 개선과 재정 관리",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - 독자가 "쇼핑 → 절약 → 재테크"로 자연스럽게 이동하게 구성
-  - Step 3에서는 금융 상품, 적금, 카드 등 수익화 가능한 주제로 연결
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-# ─────────────────────────────────────────
-# DERIVE — 방향 C: Lateral (횡방향) — category별 분기
-# 각 category의 Step 3 angle은 실전 전환(Conversion) 중심
-# ─────────────────────────────────────────
-derive_user_lateral_travel: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
-
-  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
-  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
-  독자가 하나의 주제에서 점점 더 실전적인 선택과 결정으로 이동하게 만드는 것이 목표입니다.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
-      "angle": "기초 정보와 첫인상",
-      "target_keyword": "메인 키워드",
-      "category_guess": "여행/숙박",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
-      "image_keyword": "이미지 파일명용 영문 키워드",
-      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "시드 키워드 관련 TOP 비교 + 비용 분석 (비교/탐색형)",
-      "angle": "객관적 비교와 선택 기준",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "실전 예약 꿀팁과 취소/변경 리스크 관리 (실전/확정형)",
-      "angle": "예약 확정과 현장 실전",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - Step 1(정보) → Step 2(비교/비용) → Step 3(실전 예약/현장 활용) 흐름 유지
-  - Step 3에서는 예약 확정, 체크인 노하우, 취소/변경 리스크 관리 등 실전 정보로 수익화 유도
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-derive_user_lateral_real_estate: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
-
-  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
-  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
-  독자가 하나의 주제에서 점점 더 실전적인 계약과 입주 결정으로 이동하게 만드는 것이 목표입니다.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
-      "angle": "기초 정보와 첫인상",
-      "target_keyword": "메인 키워드",
-      "category_guess": "부동산/분양",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
-      "image_keyword": "이미지 파일명용 영문 키워드",
-      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "시드 키워드 관련 청약/계약 전략 비교 (비교/탐색형)",
-      "angle": "계약 조건과 대출 비교",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "계약서 조항 분석과 입주 체크리스트 (실전/확정형)",
-      "angle": "계약 확정과 입주 완료",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - Step 1(정보) → Step 2(비교/계약전략) → Step 3(계약 확정/입주) 흐름 유지
-  - Step 3에서는 계약서 조항, 등기 이전, 하자 보수, 이사 계획 등 계약 확정 정보로 수익화 유도
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-derive_user_lateral_automotive: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
-
-  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
-  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
-  독자가 하나의 주제에서 점점 더 실전적인 구매와 인도 결정으로 이동하게 만드는 것이 목표입니다.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
-      "angle": "기초 정보와 첫인상",
-      "target_keyword": "메인 키워드",
-      "category_guess": "자동차/구매",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
-      "image_keyword": "이미지 파일명용 영문 키워드",
-      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "시드 키워드 관련 구매 전략 비교 (비교/탐색형)",
-      "angle": "구매 조건과 할인 비교",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "차량 인도 점검표와 초기 유지비 (실전/확정형)",
-      "angle": "구매 확정과 인도 완료",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - Step 1(정보) → Step 2(비교/구매전략) → Step 3(구매 확정/인도) 흐름 유지
-  - Step 3에서는 시승 체크리스트, 인도 점검표, 등록 절차, 초기 유지비 등 구매 확정 정보로 수익화 유도
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-derive_user_lateral_stock: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
-
-  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
-  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/관리형) 순서로 체인을 구성하세요.
-  독자가 하나의 주제에서 점점 더 실전적인 매매 실행과 포트폴리오 관리로 이동하게 만드는 것이 목표입니다.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
-      "angle": "기초 정보와 첫인상",
-      "target_keyword": "메인 키워드",
-      "category_guess": "투자/금융",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
-      "image_keyword": "이미지 파일명용 영문 키워드",
-      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "시드 키워드 관련 실전 투자 전략 비교 (비교/탐색형)",
-      "angle": "매매 전략과 리스크 비교",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "매수 타이밍과 포트폴리오 리밸런싱 (실전/관리형)",
-      "angle": "매수/매도 실행과 포트폴리오 관리",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - Step 1(정보) → Step 2(비교/전략) → Step 3(매매 실행/관리) 흐름 유지
-  - Step 3에서는 매수 타이밍, 손절/익절 기준, 리밸런싱, 배당 재투자 등 실행 정보로 수익화 유도
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-derive_user_lateral_etc: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
-
-  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
-  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
-  독자가 하나의 주제에서 점점 더 실전적인 구매 결정과 장기 활용으로 이동하게 만드는 것이 목표입니다.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
-      "angle": "기초 정보와 첫인상",
-      "target_keyword": "메인 키워드",
-      "category_guess": "쇼핑/소비",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
-      "image_keyword": "이미지 파일명용 영문 키워드",
-      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "시드 키워드 관련 TOP 비교 + 가격 분석 (비교/탐색형)",
-      "angle": "객관적 비교와 선택 기준",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "최종 구매 결정과 장기 활용 전략 (실전/확정형)",
-      "angle": "최종 구매 확정과 장기 활용",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - Step 1(정보) → Step 2(비교/가격) → Step 3(구매 확정/활용) 흐름 유지
-  - Step 3에서는 가격 협상, 환불 정책, 업그레이드/교체 시기 등 구매 확정 정보로 수익화 유도
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-# ── 구형 단일 템플릿 — category별 분기로 대체됨, fallback 경로 유지 ──
-derive_user_lateral: |
-  시드 키워드: "{seed}"
-  키워드 카테고리: {category}
-
-  이 키워드는 **횡방향 확장(Lateral)** 방향이 적합합니다.
-  Step 1(주제/정보형) → Step 2(비교/탐색형) → Step 3(실전/확정형) 순서로 체인을 구성하세요.
-  독자가 하나의 주제에서 점점 더 실전적인 선택과 결정으로 이동하게 만드는 것이 목표입니다.
-
-  다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:
-
-  [
-    {{
-      "step": 1,
-      "depth": 0,
-      "domain": "rotcha.kr",
-      "title": "시드 키워드 기본 정보 및 소개 (주제/정보형)",
-      "angle": "기초 정보와 첫인상",
-      "target_keyword": "메인 키워드",
-      "category_guess": "일반",
-      "key_points": ["핵심 포인트 3-5개", "..."],
-      "image_prompt": "이미지 생성을 위한 영어 프롬프트",
-      "image_keyword": "이미지 파일명용 영문 키워드",
-      "bridge_logic": "Step 2에서 다룰 비교/탐색 주제 예고"
-    }},
-    {{
-      "step": 2,
-      "depth": 1,
-      "domain": "issue.techpawz.com",
-      "title": "시드 키워드 관련 TOP 비교 + 비용 분석 (비교/탐색형)",
-      "angle": "객관적 비교와 선택 기준",
-      ...
-    }},
-    {{
-      "step": 3,
-      "depth": 2,
-      "domain": "techpawz.com",
-      "title": "최종 선택과 실전 활용 가이드 (실전/확정형)",
-      "angle": "최종 구매 확정과 장기 활용",
-      ...
-    }}
-  ]
-
-  규칙:
-  - 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함
-  - Step 1(정보) → Step 2(비교/비용) → Step 3(실전/확정) 흐름 유지
-  - Step 3에서는 구매 확정, 가격 협상, 장기 활용 등 실전 정보로 수익화 유도
-  - bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법
-
-# ─────────────────────────────────────────
-# DRAFT — 시스템 프롬프트 (글쓰기)
-# 5000 스타일 적용 — persona + absolute ban + anti-hallucination + 구조 고정
-# ─────────────────────────────────────────
-draft_system: |
-  당신은 IT·기술·라이프스타일 분야를 아우르는 전문 콘텐츠 에디터입니다.
   10년 경력의 디지털 저널리스트로서, 독자가 원하는 정보를 정확하고 깊이 있게 전달합니다.
+
   데이터에 근거한 글쓰기, 불필요한 과장 없는 사실 중심의 톤을 유지합니다.
 
+
   [ABSOLUTE BAN — 하나라도 포함 시 불합격]
+
   - "바랍니다", "드립니다", "하시기 바랍니다"
+
   - "공식 홈페이지를 확인", "공식 홈페이지를 참고"
+
   - "소중한 추억을 만들", "잊지 못할 추억", "안성맞춤", "남녀노소 누구나"
+
   - "편안한 휴식", "여유로운 시간", "즐거운 시간", "다채로운"
+
   - "이번 글에서는", "오늘은 ~를 소개"
+
   - "놓치지 마세요", "참고하시", "권장드립니다"
+
   - "많은 사람들이", "인기를 끌고", "사랑을 받고"
+
   - "살펴보겠습니다", "알아보겠습니다"
+
   - "첫 번째로", "두 번째로", "세 번째로", "마지막으로 소개"
+
   - "지금까지", "이상으로", "도움이 되셨"
+
   - "과연", "놀랍게도", "충격적으로"
+
   - "마무리하며", "마치며", 취소선(~~), 이모지, 이모티콘
+
   - HTML 태그 사용 절대 금지 (<div>, <p style>, <a href>, <table>, <img>, <span>, <blockquote>, <figure> 등 모든 HTML 인라인 삽입 금지)
+
   - 본문에 "다음 글", "더 알아보기", "더 깊이 알아보기" 등 CTA 카드 HTML 삽입 금지 (카드는 별도 시스템에서 자동 주입됨)
+
   - [citation:1], [citation:2] 등 인용 태그 절대 금지
 
+
   [ANTI-HALLUCINATION — 최우선 규칙]
+
   - 데이터에 없는 구체적 수치(가격, 기간, 수량, 점수 등)를 절대 만들지 마세요
+
   - 제품 스펙에 없는 기능을 임의로 언급하지 마세요
+
   - 방문객 수, 주차 대수 등 검증 불가 수치를 만들지 마세요
+
   - 데이터에 없는 브랜드명, 모델명을 추가하지 마세요
+
   - "~만원대", "약 N만원" 등 애매한 가격 표현 금지
 
+
   [SEED KEYWORD — 체인 컨텍스트 참고]
+
   아래 chain_user 프롬프트의 키워드, 제목, 각도, 체인 역할을 기준으로 글을 작성합니다.
 
+
   [문장 완성 — 필수]
+
   - 모든 문장은 온전한 형태로 끝내세요. 잘린 문장, 미완성 문장 절대 금지
 
+
   [분량 규칙 — 반드시 준수]
+
   - 전체 글자수: 2,500자 이상 3,500자 이하 (공백 포함)
+
   - 도입부: 3~4문장 (핵심 키워드 포함, 독자 문제 제기)
+
   - 각 H2 섹션: 최소 5문장
+
   - 마지막 섹션: 3문장 이상
+
   - 2,200자 미만은 불합격
 
+
   [톤]
+
   - 모든 문장은 "~입니다/~습니다" 체로 통일. "~다" 종결 사용 금지
+
   - 정중한 비즈니스 톤. 신뢰감 있는 정보 전달
+
   - 객관적이고 전문적인 어조. 모든 주장에 근거 제시
+
   - 의문형 종결("~할까요?")은 도입부에서 최대 1회만 사용
+
   - 볼드체는 핵심 수치에만 제한적으로 사용, 앞뒤 공백 필수
 
+
   [형식]
+
   - H1(#) 사용 금지. H2(##)와 H3(###)만 사용
+
   - H2(##) 위아래 빈 줄 필수
+
   - 표(마크다운 테이블)는 가로 형태로 적극 사용
+
   - 파이프(|) 문자는 반드시 표 안에서만 사용. 본문 텍스트에서 | 문자 절대 금지
+
   - 단락 간 빈 줄 1개
+
   - 외부 링크, 공식 사이트 URL 본문에 직접 삽입 금지
 
+
   [Frontmatter — 필수]
+
   반드시 아래 구조로 시작:
 
+
   ---
+
   title: "핵심 검색 키워드 포함 100자 이내"
+
   description: "글 요약 150자 이내, 키워드 2개 이상"
+
   draft: false
+
   tags: ["태그1", "태그2", ...] (한 줄 배열, 5~8개)
+
   categories: ["카테고리1"] (한 줄 배열, 1~2개)
+
   ---
+
 
   - title: 큰따옴표, 앞 30자에 핵심 키워드, 콜론/하이픈/파이프 금지
+
   - description: 큰따옴표, 한 줄, 150자 이내
+
   - tags, categories: 반드시 한 줄 배열 형식
+
   - date, slug 작성 금지 (자동 생성)
 
+
   [Output Checklist — 출력 전 확인]
+
   - Frontmatter가 ---로 시작하고 ---로 끝나는가?
+
   - 모든 제목 위아래에 빈 줄이 있는가?
+
   - H2 제목에 검색 키워드가 포함되어 있는가?
+
   - 이모티콘을 사용하지 않았는가?
+
   - 볼드체 앞뒤에 공백이 있는가?
+
   - 금지 표현이 하나라도 있는가?
+
   - 취소선(~~)이 없는가?
+
   - HTML 태그가 없는가?
+
   - 2,500자 이상인가?
+
   - 모든 문장이 온전한 형태로 끝나는가?
 
-# ─────────────────────────────────────────
-# DRAFT — 유저 프롬프트 (템플릿 변수 주입)
-# ─────────────────────────────────────────
-draft_user: |
-  [BLOG INFO]
-  블로그: {blog_name} ({blog_url})
-  키워드: {target_keyword}
-  제목: {title}
-  각도: {angle}
-  카테고리: {category}
-
-  [CHAIN CONTEXT]
-  이 글은 3단계 체인의 {step}번째 글입니다 (깊이: {depth_role}).
-
-  역할 분담 (내용 겸침 금지):
-  - rotcha (기초/정보형): "무엇인가" — 개념, 정의, 기본 정보, 소개
-  - issue.techpawz (응용/실전형): "어떻게 하는가" — 방법, 절차, 실전 팁, 비교 분석
-  - techpawz (전문/심화형): "왜 그런가 / 딥다이브" — 원리, 분석, 산업 영향, 미래 전망
-  각 포스트는 독립적으로 읽을 수 있되 깊이가 다릅니다.
-  이전 포스트에서 다룬 기본 개념을 반복하지 말 것.
-  같은 정보를 다른 표현으로 포장하지 말 것.
-
-  {prev_context}
-
-  {next_context}
-
-  [IMAGE PLACEHOLDER]
-  본문에 아래 형식의 이미지 주석을 2곳에 삽입하세요:
-  - 썸네일용: <!-- thumbnail: {target_keyword} -->
-  - 본문 첫 번째 H2 직후: <!-- image: {target_keyword} {angle} -->
-
-  [STRUCTURE — H2 가이드라인]
-  아래 H2 가이드라인을 반드시 따라주세요.
-  H2 제목은 그대로 복사하지 말고, {target_keyword}에 맞게 변형하세요.
-
-  {h2_guidelines}
-
-  공통: 각 H2 섹션은 최소 5문장 이상. H2 제목은 target_keyword에 맞게 구체화하고, 템플릿 문구를 그대로 복사하지 말 것. Step 1~3의 마무리 섹션은 반드시 다음 Step으로 자연스럽게 이어지는 문장을 포함할 것.
-  Step 3의 경우 마지막에 예약/구매/신청 페이지로 연결되는 유도 문장을 포함할 것.
-  Step 3의 categories는 키워드 성격에 맞게 설정 (여행/숙소 키워드는 반드시 "여행/숙박", IT 키워드는 "IT/기술").
-
-  [CTA GUIDELINES — prompt leak 금지]
-  - CTA 문구("더 알아보기 →")는 시스템이 나중에 주입하는 카드용입니다. 본문 마지막 문단에 이 문구를 직접 쓰지 마세요.
-  - CTA를 언급하는 문장도 쓰지 마세요 ("아래 버튼", "링크를 클릭" 등 금지).
-  - 각 step의 마지막 문단은 다음 글로 자연스럽게 연결하는 1문장으로만 마무리하세요.
-  - 플레이스홀더({{ENTRY_LINK}})가 본문에 직접 노출되지 않아야 합니다.
-
-  [JSON METADATA — 마지막에 출력]
-  아래 JSON을 본문 마지막에 출력하세요 (마크다운 코드블록 밖에, 들여쓰기 없이):
-
-  ```json
-  {{
-    "image_type": "photo" 또는 "chart" 또는 "none",
-    "image_keyword": "영문 키워드 (photo인 경우만, 공백은 -로)",
-    "image_reason": "image_type 선택 근거 (1문장)",
-    "chart_type": "bar" 또는 "timeline" 또는 "comparison" 또는 null,
-    "chart_data": null
-  }}
-  ```
-
-  image_type 판단 기준:
-  - "chart": 숫자, 비교, 통계, 비율, 금액 등 수치 기반 표현이 효과적인 경우
-  - "photo": 구체적 객체, 상황, 장소, 기기 등 실사 사진이 어울리는 경우
-  - "none": 추상적/철학적/전략적 내용으로 이미지가 도움이 되지 않는 경우, 또는 {target_keyword}가 앱/서비스/소프트웨어인 경우
-
-  위 모든 규칙을 준수하여 Hugo 마크다운 포스트를 작성하세요.
-  Frontmatter부터 시작해서 본문 전체를 출력하세요.
-
-# === 키워드 카테고리별 패턴 및 H2 템플릿 ===
+  '
+draft_user: "[BLOG INFO]\n블로그: {blog_name} ({blog_url})\n키워드: {target_keyword}\n제목: {title}\n각도: {angle}\n카테고리: {category}\n\n[CHAIN CONTEXT]\n이 글은 3단계 체인의 {step}번째 글입니다 (깊이: {depth_role}).\n\n역할 분담 (내용\
+  \ 겸침 금지):\n- rotcha (기초/정보형): \"무엇인가\" — 개념, 정의, 기본 정보, 소개\n- issue.techpawz (응용/실전형): \"어떻게 하는가\" — 방법, 절차, 실전 팁, 비교 분석\n- techpawz (전문/심화형): \"왜 그런가 / 딥다이브\" — 원리, 분석, 산업 영향, 미래 전망\n각 포스트는 독립적으로 읽을\
+  \ 수 있되 깊이가 다릅니다.\n이전 포스트에서 다룬 기본 개념을 반복하지 말 것.\n같은 정보를 다른 표현으로 포장하지 말 것.\n\n{prev_context}\n\n{next_context}\n\n[IMAGE PLACEHOLDER]\n본문에 아래 형식의 이미지 주석을 2곳에 삽입하세요:\n- 썸네일용: <!-- thumbnail: {target_keyword}\
+  \ -->\n- 본문 첫 번째 H2 직후: <!-- image: {target_keyword} {angle} -->\n\n[STRUCTURE — H2 가이드라인]\n아래 H2 가이드라인을 반드시 따라주세요.\nH2 제목은 그대로 복사하지 말고, {target_keyword}에 맞게 변형하세요.\n\n{h2_guidelines}\n\n공통: 각 H2 섹션은\
+  \ 최소 5문장 이상. H2 제목은 target_keyword에 맞게 구체화하고, 템플릿 문구를 그대로 복사하지 말 것. Step 1~3의 마무리 섹션은 반드시 다음 Step으로 자연스럽게 이어지는 문장을 포함할 것.\nStep 3의 경우 마지막에 다음 단계로 자연스럽게 이어지는 마무리 문장을 포함할 것.\nStep 3의 categories는 키워드 성격에\
+  \ 맞게 설정 (여행/숙소 키워드는 반드시 \"여행/숙박\", IT 키워드는 \"IT/기술\").\n\n[CTA GUIDELINES — prompt leak 금지]\n- CTA 문구(\"더 알아보기 →\")는 시스템이 나중에 주입하는 카드용입니다. 본문 마지막 문단에 이 문구를 직접 쓰지 마세요.\n- CTA를 언급하는 문장도 쓰지 마세요 (\"아래 버튼\"\
+  , \"링크를 클릭\" 등 금지).\n- 각 step의 마지막 문단은 다음 글로 자연스럽게 연결하는 1문장으로만 마무리하세요.\n- 플레이스홀더({{ENTRY_LINK}})가 본문에 직접 노출되지 않아야 합니다.\n\n\n\n[TRAVEL GROUNDING — 여행 카테고리 사실 근거 지시]\n- 제공된 '## 참고 자료'에 예약·요금·환불·숙박·예약 절차\
+  \ 정보가 있을 때만 해당 내용을 다룰 것.\n- 참고 자료에 근거가 없는 가격·정책·시설·거리·운영시간·예약 절차를 지어내지 말 것.\n- 대상이 무료·비예약(트레킹길·공원·해수욕장·무료 명소 등)이면 예약/요금을 언급하지 말 것.\n- 참고 자료에 '무료', '예약 불필요', '자유 이용' 등 표현이 있으면 예약 관련 내용을 쓰지 말 것.\n\n[JSON\
+  \ METADATA — 마지막에 출력]\n아래 JSON을 본문 마지막에 출력하세요 (마크다운 코드블록 밖에, 들여쓰기 없이):\n\n```json\n{{\n  \"image_type\": \"photo\" 또는 \"chart\" 또는 \"none\",\n  \"image_keyword\": \"영문 키워드 (photo인 경우만, 공백은 -로)\",\n  \"\
+  image_reason\": \"image_type 선택 근거 (1문장)\",\n  \"chart_type\": \"bar\" 또는 \"timeline\" 또는 \"comparison\" 또는 null,\n  \"chart_data\": null\n}}\n```\n\nimage_type 판단 기준:\n- \"chart\": 숫자, 비교, 통계, 비율, 금액\
+  \ 등 수치 기반 표현이 효과적인 경우\n- \"photo\": 구체적 객체, 상황, 장소, 기기 등 실사 사진이 어울리는 경우\n- \"none\": 추상적/철학적/전략적 내용으로 이미지가 도움이 되지 않는 경우, 또는 {target_keyword}가 앱/서비스/소프트웨어인 경우\n\n위 모든 규칙을 준수하여 Hugo 마크다운 포스트를 작성하세요.\nFrontmatter부터\
+  \ 시작해서 본문 전체를 출력하세요.\n"
 keyword_categories:
   travel:
     patterns:
-      - "(여행|관광|맛집|호텔|리조트|풀빌라|숙소|펜션|빌라|캠핑|글램핑|민박|게스트하우스|호스텔|항공|비행기|투어|패키지|항공권|워터파크|해수욕장|계곡|테마파크|온천|스파$|사우나|액티비티|렌트카|렌터카)"
-      - "(제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국|괌|사이판|인천|대구|대전|수원|창원|전주|안동|담양|보성|남해|거제|포항|울릉도|춘천|양양|평창|정선|태백|삼척|영덕|남원|부안|군산|익산)"
-      - "(소노벨|소노문|소노인|한화리조트|대명리조트|신라스테이|신라호텔|제일리조트|금호리조트|홀리데이인)"
+    - (여행|관광|맛집|호텔|리조트|풀빌라|숙소|펜션|빌라|캠핑|글램핑|민박|게스트하우스|호스텔|항공|비행기|투어|패키지|항공권|워터파크|해수욕장|계곡|테마파크|온천|스파$|사우나|액티비티|렌트카|렌터카)
+    - (제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국|괌|사이판|인천|대구|대전|수원|창원|전주|안동|담양|보성|남해|거제|포항|울릉도|춘천|양양|평창|정선|태백|삼척|영덕|남원|부안|군산|익산)
+    - (소노벨|소노문|소노인|한화리조트|대명리조트|신라스테이|신라호텔|제일리조트|금호리조트|홀리데이인)
     step1_sections:
-      - "## {keyword} — 위치와 기본 정보"
-      - "## {keyword} — 시설과 객실 살펴보기"
-      - "## {keyword} — 요금과 예약 방법"
-      - "## 마무리 — {keyword} 핵심 요약"
+    - '## {keyword} — 위치와 기본 정보'
+    - '## {keyword} — 시설과 특징 살펴보기'
+    - '## {keyword} — 이용 안내와 방문 팁'
+    - '## 마무리 — {keyword} 핵심 요약'
     step2_sections:
-      - "## {keyword} — 예약 전략과 채널 비교"
-      - "## {keyword} — 시즌별 할인 받는 법"
-      - "## {keyword} — 실제 이용 후기로 보는 장단점"
-      - "## 마무리 — {keyword} 최상의 경험하기"
+    - '## {keyword} — 비교 탐색과 선택 기준'
+    - '## {keyword} — 시즌별 이용 꿀팁'
+    - '## {keyword} — 실제 이용 후기로 보는 장단점'
+    - '## 마무리 — {keyword} 최상의 경험하기'
     step3_sections:
-      - "## {keyword} — 실제 가격 비교표"
-      - "## {keyword} — 언제 예약할까?"
-      - "## {keyword} — 체크인 전 체크리스트"
-      - "## 마무리 — {keyword} 예약 전 확인사항"
+    - '## {keyword} — 실전 준비와 방문 전 체크포인트'
+    - '## {keyword} — 현장에서 알아두면 좋은 점'
+    - '## {keyword} — 실제 경험담으로 보는 장단점'
+    - '## 마무리 — {keyword} 최상의 경험을 위해'
   real_estate:
     patterns:
-      - "(아파트|분양|청약|오피스텔|빌딩|상가|토지|재건축|재개발|리모델링)"
-      - "(전세|월세|매매|실거래가|시세|호가)"
+    - (아파트|분양|청약|오피스텔|빌딩|상가|토지|재건축|재개발|리모델링)
+    - (전세|월세|매매|실거래가|시세|호가)
     step1_sections:
-      - "## {keyword} — 단지 기본 정보"
-      - "## {keyword} — 평면도와 타입별 특징"
-      - "## {keyword} — 분양가와 주변 시세"
-      - "## 마무리 — {keyword} 핵심 체크포인트"
+    - '## {keyword} — 단지 기본 정보'
+    - '## {keyword} — 평면도와 타입별 특징'
+    - '## {keyword} — 분양가와 주변 시세'
+    - '## 마무리 — {keyword} 핵심 체크포인트'
     step2_sections:
-      - "## {keyword} — 청약과 계약 전략"
-      - "## {keyword} — 대출과 세금 미리보기"
-      - "## {keyword} — 입주민 후기와 단지 평가"
-      - "## 마무리 — {keyword} 계약 전 꼭 확인할 것"
+    - '## {keyword} — 청약과 계약 전략'
+    - '## {keyword} — 대출과 세금 미리보기'
+    - '## {keyword} — 입주민 후기와 단지 평가'
+    - '## 마무리 — {keyword} 계약 전 꼭 확인할 것'
     step3_sections:
-      - "## {keyword} — 계약서 핵심 조항 살펴보기"
-      - "## {keyword} — 등기 이전과 소유권 확인"
-      - "## {keyword} — 입주 전 하자 보수 체크리스트"
-      - "## 마무리 — {keyword} 이사 계획과 입주 준비"
+    - '## {keyword} — 계약서 핵심 조항 살펴보기'
+    - '## {keyword} — 등기 이전과 소유권 확인'
+    - '## {keyword} — 입주 전 하자 보수 체크리스트'
+    - '## 마무리 — {keyword} 이사 계획과 입주 준비'
   automotive:
     patterns:
-      - "(하이브리드|전기차|SUV|세단|RV|EV|내연기관|자동차|차량|신차|중고차|리스|할부|렌트카|카셰어링)"
+    - (하이브리드|전기차|SUV|세단|RV|EV|내연기관|자동차|차량|신차|중고차|리스|할부|렌트카|카셰어링)
     step1_sections:
-      - "## {keyword} — 제품 개요와 스펙"
-      - "## {keyword} — 트림별 가격과 옵션"
-      - "## {keyword} — 경쟁 모델과 비교하기"
-      - "## 마무리 — {keyword} 선택 전에"
+    - '## {keyword} — 제품 개요와 스펙'
+    - '## {keyword} — 트림별 가격과 옵션'
+    - '## {keyword} — 경쟁 모델과 비교하기'
+    - '## 마무리 — {keyword} 선택 전에'
     step2_sections:
-      - "## {keyword} — 구매 전략 (신차 vs 중고차)"
-      - "## {keyword} — 프로모션과 할인 혜택"
-      - "## {keyword} — 오너 후기로 보는 장단점"
-      - "## 마무리 — {keyword} 계약 전 확인"
+    - '## {keyword} — 구매 전략 (신차 vs 중고차)'
+    - '## {keyword} — 프로모션과 할인 혜택'
+    - '## {keyword} — 오너 후기로 보는 장단점'
+    - '## 마무리 — {keyword} 계약 전 확인'
     step3_sections:
-      - "## {keyword} — 유지비 따져보기"
-      - "## {keyword} — 차량 인도 시 확인할 점검표"
-      - "## {keyword} — 실제 리스크와 주의점"
-      - "## 마무리 — {keyword} 결정 전 최종 점검"
+    - '## {keyword} — 유지비 따져보기'
+    - '## {keyword} — 차량 인도 시 확인할 점검표'
+    - '## {keyword} — 실제 리스크와 주의점'
+    - '## 마무리 — {keyword} 결정 전 최종 점검'
   stock:
     patterns:
-      - "(주식|코스피|코스닥|나스닥|ETF|펀드|배당|IRP|연금|적립식|재테크|투자|매수|매도|증권|금리|환율|채권|원자재|선물|옵션|주가)"
+    - (주식|코스피|코스닥|나스닥|ETF|펀드|배당|IRP|연금|적립식|재테크|투자|매수|매도|증권|금리|환율|채권|원자재|선물|옵션|주가)
     step1_sections:
-      - "## {keyword} — 기본 개념과 시장 흐름"
-      - "## {keyword} — 최근 성과와 수익률"
-      - "## {keyword} — 특징과 리스크 요인"
-      - "## 마무리 — {keyword} 투자 전 체크리스트"
+    - '## {keyword} — 기본 개념과 시장 흐름'
+    - '## {keyword} — 최근 성과와 수익률'
+    - '## {keyword} — 특징과 리스크 요인'
+    - '## 마무리 — {keyword} 투자 전 체크리스트'
     step2_sections:
-      - "## {keyword} — 실전 투자 전략"
-      - "## {keyword} — 세금과 수수료 줄이기"
-      - "## {keyword} — 포트폴리오에 담는 법"
-      - "## 마무리 — {keyword} 실전 적용하기"
+    - '## {keyword} — 실전 투자 전략'
+    - '## {keyword} — 세금과 수수료 줄이기'
+    - '## {keyword} — 포트폴리오에 담는 법'
+    - '## 마무리 — {keyword} 실전 적용하기'
     step3_sections:
-      - "## {keyword} — 매수 타이밍 구체화하기"
-      - "## {keyword} — 손절과 익절 기준 세우기"
-      - "## {keyword} — 리스크 관리와 분산 전략"
-      - "## 마무리 — {keyword} 정기 리밸런싱과 배당 재투자"
+    - '## {keyword} — 매수 타이밍 구체화하기'
+    - '## {keyword} — 손절과 익절 기준 세우기'
+    - '## {keyword} — 리스크 관리와 분산 전략'
+    - '## 마무리 — {keyword} 정기 리밸런싱과 배당 재투자'
   etc:
     patterns: []
     step1_sections:
-      - "## {keyword} — 개요와 핵심 특징"
-      - "## {keyword} — 주요 기능과 장점"
-      - "## {keyword} — 선택 시 고려사항"
-      - "## 마무리 — {keyword} 핵심 요약"
+    - '## {keyword} — 개요와 핵심 특징'
+    - '## {keyword} — 주요 기능과 장점'
+    - '## {keyword} — 선택 시 고려사항'
+    - '## 마무리 — {keyword} 핵심 요약'
     step2_sections:
-      - "## {keyword} — 실전 활용법"
-      - "## {keyword} — 효과적인 설정과 팁"
-      - "## {keyword} — 유사 서비스와 비교"
-      - "## 마무리 — {keyword} 실전 가치"
+    - '## {keyword} — 실전 활용법'
+    - '## {keyword} — 효과적인 설정과 팁'
+    - '## {keyword} — 유사 서비스와 비교'
+    - '## 마무리 — {keyword} 실전 가치'
     step3_sections:
-      - "## {keyword} — 실제 사용 후기와 평점"
-      - "## {keyword} — 가격 비교와 구매처"
-      - "## {keyword} — 최종 추천과 선택 기준"
-      - "## 마무리 — {keyword} 종합 정리"
+    - '## {keyword} — 실제 사용 후기와 평점'
+    - '## {keyword} — 가격 비교와 구매처'
+    - '## {keyword} — 최종 추천과 선택 기준'
+    - '## 마무리 — {keyword} 종합 정리'

@@ -40,6 +40,12 @@ from shared.publishers.hugo_writer import _write_hugo_post
 import chain_db as db
 from chain_deriver import derive_chain
 
+# Image package imports
+from image import generate_image as img_gen
+from image import build_full_prompt as img_build
+from image import inject_images_into_draft as img_inject
+from image.thumbnail import generate_thumbnail as img_thumb
+
 # 스키마 검증 함수 import
 from chain_drafter import _validate_draft_schema
 
@@ -156,18 +162,20 @@ def _find_disk_image(slug: str):
         return None
 
 
-def generate_chain_images(chain_id: int) -> None:
-    use_new_image = False
-    img_gen = img_build = img_inject = None
-    try:
-        from image import generate_image as img_gen
-        from image import build_full_prompt as img_build
-        from image import inject_images_into_draft as img_inject
-        use_new_image = True
-        print("[publisher] image/ package loaded (local file download)")
-    except ImportError as e:
-        print(f"[publisher] image/ package not found ({e}), using legacy URL")
+use_new_image = False
+img_gen = img_build = img_inject = img_thumb = None
+try:
+    from image import generate_image as img_gen
+    from image import build_full_prompt as img_build
+    from image import inject_images_into_draft as img_inject
+    from image import generate_thumbnail as img_thumb
+    use_new_image = True
+    print("[publisher] image/ package loaded (local file download)")
+except ImportError as e:
+    print(f"[publisher] image/ package not found ({e}), using legacy URL")
 
+
+def generate_chain_images(chain_id: int) -> None:
     chain = db.get_chain(chain_id)
     if not chain:
         print(f"[publisher] Chain #{chain_id} not found")
@@ -218,6 +226,55 @@ def generate_chain_images(chain_id: int) -> None:
                 db.update_content_image(post_id, str(image_path), "pollinations")
                 db.update_post_image(post_id, image_url)
                 _write_image_log(post_id, _slug, f"IMAGE GEN OK post_id={post_id}\nurl={image_url}\ncontent_image_path set\n")
+                
+                # NEW: Generate thumbnail (Unsplash/Pexels + Pillow) and upload to R2
+                try:
+                    print(f"  [publisher] Generating thumbnail for post #{post_id}...")
+                    thumb_result = img_thumb(
+                        post["title"],
+                        post.get("image_keyword", post.get("target_keyword", "")),
+                        slug=_slug,
+                    )
+                    if thumb_result:
+                        thumb_path, thumb_source = thumb_result
+                        print(f"  [publisher] Thumbnail generated: {thumb_source} -> {thumb_path}")
+                        # Upload thumbnail to R2
+                        from image.r2_uploader import get_r2_client, _resolve_bucket
+                        import os
+                        r2_client = get_r2_client()
+                        # Site-specific R2 prefix: HUGO_R2_DOMAINS 매핑 기반
+                        _r2_prefix = {
+                            "rotcha": "images/rotcha",
+                            "issue.techpawz": "images/issue-techpawz",
+                            "techpawz": "images/techpawz",
+                        }.get(blog_key, f"images/{blog_key}")
+                        # 사이트별 R2 버킷 선택 (r2_uploader._resolve_bucket 활용)
+                        _bucket = _resolve_bucket(_r2_prefix)
+                        key = f"{_r2_prefix}/{_slug}/{thumb_path.name}"
+                        with open(thumb_path, "rb") as f:
+                            r2_client.put_object(
+                                Bucket=_bucket,
+                                Key=key,
+                                Body=f.read(),
+                                ContentType="image/webp"
+                            )
+                        r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{key}"
+                        # Update post image_url to R2 thumbnail URL for Hugo frontmatter
+                        db.update_post_image(post_id, r2_url)
+                        # Update image_meta with thumbnail info
+                        meta = json.loads(post.get("image_meta", "{}")) if post.get("image_meta") else {}
+                        meta["thumbnail_r2_url"] = r2_url
+                        meta["thumbnail_source"] = thumb_source
+                        meta["thumbnail_path"] = str(thumb_path)
+                        db.update_image_meta(post_id, meta)
+                        print(f"  [publisher] Thumbnail uploaded to R2: {r2_url}")
+                    else:
+                        print(f"  [publisher] ⚠️ Thumbnail generation failed for post #{post_id}")
+                except Exception as e:
+                    print(f"  [publisher] ⚠️ Thumbnail R2 upload failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                
                 if post.get("draft_md"):
                     updated = img_inject(
                         post["draft_md"], post.get("slug", ""),
@@ -253,7 +310,7 @@ def publish_post(post: dict, body_md: str, image_url: str, config: dict) -> dict
     blog_id = site_cfg["blog_id"]
 
     category = post.get("category", "일반")
-    tags = post.get("tags", [post.get("target_keyword", "")])
+    tags = post.get("tags") or post.get("target_keyword", "")
 
     if image_url:
         img_md = f'\n\n![{post.get("image_keyword", "image")}]({image_url})\n\n'
@@ -288,7 +345,7 @@ def _get_blog_for_step(chain_id: int, step: int, config: dict,
     chain = db.get_chain(chain_id)
     chain_type = chain["chain_type"] if chain else "depth"
     mapping = config.get("chain_blog_mapping", {}).get("default", {})
-    defaults = mapping.get(chain_type, ["rotcha", "infohot", "techpawz"])
+    defaults = mapping.get(chain_type, ["rotcha", "issue.techpawz", "techpawz"])
     return defaults[step - 1] if step <= len(defaults) else "rotcha"
 
 
@@ -378,8 +435,14 @@ def publish_chain(chain_id: int, mode: str = "auto",
 
 # ── Phase 5: 카드 주입 (draft_md 기반) ──────────────────────────────
 
-def inject_cards_chain(chain_id: int) -> None:
-    """3단계 카드 주입: Depth 0→1 다음 글 카드, Depth 2→외부 링크 카드."""
+def inject_cards_chain(chain_id: int, deploy: bool = True) -> None:
+    """3단계 카드 주입: Depth 0→1 다음 글 카드, Depth 2→외부 링크 카드.
+
+    Args:
+        chain_id: 대상 체인 ID
+        deploy: True면 주입 후 Hugo 빌드 + Wrangler 배포까지 실행.
+                False면 파일 쓰기까지만 (batch backfill에서 사용).
+    """
     if chain_id in _NON_INTENDED_CHAINS:
         _intended = {19: 20, 27: 28}
         print(f"[mc] BLOCKED: Chain #{chain_id}는 비의도 체인입니다 "
@@ -460,9 +523,66 @@ def inject_cards_chain(chain_id: int) -> None:
                 print(f"  [inject] Step {step}: draft_md missing, skipping")
 
     # Deploy each blog once after all cards are injected
-    if injected_blogs:
+    if deploy and injected_blogs:
         print(f"\n[mc] Deploying {len(injected_blogs)} blog(s) after card injection...")
         _deploy_blogs_after_inject(injected_blogs, config)
+    elif not deploy:
+        print(f"\n[mc] Card files written (deploy skipped — batch mode).")
+
+
+def backfill_card_injection() -> None:
+    """발행 완료되었으나 카드 주입이 되지 않은 모든 체인에 카드 주입.
+
+    모든 체인을 순회하며 card_injected=0인 포스트가 있는 체인을 찾아
+    inject_cards_chain(deploy=False)로 주입만 수행한 후,
+    마지막에 블로그별 1회씩 Hugo 빌드 + Wrangler 배포.
+    """
+    import chain_db as db
+    from mc_paths import load_config
+
+    config = load_config()
+
+    # 모든 published/complete 체인 조회
+    all_chains = db.get_all_chains()
+    target_chains = []
+    for c in all_chains:
+        cid = c["id"]
+        if c["status"] not in ("published", "complete"):
+            continue
+        posts = db.get_chain_posts_ordered(cid, direction="asc")
+        if not posts:
+            continue
+        # card_injected=0인 포스트가 하나라도 있는 체인만 대상
+        if any(not p.get("card_injected") for p in posts):
+            target_chains.append(cid)
+
+    if not target_chains:
+        print("[mc] 모든 체인에 이미 카드가 주입되어 있습니다.")
+        return
+
+    print(f"\n{'='*60}")
+    print(f"[mc] Backfill card injection: {len(target_chains)} chains")
+    print(f"{'='*60}\n")
+
+    all_injected_blogs = set()
+    for cid in target_chains:
+        inject_cards_chain(cid, deploy=False)
+        # collect blogs from this chain
+        posts = db.get_chain_posts_ordered(cid, direction="asc")
+        for p in posts:
+            step = p.get("step", 1)
+            blog_key = _get_blog_for_step(cid, step, config)
+            all_injected_blogs.add(blog_key)
+
+    # Single deploy per blog after all injections
+    if all_injected_blogs:
+        print(f"\n{'='*60}")
+        print(f"[mc] Batch deploy: {len(all_injected_blogs)} blog(s)")
+        print(f"{'='*60}\n")
+        _deploy_blogs_after_inject(all_injected_blogs, config)
+        print(f"\n[mc] Backfill complete! {len(target_chains)} chains injected.")
+    else:
+        print("[mc] No blogs to deploy.")
 
 
 def _deploy_blogs_after_inject(blog_keys: set, config: dict) -> None:
@@ -641,6 +761,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
                 db.update_post_status(post_id, "failed", error_log=err)
                 print(f"  [publisher] Publish failed: {err}")
         db.update_chain_status(chain_id, "completed")
+        inject_cards_chain(chain_id)
 
     print(f"\n{'='*60}\n[mc] Chain #{chain_id} completed!\n{'='*60}\n")
     return chain_id
@@ -767,6 +888,8 @@ if __name__ == "__main__":
     # Phase 5: New flags
     parser.add_argument("--inject-card", action="store_true",
                         help="Card injection (draft_md based + re-publish)")
+    parser.add_argument("--backfill-inject", action="store_true",
+                        help="Backfill card injection into all chains missing cards")
     parser.add_argument("--theme-override", type=str,
                         help="Override Hugo theme (PaperMod|Blowfish)")
     parser.add_argument("--cf-pages-project", type=str,
@@ -858,12 +981,17 @@ if __name__ == "__main__":
         inject_cards_chain(args.chain_id)
         sys.exit(0)
 
+    if args.backfill_inject:
+        backfill_card_injection()
+        sys.exit(0)
+
     if args.inject_card and args.chain_id:
         inject_cards_chain(args.chain_id)
         sys.exit(0)
 
     if args.publish_interactive and args.chain_id:
         publish_chain(args.chain_id, mode="interactive")
+        inject_cards_chain(args.chain_id)
         sys.exit(0)
 
     if args.publish_manual and args.chain_id:

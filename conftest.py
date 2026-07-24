@@ -151,7 +151,7 @@ def sample_prompts():
         "derive_user_depth": "Seed: {seed}\nCategory: {category}\nChain type: depth\nReturn JSON with 3 topics.",
         "derive_user_swallow": "Seed: {seed}\nCategory: {category}\nChain type: swallow\nReturn JSON with 3 topics.",
         "derive_user_lateral": "Seed: {seed}\nCategory: {category}\nChain type: lateral\nReturn JSON with 3 topics.",
-        "derive_user_lateral_travel": "Seed: {seed}\nCategory: {category}\nChain type: lateral (travel)\nStep 3 angle: 예약 확정과 현장 실전\nReturn JSON with 3 topics.",
+        "derive_user_lateral_travel": "Seed: {seed}\nCategory: {category}\nChain type: lateral (travel)\nStep 3 angle: 현장 실전과 방문 전 체크포인트\nReturn JSON with 3 topics.",
         "derive_user_lateral_real_estate": "Seed: {seed}\nCategory: {category}\nChain type: lateral (real_estate)\nStep 3 angle: 계약 확정과 입주 완료\nReturn JSON with 3 topics.",
         "derive_user_lateral_automotive": "Seed: {seed}\nCategory: {category}\nChain type: lateral (automotive)\nStep 3 angle: 구매 확정과 인도 완료\nReturn JSON with 3 topics.",
         "derive_user_lateral_stock": "Seed: {seed}\nCategory: {category}\nChain type: lateral (stock)\nStep 3 angle: 매수/매도 실행과 포트폴리오 관리\nReturn JSON with 3 topics.",
@@ -161,27 +161,27 @@ def sample_prompts():
         "keyword_categories": {
             "travel": {
                 "patterns": [
-                    "(여행|관광|맛집|호텔|리조트|풀빌라|숙소|펜션|빌라|캠핑|글램핑|민박|게스트하우스|호스텔|항공|비행기|투어|패키지|항공권|워터파크|해수욕장|계곡|테마파크|온천|스파|사우나|액티비티|렌트카|렌터카)",
-                    "(제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국|괌|사이판|인천|대구|대전|광주|울산|수원|창원|청주|전주|안동|담양|보성|남해|거제|포항|울릉도|춘천|양양|평창|정선|태백|삼척|영덕|남원|부안|군산|익산)",
-                    "(소노벨|소노문|소노인|한화리조트|대명리조트|신라스테이|신라호텔|제일리조트|금호리조트)",
+                    "(여행|관광|맛집|호텔|리조트|풀빌라|숙소|펜션|빌라|캠핑|글램핑|민박|게스트하우스|호스텔|항공|비행기|투어|패키지|항공권|워터파크|해수욕장|계곡|테마파크|온천|스파$|사우나|액티비티|렌트카|렌터카)",
+                    "(제주|부산|서울|경주|강릉|속초|여수|통영|일본|동남아|유럽|미국|괌|사이판|인천|대구|대전|수원|창원|전주|안동|담양|보성|남해|거제|포항|울릉도|춘천|양양|평창|정선|태백|삼척|영덕|남원|부안|군산|익산)",
+                    "(소노벨|소노문|소노인|한화리조트|대명리조트|신라스테이|신라호텔|제일리조트|금호리조트|홀리데이인)",
                 ],
                 "step1_sections": [
                     "## {keyword} — 위치와 기본 정보",
-                    "## {keyword} — 시설과 객실 살펴보기",
-                    "## {keyword} — 요금과 예약 방법",
+                    "## {keyword} — 시설과 특징 살펴보기",
+                    "## {keyword} — 이용 안내와 방문 팁",
                     "## 마무리 — {keyword} 핵심 요약",
                 ],
                 "step2_sections": [
-                    "## {keyword} — 예약 전략과 채널 비교",
-                    "## {keyword} — 시즌별 할인 받는 법",
+                    "## {keyword} — 비교 탐색과 선택 기준",
+                    "## {keyword} — 시즌별 이용 꿀팁",
                     "## {keyword} — 실제 이용 후기로 보는 장단점",
                     "## 마무리 — {keyword} 최상의 경험하기",
                 ],
                 "step3_sections": [
-                    "## {keyword} — 실제 가격 비교표",
-                    "## {keyword} — 언제 예약할까?",
-                    "## {keyword} — 체크인 전 체크리스트",
-                    "## 마무리 — {keyword} 예약 전 확인사항",
+                    "## {keyword} — 실전 준비와 방문 전 체크포인트",
+                    "## {keyword} — 현장에서 알아두면 좋은 점",
+                    "## {keyword} — 실제 경험담으로 보는 장단점",
+                    "## 마무리 — {keyword} 최상의 경험을 위해",
                 ],
             },
             "real_estate": {

@@ -14,8 +14,8 @@ class TestResolveBucket:
         from image.r2_uploader import _resolve_bucket
         assert _resolve_bucket("images/rotcha") == "hotissue-images"
 
-    def test_infohot_uses_hotissue_images(self):
-        """infohot은 기본 hotissue-images 버킷 사용 (비회귀)."""
+    def test_issue_techpawz_uses_hotissue_images(self):
+        """issue.techpawz은 기본 hotissue-images 버킷 사용 (비회귀)."""
         from image.r2_uploader import _resolve_bucket
         assert _resolve_bucket("images/issue-techpawz") == "hotissue-images"
 

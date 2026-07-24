@@ -28,7 +28,7 @@ R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "").rstrip("/")
 
 HUGO_R2_DOMAINS = {
     "rotcha": ("images/rotcha", "https://img.rotcha.kr"),
-    "infohot": ("images/issue-techpawz", "https://img-issue.techpawz.com"),
+    "issue.techpawz": ("images/issue-techpawz", "https://img-issue.techpawz.com"),
     "hotissue": ("images/hotissue", "https://img-hotissue.rotcha.kr"),
     "stock": ("images/stock", "https://img-stock.informationhot.kr"),
     "issue-techpawz": ("images/issue-techpawz", "https://img-issue.techpawz.com"),
@@ -40,7 +40,7 @@ HUGO_R2_DOMAINS = {
 # 사이트별 R2 버킷 매핑 (기본: hotissue-images, 분기 대상만 명시)
 R2_SITE_BUCKETS = {
     "images/techpawz": "techpawz-images",
-    # rotcha, infohot 등은 기본값 hotissue-images 사용
+    "images/issue-techpawz": "issue-techpawz",
 }
 
 CONTENT_TYPES = {

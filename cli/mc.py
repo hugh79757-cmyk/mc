@@ -90,7 +90,7 @@ def _setup_logging(force_flush: bool = True) -> logging.Logger:
 # ─────────────────────────────────────────────────────────────────
 _SITE_BLOG_KEY = {
     "rotcha": "rotcha",
-    "infohot": "infohot",
+    "issue.techpawz": "issue.techpawz",
     "techpawz": "techpawz",
     "aikorea24": "aikorea24",
 }
@@ -223,7 +223,7 @@ def _resume_chain(chain_id: int, site_override: str | None, logger: logging.Logg
 
     seed = chain["seed"]
     blog_overrides = _build_blog_overrides(site_override)
-    step_labels = {1: "rotcha", 2: "infohot", 3: "techpawz"}
+    step_labels = {1: "rotcha", 2: "issue.techpawz", 3: "techpawz"}
 
     logger.info(f"Resuming chain #{chain_id} (seed='{seed}', status={chain['status']})")
     if site_override:
@@ -424,7 +424,7 @@ def main() -> int:
                         help="Resume interrupted chain (requires --chain-id)")
     parser.add_argument("--site", type=str,
                         choices=list(_SITE_BLOG_KEY.keys()),
-                        help="Single site override (rotcha / infohot / techpawz / aikorea24)")
+                        help="Single site override (rotcha / issue.techpawz / techpawz / aikorea24)")
 
     # Execution mode
     parser.add_argument("--background", action="store_true",

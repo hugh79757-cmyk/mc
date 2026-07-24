@@ -89,6 +89,34 @@ class TestClassifyKeyword:
         assert classify_keyword("제주항공주가") == "stock"
         assert classify_keyword("소노벨 리조트") == "travel"
 
+    def test_spa_context_pattern_excludes_spiderman(self):
+        """스파$ 패턴: 정상 스파는 travel, 스파이더맨은 etc."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("제주오레브스파") == "travel"
+        assert classify_keyword("스파이더맨") == "etc"
+        assert classify_keyword("스파이더맨노웨이홈") == "etc"
+        assert classify_keyword("인스파이어뷔페") == "etc"
+
+    def test_city_context_requirements(self):
+        """도시명은 travel 접미사와 결합할 때만 travel."""
+        from mc_paths import classify_keyword
+
+        # false positives → etc
+        assert classify_keyword("광주베이비페어") == "etc"
+        assert classify_keyword("울산날씨") == "etc"
+        assert classify_keyword("청주SK뷰자이") == "etc"
+        assert classify_keyword("청주동일하이빌2차") == "etc"
+        # valid prefix compounds → travel
+        assert classify_keyword("광주호텔") == "travel"
+        assert classify_keyword("울산펜션") == "travel"
+        assert classify_keyword("청주리조트") == "travel"
+        # valid brand+suffix compound → travel
+        assert classify_keyword("홀리데이인광주") == "travel"
+        # strong destination city alone → travel
+        assert classify_keyword("제주") == "travel"
+        assert classify_keyword("부산") == "travel"
+
 
 class TestResolveChainType:
     """체인 타입 결정 테스트 - mc_paths.resolve_chain_type."""
@@ -245,7 +273,7 @@ class TestDeriveLateralCategoryDispatch:
     """category별 lateral 프롬프트 분기 검증."""
 
     LATERAL_ANGLES = {
-        "travel": "예약 확정과 현장 실전",
+        "travel": "현장 실전과 방문 전 체크포인트",
         "real_estate": "계약 확정과 입주 완료",
         "automotive": "구매 확정과 인도 완료",
         "stock": "매수/매도 실행과 포트폴리오 관리",

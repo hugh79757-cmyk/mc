@@ -100,9 +100,11 @@ class AIOutputMeta(BaseModel):
         if info.data.get("image_type") == "chart":
             field_name = info.field_name
             if v is None:
-                raise ValueError(
-                    f"image_type='chart'일 때 {field_name}은 필수입니다."
-                )
+                # Phase 19: lenient — null chart fields force fallback to "none"
+                # rather than raising (which bypasses body cleaning).
+                # Downstream (chain_drafter.py) already handles this via
+                # image_type="none" fallback.
+                pass
         return v
 
 
@@ -132,6 +134,8 @@ class ImageMeta(BaseModel):
     image_url: Optional[str] = None
     thumbnail_path: Optional[str] = None
     thumbnail_source: Optional[str] = None
+    thumbnail_r2_url: Optional[str] = None
+    thumbnail_path: Optional[str] = None
     content_image_path: Optional[str] = None
     content_image_source: Optional[str] = None
     chart_type: Optional[str] = None

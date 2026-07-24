@@ -126,8 +126,6 @@ thumbnail:
   fallback_chain:
     - unsplash
     - pexels
-    - pollinations
-    - krea
   target_size: [1024, 1024]
   text_overlay:
     enabled: true
@@ -136,7 +134,7 @@ thumbnail:
 
 # === KREA AI (Phase 9 — Pollinations 3rd fallback) ===
 krea:
-  enabled: true
+  enabled: false
   api_base: https://api.krea.ai
   model: krea/krea-2/medium
   aspect_ratio: "1:1"
@@ -166,7 +164,7 @@ chart:
 # DEPRECATED: thumbnail fallback 체인 내에서만 사용.
 # 독립 호출 비활성화 (chain_publisher --image 직접 Pollinations 경로 제거, Phase 7)
 pollinations:
-  enabled: true
+  enabled: false
   base_url: https://image.pollinations.ai/prompt/
   width: 1024
   height: 1024

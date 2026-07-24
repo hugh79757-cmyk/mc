@@ -50,7 +50,7 @@ code = "allowed"
         assert 'code = "allowed"' in result.body
 
     def test_rejects_json_code_block(self):
-        """JSON 코드 블록 처리 — 현재 구현은 content를 통과시킴."""
+        """JSON 코드 블록 완전 제거 — 내용물까지 전부 삭제."""
         from chain_publisher_core import _extract_clean_body, CleanedDraft
 
         text = """---
@@ -66,6 +66,39 @@ Valid content."""
         result = _extract_clean_body(text)
         assert isinstance(result, CleanedDraft)
         assert "Valid content" in result.body
+        assert "image_type" not in result.body
+        assert "chart_type" not in result.body
+
+    def test_strips_json_code_block_chart_data_null(self):
+        """chart_data=null이 포함된 JSON 코드 블록 완전 제거 (P0 회귀 방지)."""
+        from chain_publisher_core import _extract_clean_body, CleanedDraft
+
+        text = """---
+title: "Test"
+---
+
+Normal paragraph with content.
+
+```json
+{
+  "image_type": "chart",
+  "image_keyword": "test-keyword",
+  "image_reason": "Test reason",
+  "chart_type": "timeline",
+  "chart_data": null
+}
+```
+
+Valid content after."""
+
+        result = _extract_clean_body(text)
+        assert isinstance(result, CleanedDraft)
+        assert "Normal paragraph" in result.body, "일반 본문 보존"
+        assert "Valid content after" in result.body, "JSON 이후 본문 보존"
+        assert "image_type" not in result.body, "JSON 필드 제거"
+        assert "chart_data" not in result.body, "chart_data 제거"
+        assert "test-keyword" not in result.body, "JSON 내부 값 제거"
+        assert "```" not in result.body, "코드 펜스 마커 제거"
 
     def test_rejects_html_comments(self):
         """HTML 주석 거부."""
