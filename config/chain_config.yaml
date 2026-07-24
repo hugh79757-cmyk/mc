@@ -14,9 +14,9 @@ sites:
     permalink_pattern: "/posts/:slug/"
     content_dir: content/posts
     card_cta:
-      depth: "더 깊이 알아보기 →"
-      swallow: "이어서 실전 적용법 →"
-      lateral: "관련 주제 보기 →"
+      depth: "더 알아보기 →"
+      swallow: "더 알아보기 →"
+      lateral: "더 알아보기 →"
   issue.techpawz:
     site_path: /Users/twinssn/Projects/issue-techpawz-hugo
     blog_id: manual_issue_techpawz
@@ -28,9 +28,9 @@ sites:
     permalink_pattern: "/posts/:slug/"
     content_dir: content/posts
     card_cta:
-      depth: "더 깊이 알아보기 →"
-      swallow: "이어서 신청방법 보기 →"
-      lateral: "관련 정보 더보기 →"
+      depth: "더 알아보기 →"
+      swallow: "더 알아보기 →"
+      lateral: "더 알아보기 →"
   techpawz:
     site_path: /Users/twinssn/Projects/techpawz-hugo
     blog_id: manual_techpawz
@@ -42,9 +42,9 @@ sites:
     permalink_pattern: "/:slug/"
     content_dir: content/posts
     card_cta:
-      depth: "더 자세히 보기 →"
-      swallow: "다음 단계 보기 →"
-      lateral: "함께 보면 좋은 글 →"
+      depth: "더 알아보기 →"
+      swallow: "더 알아보기 →"
+      lateral: "더 알아보기 →"
   2_techpawz:
     publisher_type: blogger
     blog_id: "5484205249958557854"
