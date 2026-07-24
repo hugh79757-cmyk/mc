@@ -128,12 +128,12 @@ def sample_chain_config():
         "ai_writer": {"tier": "default", "temperature": 0.85},
         "thumbnail": {
             "provider": "auto",
-            "fallback_chain": ["pexels", "pollinations", "krea"],
+            "fallback_chain": ["unsplash", "pexels"],
             "target_size": [1024, 1024],
             "text_overlay": {"enabled": True, "font": "assets/fonts/NotoSansKR-Regular.otf", "bg_alpha": 0.55},
         },
         "pollinations": {
-            "enabled": True,
+            "enabled": False,
             "base_url": "https://image.pollinations.ai/prompt/",
             "width": 1024,
             "height": 1024,

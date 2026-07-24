@@ -458,29 +458,20 @@ class PublisherCore:
                         pass  # fall through to Pollinations
 
                     if not _photo_path:
-                        # Use contextual prompt for Pollinations
+                        # Fallback: Unsplash/Pexels (Pollinations/Krea 사용 안 함)
                         try:
-                            from image.prompt_builder import build_contextual_prompt
-                            _contextual_prompt = build_contextual_prompt(
-                                image_keyword=_kw or "",
-                                title=title,
-                                blog_key=blog_cfg.get("name", ""),
-                                post_angle=_image_meta.get("angle", ""),
-                            )
-                        except Exception:
-                            _contextual_prompt = _img_keyword  # fallback
+                            from image.thumbnail import generate_content_image as _gen_photo
+                            _photo_result = _gen_photo(_kw or title, slug=slug)
+                            if _photo_result and _photo_result.ok:
+                                _photo_path = _photo_result.value
+                                _photo_src = "unsplash"
+                        except Exception as _e:
+                            logger.warning(f"[Hugo] Photo fallback 실패: {_e}")
 
-                        from image.pollinations_client import generate_image as _gen_photo
-                        _photo_result = _gen_photo(_contextual_prompt, slug=slug)
-                        if not _photo_result.ok:
-                            _err = _photo_result.error
-                            if _err.category in (ErrorCategory.TRANSIENT, ErrorCategory.RATE_LIMITED):
-                                logger.warning(f"[Hugo] Photo 생성 일시적 실패 (재시도 대상): {_err.message}")
-                            raise ImageGenerationError(
-                                f"Photo 생성 실패: {slug} (image_keyword={_img_keyword}, error={_err.message})"
-                            )
-                        _photo_path = _photo_result.value
-                        _photo_src = "pollinations"
+                    if not _photo_path:
+                        raise ImageGenerationError(
+                            f"Photo 생성 실패: {slug} (image_keyword={_img_keyword})"
+                        )
 
                     if _photo_path and Path(_photo_path).exists():
                         from chain_db import update_content_image as _db_update_content

@@ -9,7 +9,7 @@ Hugo shortcode {{< figure >}} 사용.
 import re
 from pathlib import Path
 
-from .pollinations_client import IMAGE_DIR
+from .thumbnail import IMAGE_DIR
 
 
 def _find_image_file(slug: str) -> Path | None:

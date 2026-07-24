@@ -222,12 +222,36 @@ def generate_chain_images(chain_id: int) -> None:
             image_result = img_gen(full_prompt, slug=_slug)
             if image_result and image_result.ok:
                 image_path = image_result.value
-                image_url = f"/images/{image_path.name}"
-                db.update_content_image(post_id, str(image_path), "pollinations")
-                db.update_post_image(post_id, image_url)
-                _write_image_log(post_id, _slug, f"IMAGE GEN OK post_id={post_id}\nurl={image_url}\ncontent_image_path set\n")
+                # Upload content image to R2, then set image_url to thumbnail R2 URL (for og:image)
+                try:
+                    from image.r2_uploader import get_r2_client, _resolve_bucket
+                    import os
+                    r2_client = get_r2_client()
+                    _r2_prefix = {
+                        "rotcha": "images/rotcha",
+                        "issue.techpawz": "images/issue-techpawz",
+                        "techpawz": "images/techpawz",
+                    }.get(blog_key, f"images/{blog_key}")
+                    _bucket = _resolve_bucket(_r2_prefix)
+                    # Upload content image to R2
+                    _content_key = f"{_r2_prefix}/{_slug}/{image_path.name}"
+                    with open(image_path, "rb") as f:
+                        r2_client.put_object(
+                            Bucket=_bucket,
+                            Key=_content_key,
+                            Body=f.read(),
+                            ContentType="image/webp"
+                        )
+                    content_r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{_content_key}"
+                    db.update_content_image(post_id, str(image_path), "unsplash")
+                    db.update_post_image(post_id, f"/images/{image_path.name}")
+                    _write_image_log(post_id, _slug, f"IMAGE GEN OK post_id={post_id}\ncontent_r2={content_r2_url}\n")
+                except Exception as e:
+                    db.update_content_image(post_id, str(image_path), "unsplash")
+                    db.update_post_image(post_id, f"/images/{image_path.name}")
+                    _write_image_log(post_id, _slug, f"IMAGE GEN OK (R2 upload failed: {e})\n")
                 
-                # NEW: Generate thumbnail (Unsplash/Pexels + Pillow) and upload to R2
+                # Generate thumbnail (Unsplash/Pexels + Pillow text overlay) and upload to R2
                 try:
                     print(f"  [publisher] Generating thumbnail for post #{post_id}...")
                     thumb_result = img_thumb(
@@ -238,36 +262,32 @@ def generate_chain_images(chain_id: int) -> None:
                     if thumb_result:
                         thumb_path, thumb_source = thumb_result
                         print(f"  [publisher] Thumbnail generated: {thumb_source} -> {thumb_path}")
-                        # Upload thumbnail to R2
                         from image.r2_uploader import get_r2_client, _resolve_bucket
                         import os
                         r2_client = get_r2_client()
-                        # Site-specific R2 prefix: HUGO_R2_DOMAINS 매핑 기반
                         _r2_prefix = {
                             "rotcha": "images/rotcha",
                             "issue.techpawz": "images/issue-techpawz",
                             "techpawz": "images/techpawz",
                         }.get(blog_key, f"images/{blog_key}")
-                        # 사이트별 R2 버킷 선택 (r2_uploader._resolve_bucket 활용)
                         _bucket = _resolve_bucket(_r2_prefix)
-                        key = f"{_r2_prefix}/{_slug}/{thumb_path.name}"
+                        thumb_key = f"{_r2_prefix}/{_slug}/{thumb_path.name}"
                         with open(thumb_path, "rb") as f:
                             r2_client.put_object(
                                 Bucket=_bucket,
-                                Key=key,
+                                Key=thumb_key,
                                 Body=f.read(),
                                 ContentType="image/webp"
                             )
-                        r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{key}"
-                        # Update post image_url to R2 thumbnail URL for Hugo frontmatter
-                        db.update_post_image(post_id, r2_url)
-                        # Update image_meta with thumbnail info
+                        thumb_r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{thumb_key}"
+                        # image_url = thumbnail R2 URL (Hugo featureimage → og:image)
+                        db.update_post_image(post_id, thumb_r2_url)
                         meta = json.loads(post.get("image_meta", "{}")) if post.get("image_meta") else {}
-                        meta["thumbnail_r2_url"] = r2_url
+                        meta["thumbnail_r2_url"] = thumb_r2_url
                         meta["thumbnail_source"] = thumb_source
                         meta["thumbnail_path"] = str(thumb_path)
                         db.update_image_meta(post_id, meta)
-                        print(f"  [publisher] Thumbnail uploaded to R2: {r2_url}")
+                        print(f"  [publisher] Thumbnail uploaded to R2: {thumb_r2_url}")
                     else:
                         print(f"  [publisher] ⚠️ Thumbnail generation failed for post #{post_id}")
                 except Exception as e:

@@ -437,3 +437,93 @@ def generate_thumbnail(
 
   print(f" [thumbnail] All providers failed for '{keyword}'")
   return None
+
+
+def generate_content_image(
+    prompt: str,
+    slug: str = "post",
+    width: int = 1024,
+    height: int = 1024,
+    model: str = "unsplash",
+    seed: int = None,
+    retries: int = 3,
+) -> "Result":
+    """
+    Unsplash/Pexels 실사 사진을 콘텐츠 이미지로 저장 (텍스트 오버레이 없음).
+
+    generate_thumbnail()과 동일한 Unsplash→Pexels provider chain 사용.
+    차이점: add_text_overlay()를 적용하지 않고 원본 사진을 그대로 저장.
+
+    Args:
+        prompt: 이미지 검색 키워드 (build_full_prompt() 출력)
+        slug: 파일명용 고유 식별자
+        width: 대상 너비 (보존 목적, 실제 사용은 provider가 결정)
+        height: 대상 높이 (보존 목적)
+        model: 무시 (호환성 유지용)
+        seed: 무시 (호환성 유지용)
+        retries: 재시도 횟수
+
+    Returns:
+        Result.success(Path) 또는 Result.failure(...)
+    """
+    # chain_models는 mc_paths를 통해 지연 임포트
+    from chain_models import Result, ErrorCategory
+
+    # prompt에서 실제 검색용 키워드 추출 (영문 키워드 우선)
+    keyword = prompt.strip()
+    # 파일명용 slug
+    _slug = slug or "post"
+
+    # Idempotency
+    save_name = f"{_slug}_{width}x{height}.webp"
+    expected = IMAGE_DIR / save_name
+    if expected.exists():
+        print(f" [content_image] 파일 존재, 재사용: {expected}")
+        return Result.success(expected)
+
+    env = _load_env()
+    config = load_config()
+    thumb_cfg = config.get("thumbnail", {})
+    fallback_chain = thumb_cfg.get("fallback_chain", ["pexels", "pollinations", "krea"])
+
+    downloaded: Optional[Path] = None
+
+    # ── Provider 1: Unsplash ──
+    unsplash_key = env.get("unsplash_key", "")
+    if unsplash_key:
+        try:
+            unsplash = UnsplashProvider(unsplash_key)
+            if results := unsplash.search(keyword):
+                photo = random.choice(results)
+                print(f" [content_image] Unsplash → {photo['id']} by {photo['author']}")
+                downloaded = unsplash.download(photo)
+                if downloaded:
+                    # 저장: 텍스트 오버레이 없이 원본 리사이즈만
+                    img = Image.open(downloaded).convert("RGB")
+                    img = img.resize((width, height), Image.LANCZOS)
+                    img.save(expected, "WEBP", quality=85)
+                    print(f" [content_image] ✅ 저장: {expected}")
+                    return Result.success(expected)
+        except Exception as e:
+            print(f" [content_image] Unsplash 실패: {e}")
+
+    # ── Fallback: Pexels ──
+    pexels_key = env.get("pexels_key", "")
+    if pexels_key and "pexels" in fallback_chain:
+        try:
+            pexels = PexelsProvider(pexels_key)
+            if results := pexels.search(keyword):
+                photo = random.choice(results)
+                print(f" [content_image] Pexels → {photo['id']} by {photo['author']}")
+                downloaded = pexels.download(photo)
+                if downloaded:
+                    img = Image.open(downloaded).convert("RGB")
+                    img = img.resize((width, height), Image.LANCZOS)
+                    img.save(expected, "WEBP", quality=85)
+                    print(f" [content_image] ✅ 저장: {expected}")
+                    return Result.success(expected)
+        except Exception as e:
+            print(f" [content_image] Pexels 실패: {e}")
+
+    print(f" [content_image] 모든 provider 실패: '{keyword}'")
+    return Result.failure(ErrorCategory.PERMANENT, f"이미지 생성 실패: {keyword}", source="unsplash/pexels")
