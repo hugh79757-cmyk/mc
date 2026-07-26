@@ -27,6 +27,7 @@ import time
 import urllib.parse
 import urllib.request
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from mc_paths import (
     ensure_5000_on_path, load_config, load_prompts, get_chain_blog_key,
     PROMPTS_PATH, DRAFTS_DIR,
@@ -45,6 +46,7 @@ from image import generate_image as img_gen
 from image import build_full_prompt as img_build
 from image import inject_images_into_draft as img_inject
 from image.thumbnail import generate_thumbnail as img_thumb
+from image.thumbnail import add_text_overlay
 
 # 스키마 검증 함수 import
 from chain_drafter import _validate_draft_schema
@@ -175,6 +177,152 @@ except ImportError as e:
     print(f"[publisher] image/ package not found ({e}), using legacy URL")
 
 
+def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: str) -> int:
+    """단일 포스트 이미지 생성 (ThreadPoolExecutor용). Returns post_id."""
+    post_id = post["id"]
+    print(f"\n  [publisher] Image — post #{post_id}")
+
+    # 정규 필드(image_meta.content_image_path) 기준 완결 판정 — 반쪽 백필 방지
+    _meta_raw = post.get("image_meta")
+    _meta = json.loads(_meta_raw) if isinstance(_meta_raw, str) else (_meta_raw or {})
+    if _meta.get("content_image_path"):
+        print(f"    ↷ 이미지 보유 (post #{post_id}): {_meta.get('content_image_path')} — 스킵")
+        return post_id
+
+    _slug = post.get("slug") or f"post-{post_id}"
+    # 디스크-DB 교차확인: 파일은 있으나 image_meta.content_image_path 미결속 → 재생성 금지, 백필만
+    _disk = _find_disk_image(_slug)
+    if _disk:
+        _abs = str(_disk)
+        db.update_content_image(post_id, _abs, "pollinations")
+        db.update_post_image(post_id, f"/images/{_disk.name}")
+        print(f"    ↷ 디스크 파일 백필 (post #{post_id}): {_abs}")
+        _write_image_log(post_id, _slug,
+                         f"IMAGE BACKFILL post_id={post_id}\ndisk={_abs}\nimage_meta.content_image_path set via update_content_image\n")
+        return post_id
+
+    if use_new_image:
+        full_prompt = img_build(
+            post.get("image_keyword", post.get("target_keyword", "")),
+            blog_key,
+            chain_type=chain_type,
+            step=post.get("step", 1),
+        )
+        # DB image_prompt를 실제 전달값으로 갱신 (W3)
+        db.update_post_image_prompt(post_id, full_prompt)
+        
+        # Retry with exponential backoff
+        max_retries = 3
+        base_wait = 2
+        image_result = None
+        for attempt in range(max_retries):
+            image_result = img_gen(full_prompt, slug=_slug)
+            if image_result and image_result.ok:
+                break
+            _err = getattr(image_result, "error", "img_gen returned None/empty")
+            if attempt < max_retries - 1:
+                wait_time = base_wait * (2 ** attempt)
+                print(f"  [publisher] ⚠️ 이미지 생성 실패 (post #{post_id}, attempt {attempt+1}/{max_retries}): {_err}")
+                print(f"  [publisher]     Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"  [publisher] ⚠️ 이미지 생성 실패 (post #{post_id}, slug={_slug}): {_err}")
+                _write_image_log(post_id, _slug,
+                                f"IMAGE GEN FAIL post_id={post_id}\nerror={_err}\nfull_prompt={full_prompt[:500]}\n")
+                return post_id
+        
+        if not image_result or not image_result.ok:
+            return post_id
+
+        image_path = image_result.value
+        # Upload content image to R2, then set image_url to thumbnail R2 URL (for og:image)
+        try:
+            from image.r2_uploader import get_r2_client, _resolve_bucket
+            import os
+            r2_client = get_r2_client()
+            _r2_prefix = {
+                "rotcha": "images/rotcha",
+                "issue.techpawz": "images/issue-techpawz",
+                "techpawz": "images/techpawz",
+            }.get(blog_key, f"images/{blog_key}")
+            _bucket = _resolve_bucket(_r2_prefix)
+            # Upload content image to R2
+            _content_key = f"{_r2_prefix}/{_slug}/{image_path.name}"
+            with open(image_path, "rb") as f:
+                r2_client.put_object(
+                    Bucket=_bucket,
+                    Key=_content_key,
+                    Body=f.read(),
+                    ContentType="image/webp"
+                )
+            content_r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{_content_key}"
+            db.update_content_image(post_id, str(image_path), "unsplash")
+            db.update_post_image(post_id, f"/images/{image_path.name}")
+            _write_image_log(post_id, _slug, f"IMAGE GEN OK post_id={post_id}\ncontent_r2={content_r2_url}\n")
+        except Exception as e:
+            db.update_content_image(post_id, str(image_path), "unsplash")
+            db.update_post_image(post_id, f"/images/{image_path.name}")
+            _write_image_log(post_id, _slug, f"IMAGE GEN OK (R2 upload failed: {e})\n")
+        
+        # Generate thumbnail from content image (로컬 파일 재사용, API 호출 없음)
+        try:
+            print(f"  [publisher] Generating thumbnail from content image for post #{post_id}...")
+            thumb_path = add_text_overlay(
+                image_path,
+                post["title"],
+                subtitle=post.get("image_keyword", post.get("target_keyword", "")),
+                target_size=(1024, 1024),
+            )
+            print(f"  [publisher] Thumbnail generated from content image: {thumb_path}")
+            # R2 upload (기존 코드 유지 — thumb_key 경로, put_object)
+            _thumb_source = "unsplash"  # content image과 동일한 소스 (thumbnail 자체 소스 불필요)
+            thumb_source = _thumb_source
+            from image.r2_uploader import get_r2_client, _resolve_bucket
+            import os
+            r2_client = get_r2_client()
+            _r2_prefix = {
+                "rotcha": "images/rotcha",
+                "issue.techpawz": "images/issue-techpawz",
+                "techpawz": "images/techpawz",
+            }.get(blog_key, f"images/{blog_key}")
+            _bucket = _resolve_bucket(_r2_prefix)
+            thumb_key = f"{_r2_prefix}/{_slug}/{thumb_path.name}"
+            with open(thumb_path, "rb") as f:
+                r2_client.put_object(
+                    Bucket=_bucket,
+                    Key=thumb_key,
+                    Body=f.read(),
+                    ContentType="image/webp"
+                )
+            thumb_r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{thumb_key}"
+            db.update_post_image(post_id, thumb_r2_url)
+            meta = json.loads(post.get("image_meta", "{}")) if post.get("image_meta") else {}
+            meta["thumbnail_r2_url"] = thumb_r2_url
+            meta["thumbnail_source"] = thumb_source
+            meta["thumbnail_path"] = str(thumb_path)
+            db.update_image_meta(post_id, meta)
+            print(f"  [publisher] Thumbnail uploaded to R2: {thumb_r2_url}")
+        except Exception as e:
+            print(f"  [publisher] ⚠️ Thumbnail generation from content image failed: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        if post.get("draft_md"):
+            updated = img_inject(
+                post["draft_md"], post.get("slug", ""),
+                blog_key, post.get("step", 1), post["title"],
+            )
+            db.update_post_draft(post_id, updated, post.get("slug", ""))
+    else:
+        image_url = generate_image_remote(
+            post["image_prompt"], post["image_keyword"], pol_cfg,
+        )
+        post["image_url"] = image_url
+        db.update_post_image(post_id, image_url)
+
+    return post_id
+
+
 def generate_chain_images(chain_id: int) -> None:
     chain = db.get_chain(chain_id)
     if not chain:
@@ -184,141 +332,37 @@ def generate_chain_images(chain_id: int) -> None:
     config = load_config()
     pol_cfg = config.get("pollinations", {})
     posts = db.get_chain_posts(chain_id)
+    chain_type = chain.get("chain_type", "depth")
     db.update_chain_status(chain_id, "generating")
 
-    for i, post in enumerate(posts):
-        post_id = post["id"]
-        print(f"\n  [publisher] Image {i+1}/{len(posts)} — post #{post_id}")
+    # Prepare blog_key for each post
+    blog_keys = {}
+    for post in posts:
+        blog_keys[post["id"]] = get_chain_blog_key(post["depth"])
 
-        # 정규 필드(image_meta.content_image_path) 기준 완결 판정 — 반쪽 백필 방지
-        _meta_raw = post.get("image_meta")
-        _meta = json.loads(_meta_raw) if isinstance(_meta_raw, str) else (_meta_raw or {})
-        if _meta.get("content_image_path"):
-            print(f"    ↷ 이미지 보유 (post #{post_id}): {_meta.get('content_image_path')} — 스킵")
-            continue
-
-        _slug = post.get("slug") or f"post-{post_id}"
-        # 디스크-DB 교차확인: 파일은 있으나 image_meta.content_image_path 미결속 → 재생성 금지, 백필만
-        _disk = _find_disk_image(_slug)
-        if _disk:
-            _abs = str(_disk)
-            db.update_content_image(post_id, _abs, "pollinations")
-            db.update_post_image(post_id, f"/images/{_disk.name}")
-            print(f"    ↷ 디스크 파일 백필 (post #{post_id}): {_abs}")
-            _write_image_log(post_id, _slug,
-                             f"IMAGE BACKFILL post_id={post_id}\ndisk={_abs}\nimage_meta.content_image_path set via update_content_image\n")
-            continue
-
-        if use_new_image:
-            blog_key = get_chain_blog_key(post["depth"])
-            full_prompt = img_build(
-                post.get("image_keyword", post.get("target_keyword", "")),
-                blog_key,
-                chain_type=chain.get("chain_type", "depth"),
-                step=post.get("step", 1),
-            )
-            # DB image_prompt를 실제 전달값으로 갱신 (W3)
-            db.update_post_image_prompt(post_id, full_prompt)
-            image_result = img_gen(full_prompt, slug=_slug)
-            if image_result and image_result.ok:
-                image_path = image_result.value
-                # Upload content image to R2, then set image_url to thumbnail R2 URL (for og:image)
-                try:
-                    from image.r2_uploader import get_r2_client, _resolve_bucket
-                    import os
-                    r2_client = get_r2_client()
-                    _r2_prefix = {
-                        "rotcha": "images/rotcha",
-                        "issue.techpawz": "images/issue-techpawz",
-                        "techpawz": "images/techpawz",
-                    }.get(blog_key, f"images/{blog_key}")
-                    _bucket = _resolve_bucket(_r2_prefix)
-                    # Upload content image to R2
-                    _content_key = f"{_r2_prefix}/{_slug}/{image_path.name}"
-                    with open(image_path, "rb") as f:
-                        r2_client.put_object(
-                            Bucket=_bucket,
-                            Key=_content_key,
-                            Body=f.read(),
-                            ContentType="image/webp"
-                        )
-                    content_r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{_content_key}"
-                    db.update_content_image(post_id, str(image_path), "unsplash")
-                    db.update_post_image(post_id, f"/images/{image_path.name}")
-                    _write_image_log(post_id, _slug, f"IMAGE GEN OK post_id={post_id}\ncontent_r2={content_r2_url}\n")
-                except Exception as e:
-                    db.update_content_image(post_id, str(image_path), "unsplash")
-                    db.update_post_image(post_id, f"/images/{image_path.name}")
-                    _write_image_log(post_id, _slug, f"IMAGE GEN OK (R2 upload failed: {e})\n")
-                
-                # Generate thumbnail (Unsplash/Pexels + Pillow text overlay) and upload to R2
-                try:
-                    print(f"  [publisher] Generating thumbnail for post #{post_id}...")
-                    thumb_result = img_thumb(
-                        post["title"],
-                        post.get("image_keyword", post.get("target_keyword", "")),
-                        slug=_slug,
-                    )
-                    if thumb_result:
-                        thumb_path, thumb_source = thumb_result
-                        print(f"  [publisher] Thumbnail generated: {thumb_source} -> {thumb_path}")
-                        from image.r2_uploader import get_r2_client, _resolve_bucket
-                        import os
-                        r2_client = get_r2_client()
-                        _r2_prefix = {
-                            "rotcha": "images/rotcha",
-                            "issue.techpawz": "images/issue-techpawz",
-                            "techpawz": "images/techpawz",
-                        }.get(blog_key, f"images/{blog_key}")
-                        _bucket = _resolve_bucket(_r2_prefix)
-                        thumb_key = f"{_r2_prefix}/{_slug}/{thumb_path.name}"
-                        with open(thumb_path, "rb") as f:
-                            r2_client.put_object(
-                                Bucket=_bucket,
-                                Key=thumb_key,
-                                Body=f.read(),
-                                ContentType="image/webp"
-                            )
-                        thumb_r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{thumb_key}"
-                        # image_url = thumbnail R2 URL (Hugo featureimage → og:image)
-                        db.update_post_image(post_id, thumb_r2_url)
-                        meta = json.loads(post.get("image_meta", "{}")) if post.get("image_meta") else {}
-                        meta["thumbnail_r2_url"] = thumb_r2_url
-                        meta["thumbnail_source"] = thumb_source
-                        meta["thumbnail_path"] = str(thumb_path)
-                        db.update_image_meta(post_id, meta)
-                        print(f"  [publisher] Thumbnail uploaded to R2: {thumb_r2_url}")
-                    else:
-                        print(f"  [publisher] ⚠️ Thumbnail generation failed for post #{post_id}")
-                except Exception as e:
-                    print(f"  [publisher] ⚠️ Thumbnail R2 upload failed: {e}")
-                    import traceback
-                    traceback.print_exc()
-                
-                if post.get("draft_md"):
-                    updated = img_inject(
-                        post["draft_md"], post.get("slug", ""),
-                        blog_key, post.get("step", 1), post["title"],
-                    )
-                    db.update_post_draft(post_id, updated, post.get("slug", ""))
-            else:
-                _err = getattr(image_result, "error", "img_gen returned None/empty")
-                print(f"  [publisher] ⚠️ 이미지 생성 실패 (post #{post_id}, slug={_slug}): {_err}")
-                _write_image_log(post_id, _slug,
-                                f"IMAGE GEN FAIL post_id={post_id}\nerror={_err}\nfull_prompt={full_prompt[:500]}\n")
-        else:
-            image_url = generate_image_remote(
-                post["image_prompt"], post["image_keyword"], pol_cfg,
-            )
-            post["image_url"] = image_url
-            db.update_post_image(post_id, image_url)
-
-        if i < len(posts) - 1:
-            print(f"  [publisher]     waiting {pol_cfg.get('rate_limit_seconds', 15)}s...")
-            time.sleep(pol_cfg.get("rate_limit_seconds", 15))
+    print(f"\n  [publisher] Generating images for {len(posts)} posts (parallel)...")
+    start_time = time.time()
+    
+    post_ids = []
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(_process_post_image, post, blog_keys[post["id"]], pol_cfg, chain_type): post["id"]
+            for post in posts
+        }
+        for future in as_completed(futures):
+            post_id = futures[future]
+            try:
+                result = future.result()
+                post_ids.append(result)
+            except Exception as e:
+                print(f"  [publisher] ⚠️ Post #{post_id} image generation failed: {e}")
+                import traceback
+                traceback.print_exc()
+    
+    elapsed = time.time() - start_time
+    print(f"\n  [publisher] Chain #{chain_id} images done in {elapsed:.1f}s (parallel)")
 
     db.update_chain_status(chain_id, "image_generated")
-    print(f"\n  [publisher] Chain #{chain_id} images done")
 
 
 # ── Hugo 게시 (Legacy) ──
@@ -605,6 +649,81 @@ def backfill_card_injection() -> None:
         print("[mc] No blogs to deploy.")
 
 
+def smoke_test(chain_id: int) -> dict:
+    """
+    발행 완료된 체인의 각 포스트 URL에 대해 smoke test 수행.
+    
+    검증:
+    - HTTP 200 응답
+    - <title> 태그 존재
+    - og:image 메타태그 존재 → 해당 URL HTTP 200
+    
+    실패해도 경고만 출력 (롤백 없음).
+    
+    Returns:
+        dict: {post_id: {"url": str, "status_code": int, "title_found": bool, 
+                         "og_image_url": str, "og_image_ok": bool, "overall": "pass"|"fail"}}
+    """
+    import requests as _requests
+    import re as _re
+    
+    posts = db.get_chain_posts(chain_id)
+    results = {}
+    
+    for post in posts:
+        url = post.get("published_url")
+        if not url:
+            print(f"  [smoke] Post #{post['id']}: no published_url — skipping")
+            continue
+        
+        detail = {"url": url, "status_code": None, "title_found": False, 
+                  "og_image_url": None, "og_image_ok": False, "error": None}
+        
+        try:
+            resp = _requests.get(url, timeout=10, allow_redirects=True)
+            detail["status_code"] = resp.status_code
+            
+            if resp.status_code == 200:
+                # <title> 존재 확인
+                title_match = _re.search(r'<title[^>]*>(.*?)</title>', resp.text, _re.IGNORECASE | _re.DOTALL)
+                detail["title_found"] = bool(title_match and title_match.group(1).strip())
+                
+                # og:image URL 추출 및 검증
+                og_match = _re.search(
+                    r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](.*?)["\']',
+                    resp.text, _re.IGNORECASE
+                )
+                if og_match:
+                    og_url = og_match.group(1)
+                    detail["og_image_url"] = og_url
+                    try:
+                        og_resp = _requests.get(og_url, timeout=10, stream=True)
+                        detail["og_image_ok"] = og_resp.status_code == 200
+                        og_resp.close()
+                    except Exception as e:
+                        detail["og_image_ok"] = False
+                        detail["error"] = f"og:image fetch failed: {e}"
+            
+            overall = "pass" if (resp.status_code == 200 and 
+                                  detail["title_found"] and 
+                                  detail["og_image_ok"]) else "fail"
+            
+        except Exception as e:
+            overall = "fail"
+            detail["error"] = str(e)
+        
+        detail["overall"] = overall
+        results[post["id"]] = detail
+        
+        # DB 기록
+        db.update_smoke_test_result(post["id"], overall, detail)
+        
+        status_icon = "✅" if overall == "pass" else "⚠️"
+        print(f"  [smoke] {status_icon} Post #{post['id']}: {url} → {detail['status_code'] if 'resp' in locals() else 'ERR'}, title={'Y' if detail['title_found'] else 'N'}, og:image={'Y' if detail['og_image_ok'] else 'N'}")
+    
+    return results
+
+
 def _deploy_blogs_after_inject(blog_keys: set, config: dict) -> None:
     """카드 주입 후 각 블로그별 Hugo 빌드 + Wrangler 배포 (1회씩)."""
     import subprocess
@@ -763,6 +882,9 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
                       theme_override=theme_override, cf_project_override=cf_project_override)
         if publish_mode != "manual":
             inject_cards_chain(chain_id)
+            # Phase 21: 발행 후 smoke test
+            print(f"\n{'─'*60}\n[mc] Running smoke test for chain #{chain_id}\n{'─'*60}\n")
+            smoke_test(chain_id)
     else:
         # Legacy full pipeline
         print(f"\n{'='*60}\n[mc] Publishing chain #{chain_id}\n{'='*60}\n")
@@ -782,6 +904,9 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
                 print(f"  [publisher] Publish failed: {err}")
         db.update_chain_status(chain_id, "completed")
         inject_cards_chain(chain_id)
+        # Phase 21: 발행 후 smoke test
+        print(f"\n{'─'*60}\n[mc] Running smoke test for chain #{chain_id}\n{'─'*60}\n")
+        smoke_test(chain_id)
 
     print(f"\n{'='*60}\n[mc] Chain #{chain_id} completed!\n{'='*60}\n")
     return chain_id

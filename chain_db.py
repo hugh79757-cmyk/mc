@@ -118,8 +118,12 @@ MIGRATIONS_SQL = [
 "ALTER TABLE chain_posts ADD COLUMN card_injected INTEGER DEFAULT 0",
 "ALTER TABLE chain_posts ADD COLUMN card_injected_at TEXT",
 "ALTER TABLE chain_posts ADD COLUMN publish_method TEXT",
-    # Phase 10: ImageMeta consolidation (legacy columns removed in v1 migration)
-"ALTER TABLE chain_posts ADD COLUMN image_meta TEXT",
+# Phase 10: ImageMeta consolidation (legacy columns removed in v1 migration)
+    "ALTER TABLE chain_posts ADD COLUMN image_meta TEXT",
+        # Phase 21: Smoke test columns
+    "ALTER TABLE chain_posts ADD COLUMN smoke_test_checked_at TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN smoke_test_result TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN smoke_test_detail TEXT",
 ]
 
 
@@ -605,6 +609,32 @@ def update_card_injected(post_id: int):
     )
     conn.commit()
     conn.close()
+
+
+def update_smoke_test_result(post_id: int, result: str, detail: dict = None) -> None:
+    """Smoke test 결과 기록. result: 'pass' | 'fail'."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET smoke_test_checked_at = ?, smoke_test_result = ?, smoke_test_detail = ?, updated_at = ? WHERE id = ?",
+        (now, result, json.dumps(detail) if detail else None, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_smoke_test_summary(chain_id: int) -> list[dict]:
+    """체인의 smoke_test 결과 요약."""
+    posts = get_chain_posts(chain_id)
+    return [
+        {
+            "step": p.get("step"),
+            "published_url": p.get("published_url"),
+            "result": p.get("smoke_test_result"),
+            "checked_at": p.get("smoke_test_checked_at"),
+        }
+        for p in posts
+    ]
 
 
 def get_chain_posts_ordered(chain_id: int, direction: str = "asc") -> list[dict]:

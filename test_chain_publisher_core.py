@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -975,6 +976,135 @@ class TestCLI:
     """CLI 테스트 (해당 없음 - PublisherCore는 라이브러리)."""
 
     pass
+
+
+class TestSmokeTest(unittest.TestCase):
+    """Phase 21: 발행 후 smoke_test() 단위 테스트."""
+
+    @patch("chain_publisher.db.get_chain_posts")
+    @patch("chain_publisher.db.update_smoke_test_result")
+    @patch("requests.get")
+    def test_smoke_test_all_pass(
+        self, mock_get, mock_update, mock_get_posts
+    ):
+        """3개 URL 모두 HTTP 200 + title + og:image 정상."""
+        from chain_publisher import smoke_test
+        
+        mock_get_posts.return_value = [
+            {"id": 1, "published_url": "https://rotcha.kr/post1", "step": 1},
+            {"id": 2, "published_url": "https://issue.techpawz/post2", "step": 2},
+            {"id": 3, "published_url": "https://techpawz/post3", "step": 3},
+        ]
+        
+        # Mock HTTP response
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = """
+        <html><head>
+            <title>Test Post</title>
+            <meta property="og:image" content="https://r2.example.com/img.webp">
+        </head></html>
+        """
+        mock_get.return_value = mock_resp
+        
+        results = smoke_test(99)
+        
+        self.assertEqual(len(results), 3)
+        for post_id, detail in results.items():
+            self.assertEqual(detail["overall"], "pass")
+            self.assertEqual(detail["status_code"], 200)
+            self.assertTrue(detail["title_found"])
+            self.assertTrue(detail["og_image_ok"])
+
+    @patch("chain_publisher.db.get_chain_posts")
+    @patch("chain_publisher.db.update_smoke_test_result")
+    @patch("requests.get")
+    def test_smoke_test_http_500(
+        self, mock_get, mock_update, mock_get_posts
+    ):
+        """HTTP 500 → overall fail, DB 기록."""
+        from chain_publisher import smoke_test
+        
+        mock_get_posts.return_value = [
+            {"id": 1, "published_url": "https://rotcha.kr/fail", "step": 1},
+        ]
+        
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "<html><body>Error</body></html>"
+        mock_get.return_value = mock_resp
+        
+        results = smoke_test(99)
+        
+        self.assertEqual(results[1]["overall"], "fail")
+        self.assertEqual(results[1]["status_code"], 500)
+
+    @patch("chain_publisher.db.get_chain_posts")
+    @patch("chain_publisher.db.update_smoke_test_result")
+    @patch("requests.get")
+    def test_smoke_test_connection_error(
+        self, mock_get, mock_update, mock_get_posts
+    ):
+        """Connection error → overall fail, 예외 처리."""
+        from chain_publisher import smoke_test
+        
+        mock_get_posts.return_value = [
+            {"id": 1, "published_url": "https://rotcha.kr/timeout", "step": 1},
+        ]
+        mock_get.side_effect = Exception("Connection timeout")
+        
+        results = smoke_test(99)
+        
+        self.assertEqual(results[1]["overall"], "fail")
+        self.assertIsNotNone(results[1]["error"])
+
+    @patch("chain_publisher.db.get_chain_posts")
+    @patch("chain_publisher.db.update_smoke_test_result")
+    @patch("requests.get")
+    def test_smoke_test_missing_url(
+        self, mock_get, mock_update, mock_get_posts
+    ):
+        """published_url 없음 → skip (결과에 포함 안 됨)."""
+        from chain_publisher import smoke_test
+        
+        mock_get_posts.return_value = [
+            {"id": 1, "published_url": None, "step": 1},
+        ]
+        
+        results = smoke_test(99)
+        self.assertEqual(len(results), 0)  # URL 없으면 결과에 없음
+
+    @patch("chain_publisher.db.get_chain_posts")
+    @patch("chain_publisher.db.update_smoke_test_result")
+    @patch("requests.get")
+    def test_smoke_test_og_image_404(
+        self, mock_get, mock_update, mock_get_posts
+    ):
+        """og:image URL이 404 → overall fail."""
+        from chain_publisher import smoke_test
+        
+        mock_get_posts.return_value = [
+            {"id": 1, "published_url": "https://rotcha.kr/post1", "step": 1},
+        ]
+        
+        # First call: page OK ; Second call: og:image 404
+        mock_page = MagicMock()
+        mock_page.status_code = 200
+        mock_page.text = """
+        <html><head>
+            <title>Test</title>
+            <meta property="og:image" content="https://r2.example.com/missing.webp">
+        </head></html>
+        """
+        
+        mock_og = MagicMock()
+        mock_og.status_code = 404
+        
+        mock_get.side_effect = [mock_page, mock_og]
+        
+        results = smoke_test(99)
+        self.assertEqual(results[1]["overall"], "fail")
+        self.assertFalse(results[1]["og_image_ok"])
 
 
 if __name__ == "__main__":

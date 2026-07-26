@@ -135,6 +135,8 @@ class TestRunFullRouting(unittest.TestCase):
             skip_publish=False,
             publish=False,
             site=None,
+            search=True,
+            no_search=False,
         )
         defaults.update(kwargs)
         return argparse.Namespace(**defaults)

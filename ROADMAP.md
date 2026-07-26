@@ -14,12 +14,13 @@
 | R2 이미지 수정 | ✅ 완료 | published_md 컬럼 + card injection R2 보존 + techpawz 버킷 분기 |
 | W3 카드 재설계 | ✅ 완료 | 3단계 카드 + Naver API 외부링크 + 내용분담 + 이미지 프롬프트 + BS4 제거 |
 | Phase 15 hotfix | ✅ 완료 | card URL 마이그레이션 — 26건 informationhot.kr → issue.techpawz.com |
+| Phase 21 | ✅ 완료 | 이미지 파이프라인 최적화 + Smoke Test — 썸네일 재사용(R2 1회 업로드), sleep 제거+지수 백오프, 병렬화(3워커), 발행 후 smoke test(5개 테스트) |
 
 ## 현황
 
-- **pytest:** 246/246 ✅
+- **pytest:** 251/251 ✅ (Phase 21: +5 smoke test)
 - **라이브:** 3/3 카드 주입 + 배포 (#74, #50, #28 2/3)
-- **이미지 파이프라인:** 전체 종료
+- **이미지 파이프라인:** 썸네일 재사용 + 병렬화 + 백오프 리트라이 (Phase 21 적용)
 - **카드 URL:** issue.techpawz.com 마이그레이션 완료 (26건)
 - **작업 트리:** 깨끗함 (untracked만)
 
