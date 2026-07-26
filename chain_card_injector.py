@@ -414,6 +414,53 @@ class CardInjector:
             draft_md = re.sub(r'\{\{<\s*chain-official-card\s+.*?\}\}', '', draft_md)
             logger.warning(f"[D9-GATE] Removed {_old_count} existing chain-card/chain-official-card shortcode(s) from draft")
 
+        # D9-EXT: dual-cta shortcode 제거 (중복 주입 방지)
+        _dual_cta_count = len(re.findall(r'\{\{<\s*dual-cta\s', draft_md))
+        if _dual_cta_count > 0:
+            draft_md = re.sub(r'\{\{<\s*dual-cta\s+.*?\}\}', '', draft_md)
+            logger.warning(f"[D9-GATE] Removed {_dual_cta_count} existing dual-cta shortcode(s) from draft")
+
+        # D9-EXT: 외부 링크 카드 raw HTML 제거 (중복 주입 방지)
+        # build_external_link_card가 생성하는 패턴들:
+        # 1. Primary: <div style="margin:1.5em 0;padding:1em;border:1px solid #e5e7eb;border-radius:8px;background:#f0fdf4;text-align:center">...관련 공식 사이트...바로가기 →...</div>
+        # 2. Secondary: <div style="margin:1em 0;text-align:center">...<a ...>...</a>...</div>
+        # 3. Fallback: <div style="margin:1.5em 0;padding:1em;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;text-align:center">...더 많은 정보...</div>
+        _ext_card_count = 0
+        # Pattern 1: Primary card with "관련 공식 사이트" + "바로가기"
+        primary_pattern = (
+            r'<div style="margin:1\.5em 0;padding:1em;border:1px solid #e5e7eb;'
+            r'border-radius:8px;background:#f0fdf4;text-align:center">'
+            r'.*?관련 공식 사이트.*?'
+            r'바로가기 →</a>'
+            r'.*?</div>'
+        )
+        # Pattern 2: Secondary links div
+        secondary_pattern = (
+            r'<div style="margin:1em 0;text-align:center">'
+            r'.*?<a href="[^"]*" target="_blank" rel="noopener" '
+            r'style="display:inline-block;margin:0\.2em;padding:0\.4em 1em;'
+            r'background:#2563eb;color:#fff;border-radius:4px;text-decoration:none;font-size:0\.85em">'
+            r'.*?→</a>'
+            r'.*?</div>'
+        )
+        # Pattern 3: Fallback card with "더 많은 정보"
+        fallback_pattern = (
+            r'<div style="margin:1\.5em 0;padding:1em;border:1px solid #e5e7eb;'
+            r'border-radius:8px;background:#fafafa;text-align:center">'
+            r'.*?더 많은 정보.*?'
+            r'→</a>'
+            r'.*?</div>'
+        )
+
+        for pattern in (primary_pattern, secondary_pattern, fallback_pattern):
+            matches = re.findall(pattern, draft_md, re.DOTALL)
+            _ext_card_count += len(matches)
+            if matches:
+                draft_md = re.sub(pattern, '', draft_md, flags=re.DOTALL)
+
+        if _ext_card_count > 0:
+            logger.warning(f"[D9-GATE] Removed {_ext_card_count} existing external link card HTML block(s) from draft")
+
         # 미닫힌 코드 펜스 자동 닫기
         draft_md = self.fix_unclosed_fences(draft_md)
 

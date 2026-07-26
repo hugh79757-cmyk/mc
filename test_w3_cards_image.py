@@ -460,3 +460,147 @@ class TestCardFixW1:
             is_last=False,
         )
         assert "techpawz.com/d2" in result
+
+
+# ── 핫픽스: D9 게이트 외부링크 카드 중복 제거 ─────────────────
+
+
+class TestD9GateExternalCardDedup:
+    """D9 게이트: 외부 링크 카드 raw HTML + dual-cta shortcode 중복 제거 테스트."""
+
+    def _make_injector(self):
+        from chain_card_injector import CardInjector
+        injector = CardInjector.__new__(CardInjector)
+        injector.config = {}
+        # find_external_links mock
+        def _mock_external(*a, **kw):
+            return {
+                "primary": {"url": "https://example.com", "label": "공식 사이트", "priority": 1},
+                "secondary": [],
+                "fallback": {"url": "https://search.naver.com", "label": "검색"},
+            }
+        injector.find_external_links = _mock_external
+        injector.search_client = None
+        return injector
+
+    def test_external_link_card_single_in_draft(self):
+        """외부 링크 카드 1개 있는 draft → inject 후 카드 정확히 1개."""
+        injector = self._make_injector()
+        # build_external_link_card가 생성하는 primary 카드 HTML
+        ext_card_html = (
+            '<div style="margin:1.5em 0;padding:1em;border:1px solid #e5e7eb;'
+            'border-radius:8px;background:#f0fdf4;text-align:center">'
+            '<p style="font-size:0.85em;color:#666;margin:0 0 0.3em 0">관련 공식 사이트</p>'
+            '<p style="font-size:0.95em;font-weight:bold;margin:0 0 0.5em 0">공식 사이트</p>'
+            '<a href="https://example.com" target="_blank" rel="noopener" '
+            'style="display:inline-block;padding:0.5em 1.5em;background:#16a34a;color:#fff;'
+            'border-radius:4px;text-decoration:none;font-size:0.9em">'
+            '바로가기 →</a>'
+            '</div>'
+        )
+        md = f"---\ntitle: D2\n---\n\n본문입니다.\n\n{ext_card_html}"
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="",
+            next_url="",
+            blog_key="techpawz",
+            direction="next",
+            is_last=True,
+            seed_keyword="테스트",
+        )
+        # 기존 카드 제거 후 새로 1개 주입 = 총 1개
+        assert result.count("관련 공식 사이트") == 1
+        assert result.count("바로가기") == 1
+
+    def test_external_link_card_duplicate_in_draft(self):
+        """외부 링크 카드 2개 중복 있는 draft → inject 후 카드 정확히 1개."""
+        injector = self._make_injector()
+        ext_card_html = (
+            '<div style="margin:1.5em 0;padding:1em;border:1px solid #e5e7eb;'
+            'border-radius:8px;background:#f0fdf4;text-align:center">'
+            '<p style="font-size:0.85em;color:#666;margin:0 0 0.3em 0">관련 공식 사이트</p>'
+            '<p style="font-size:0.95em;font-weight:bold;margin:0 0 0.5em 0">공식 사이트</p>'
+            '<a href="https://example.com" target="_blank" rel="noopener" '
+            'style="display:inline-block;padding:0.5em 1.5em;background:#16a34a;color:#fff;'
+            'border-radius:4px;text-decoration:none;font-size:0.9em">'
+            '바로가기 →</a>'
+            '</div>'
+        )
+        md = f"---\ntitle: D2\n---\n\n본문입니다.\n\n{ext_card_html}\n\n{ext_card_html}"
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="",
+            next_url="",
+            blog_key="techpawz",
+            direction="next",
+            is_last=True,
+            seed_keyword="테스트",
+        )
+        # 중복 2개 제거 후 새로 1개 주입 = 총 1개
+        assert result.count("관련 공식 사이트") == 1
+        assert result.count("바로가기") == 1
+
+    def test_external_link_card_zero_in_draft(self):
+        """외부 링크 카드 0개인 draft → inject 후 카드 정확히 1개 추가."""
+        injector = self._make_injector()
+        md = "---\ntitle: D2\n---\n\n본문입니다."
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="",
+            next_url="",
+            blog_key="techpawz",
+            direction="next",
+            is_last=True,
+            seed_keyword="테스트",
+        )
+        # 새로 1개 주입 = 총 1개
+        assert result.count("관련 공식 사이트") == 1
+        assert result.count("바로가기") == 1
+
+    def test_dual_cta_shortcode_duplicate_removed(self):
+        """dual-cta shortcode 중복 제거 확인."""
+        from chain_card_injector import CardInjector
+        injector = CardInjector.__new__(CardInjector)
+        injector.config = {}
+        # D0/D1용 mock (is_last=False)
+        def _mock_external(*a, **kw):
+            return {"primary": None, "secondary": [], "fallback": {"url": "#", "label": "검색"}}
+        injector.find_external_links = _mock_external
+        injector.search_client = None
+
+        dual_cta = '{{{{< dual-cta hub_url="https://example.com" hub_title="허브" info_url="https://example.com" info_title="시리즈" info_desc="설명" info_cta="보기 →" conv_url="" conv_title="" conv_desc="" conv_cta="" >}}}}'
+        md = f"---\ntitle: D0\n---\n\n본문입니다.\n\n{dual_cta}\n\n{dual_cta}"
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="D1 글",
+            next_url="https://example.com/d1",
+            blog_key="rotcha",
+            direction="next",
+            is_last=False,
+        )
+        # dual-cta shortcode 2개 → 0개 제거 후 chain-card 1개 주입
+        assert result.count("dual-cta") == 0
+        assert result.count("chain-card") == 1
+
+    def test_no_false_positive_on_body_text(self):
+        """본문에 '관련 공식 사이트'라는 텍스트가 일반 문장으로 있는 경우 오탐 없음."""
+        injector = self._make_injector()
+        # 외부 링크 카드 HTML이 아닌 일반 텍스트로 "관련 공식 사이트" 언급
+        md = (
+            "---\ntitle: D2\n---\n\n"
+            "이곳은 관련 공식 사이트에서 확인할 수 있습니다.\n"
+            "관련 공식 사이트 링크를 참고하세요.\n"
+        )
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="",
+            next_url="",
+            blog_key="techpawz",
+            direction="next",
+            is_last=True,
+            seed_keyword="테스트",
+        )
+        # 일반 텍스트는 건드리지 않고, 새로 카드 1개만 주입
+        # "관련 공식 사이트" 텍스트가 2번 (본문) + 1번 (새 카드) = 3번 나와야 함
+        assert result.count("관련 공식 사이트") == 3
+        assert result.count("바로가기") == 1  # 카드의 버튼만 1개
