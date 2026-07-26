@@ -15,10 +15,11 @@
 | W3 카드 재설계 | ✅ 완료 | 3단계 카드 + Naver API 외부링크 + 내용분담 + 이미지 프롬프트 + BS4 제거 |
 | Phase 15 hotfix | ✅ 완료 | card URL 마이그레이션 — 26건 informationhot.kr → issue.techpawz.com |
 | Phase 21 | ✅ 완료 | 이미지 파이프라인 최적화 + Smoke Test — 썸네일 재사용(R2 1회 업로드), sleep 제거+지수 백오프, 병렬화(3워커), 발행 후 smoke test(5개 테스트) |
+| Phase 22 | ✅ 완료 | 콘텐츠 품질 제어 — 글자수 검증 게이트(경고만), CTA 코드화(공식 CTA 1개 강제 + AI CTA 감지/교체), 릭 방어 통합(strip_leaks 단일 함수), SEO 메타 보강(description 150자, images 배열, img alt 자동) |
 
 ## 현황
 
-- **pytest:** 251/251 ✅ (Phase 21: +5 smoke test)
+- **pytest:** 251/251 ✅ (Phase 22: 품질 게이트 테스트 포함)
 - **라이브:** 3/3 카드 주입 + 배포 (#74, #50, #28 2/3)
 - **이미지 파이프라인:** 썸네일 재사용 + 병렬화 + 백오프 리트라이 (Phase 21 적용)
 - **카드 URL:** issue.techpawz.com 마이그레이션 완료 (26건)
@@ -29,6 +30,7 @@
 | Phase | 상태 | 설명 |
 |-------|------|------|
 | Phase 17 | ○ 계획 | CTA 시나리오 설계 — 카테고리별 행동유발 문구·강도·배치 + 릭 방지 설계 |
+| Phase 23 | ○ 계획 | 품질 미달 시 자동 재작성 루프 (retry with feedback) |
 
 ## 잔존 이월
 

@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-class TestStripPromptLeak:
-    """_strip_prompt_leak 함수 테스트."""
+class TestStripLeaks:
+    """strip_leaks 함수 테스트."""
 
     def test_removes_prompt_headers_after_frontmatter(self):
         """frontmatter 이후 프롬프트 헤더 제거."""
-        from chain_drafter import _strip_prompt_leak
+        from mc.leak_defense import strip_leaks
 
         text = """---
 title: "Test"
@@ -35,16 +35,17 @@ draft: true
 
 결론 내용."""
 
-        result = _strip_prompt_leak(text)
+        result, report = strip_leaks(text, context="draft")
 
         assert "## 서론" in result  # 본문 헤더는 유지
         assert "## 본론" in result
         assert "# Role (역할)" not in result  # 프롬프트 헤더 제거
         assert "이것은 프롬프트 유출입니다" not in result
+        assert report["prompt_leak"]["removed"] > 0
 
     def test_removes_all_known_prompt_patterns(self):
         """알려진 모든 프롬프트 패턴 제거."""
-        from chain_drafter import _strip_prompt_leak
+        from mc.leak_defense import strip_leaks
         
         patterns = [
             "# SEO 기본 원칙",
@@ -58,12 +59,12 @@ draft: true
         
         for pattern in patterns:
             text = f"---\ntitle: Test\ndraft: true\n---\n\n{pattern}\n\n본문."
-            result = _strip_prompt_leak(text)
+            result, report = strip_leaks(text, context="draft")
             assert pattern not in result, f"Pattern not removed: {pattern}"
 
     def test_preserves_frontmatter(self):
         """frontmatter 보존 확인."""
-        from chain_drafter import _strip_prompt_leak
+        from mc.leak_defense import strip_leaks
 
         text = """---
 title: "Test Title"
@@ -75,7 +76,7 @@ draft: true
 
 본문 내용."""
 
-        result = _strip_prompt_leak(text)
+        result, report = strip_leaks(text, context="draft")
         assert result.startswith("---")
         assert 'title: "Test Title"' in result
         assert 'tags: ["태그1", "태그2"]' in result
@@ -387,8 +388,8 @@ Content
 class TestIndentationFix:
     """Phase 9 들여쓰기 수정 검증."""
 
-    def test_strip_prompt_leak_indentation_in_module(self):
-        """_strip_prompt_leak 호출부가 올바르게 들여쓰기됨."""
+    def test_strip_leaks_indentation_in_module(self):
+        """strip_leaks 호출부가 올바르게 들여쓰기됨."""
         import chain_drafter
         import inspect
 
@@ -396,11 +397,11 @@ class TestIndentationFix:
         lines = source.splitlines()
         strip_call_line = None
         for i, line in enumerate(lines):
-            if "_strip_prompt_leak" in line:
+            if "strip_leaks" in line:
                 strip_call_line = i
                 break
 
-        assert strip_call_line is not None, "_strip_prompt_leak 호출 없음"
+        assert strip_call_line is not None, "strip_leaks 호출 없음"
 
         for i in range(strip_call_line + 1, min(strip_call_line + 5, len(lines))):
             if lines[i].strip() and not lines[i].startswith(" "):

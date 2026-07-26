@@ -21,8 +21,11 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# ── 경로 ──
+# Add project root to path for mc module
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from mc.leak_defense import strip_leaks, has_leaks
 
 DB_CANDIDATES = [
     PROJECT_ROOT / "data" / "mc_chains.db",
@@ -48,7 +51,8 @@ HUGO_SITES = {
 
 
 # ── 프롬프트 릭 패턴 ─────────────────────────────────────────────
-
+# DEPRECATED: now uses mc.leak_defense.strip_leaks()
+# Kept for backward compatibility during transition.
 _PROMPT_SECTION_RE = re.compile(
     r"^(?:"
     r"#\s*Role\s*\(역할\)|"
@@ -89,15 +93,16 @@ _CTA_HTML_RE = re.compile(r'<div[^>]*class="[^"]*cta[^"]*"[^>]*>')
 # ── 1. 프롬프트 릭 검사 ──────────────────────────────────────────
 
 def check_prompt_leak(body: str, label: str = "") -> list:
-    """본문(body)에서 프롬프트 섹션 헤더가 노출되었는지 검사"""
+    """본문(body)에서 프롬프트 섹션 헤더가 노출되었는지 검사 (mc.leak_defense 사용)"""
     findings = []
-    for i, line in enumerate(body.splitlines(), start=1):
-        stripped = line.strip()
-        if stripped and _PROMPT_SECTION_RE.match(stripped):
+    _, report = strip_leaks(body, context="test")
+    for leak_type, data in report.items():
+        for match in data.get("matches", []):
             findings.append({
                 "post": label,
-                "line": i,
-                "match": stripped[:80],
+                "line": match.get("position", 0),
+                "match": match.get("match", "")[:80],
+                "type": leak_type,
             })
     return findings
 
@@ -120,21 +125,17 @@ def check_unresolved_markers(body: str, label: str = "") -> list:
 # ── 3. CTA 인라인 블록 검사 ──────────────────────────────────────
 
 def check_cta_leak(body: str, label: str = "") -> list:
-    """본문에 AI가 직접 생성한 CTA 블록이 있는지 검사"""
+    """본문에 AI가 직접 생성한 CTA 블록이 있는지 검사 (mc.leak_defense 사용)"""
     findings = []
-    for i, line in enumerate(body.splitlines(), start=1):
-        if _CTA_RE.search(line):
-            findings.append({
-                "post": label,
-                "line": i,
-                "match": line.strip()[:80],
-            })
-        if _CTA_HTML_RE.search(line):
-            findings.append({
-                "post": label,
-                "line": i,
-                "match": line.strip()[:80],
-            })
+    _, report = strip_leaks(body, context="test")
+    cta_data = report.get("cta_leak", {})
+    for match in cta_data.get("matches", []):
+        findings.append({
+            "post": label,
+            "line": match.get("position", 0),
+            "match": match.get("match", "")[:80],
+            "type": match.get("type", "cta_leak"),
+        })
     return findings
 
 

@@ -856,6 +856,10 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
         result, message = _validate_draft_schema(draft_md, meta)
         if result:
             print(f"  [OK] Post {post.get('step', 'N/A')} schema validation passed")
+            # Phase 22: 품질 경고가 있으면 DB에 기록
+            if message and message.startswith("quality_warning:"):
+                warnings = [message.replace("quality_warning: ", "")]
+                db.update_quality_warnings(post.get("id"), warnings)
         else:
             print(f"  [ERROR] Post {post.get('step', 'N/A')} schema validation failed: {message}")
             validation_passed = False

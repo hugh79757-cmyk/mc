@@ -18,6 +18,8 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
+from mc.leak_defense import strip_leaks
+
 from chain_models import parse_ai_output, AIParseError, AIOutput
 
 import mc_paths  # noqa: F401 — side effect: sys.path + 5000 주입
@@ -349,85 +351,12 @@ def draft_single_post(
         meta = {"image_type": "none", "image_keyword": "", "image_reason": "", "chart_type": None, "chart_data": None}
         draft_md = raw_output
 
-    draft_md = _strip_prompt_leak(draft_md)
+    draft_md, _ = strip_leaks(draft_md, context="draft")
 
     char_count = len(draft_md)
     print(f" [drafter] Step {post.get('step', '?')} 완료 — {char_count:,}자 (model: {result['model']})")
 
     return draft_md, meta
-
-
-# ── Prompt leak 방지 ──────────────────────────────────────────────
-_PROMPT_LEAK_RE = re.compile(
-    r"^# Role \(역할\)|"
-    r"# SEO 기본 원칙|"
-    r"# Frontmatter Rules|"
-    r"## title 규칙|"
-    r"## description 규칙|"
-    r"## tags 규칙|"
-    r"## categories 규칙|"
-    r"# Content Structure|"
-    r"# Formatting Rules|"
-    r"## 절대 금지|"
-    r"## 링크|"
-    r"# H2 제목 SEO 규칙|"
-    r"# Tone & Manner|"
-    r"# Output Checklist|"
-    r"# Chain Context|"
-    r"# 이미지 플레이스홀더|"
-    r"# 이미지 유형 판단|"
-    r"image_type 결정 기준|"
-    r"이전 포스트 \(|"
-    r"\*\*\[.*\]\*\*"
-)
-
-def _strip_prompt_leak(text: str) -> str:
-    """
-    Remove prompt leak patterns from AI-generated text.
-
-    Properly tracks frontmatter boundaries (--- markers) so prompt-leak
-    patterns inside YAML frontmatter are never touched.
-
-    For prompt leaks that look like section headers (start with #),
-    the entire section block is removed until the next non-prompt
-    header. For inline patterns (e.g. "이전 포스트 ("), only the
-    matching line is removed.
-    """
-    lines = text.splitlines(keepends=True)
-    out = []
-    in_frontmatter = False
-    past_frontmatter = False
-    skip_block = False
-
-    for ln in lines:
-        stripped = ln.strip()
-        if stripped == "---":
-            if not in_frontmatter and not past_frontmatter:
-                in_frontmatter = True
-            elif in_frontmatter:
-                in_frontmatter = False
-                past_frontmatter = True
-            out.append(ln)
-            skip_block = False
-            continue
-        if in_frontmatter or not past_frontmatter:
-            out.append(ln)
-            continue
-
-        if skip_block:
-            if stripped.startswith("#") and not _PROMPT_LEAK_RE.match(stripped):
-                skip_block = False
-                out.append(ln)
-            continue
-
-        if _PROMPT_LEAK_RE.match(stripped) or stripped.startswith("다음 포스트 ("):
-            if stripped.startswith("#"):
-                skip_block = True
-            continue
-
-        out.append(ln)
-
-    return "".join(out)
 
 
 # ── 체인 전체 초안 생성 ────────────────────────────────────────────
@@ -509,6 +438,79 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
     return updated_posts
 
 
+def count_body_chars(draft_md: str) -> int:
+    """
+    마크다운에서 순수 본문 글자수 계산.
+    제외: frontmatter(---...---), 마크다운 문법(#, *, -, |, ```, [], (), > 등),
+         이미지 마커(<!--todo:image-->, <!--todo:chart-->, <!-- image:... -->),
+         HTML 주석, JSON 메타데이터 블록
+    포함: 한글, 영문, 숫자, 공백, 문장부호(본문 내용)
+    """
+    if not draft_md or not draft_md.strip():
+        return 0
+    
+    text = draft_md
+    
+    # 1. Frontmatter 제거 (---...--- 블록)
+    text = re.sub(r'^---\s*\n.*?\n---\s*\n', '', text, flags=re.DOTALL | re.MULTILINE)
+    
+    # 2. 코드 블록 제거 (```...```)
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    
+    # 3. 인라인 코드 제거 (`...`)
+    text = re.sub(r'`[^`]*`', '', text)
+    
+    # 4. 이미지 마커 제거 (<!--todo:image-->, <!--todo:chart-->, <!-- image:... -->)
+    text = re.sub(r'<!--\s*todo:(image|chart)\s*-->', '', text)
+    text = re.sub(r'<!--\s*image:.*?\s*-->', '', text)
+    text = re.sub(r'<!--\s*thumbnail:.*?\s*-->', '', text)
+    
+    # 5. HTML 주석 제거 (<!-- ... -->)
+    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+    
+    # 6. JSON 메타데이터 블록 제거 (마크다운 코드블록 밖의 JSON 객체)
+    text = re.sub(r'\n\s*\{[^{}]*"image_type"[^{}]*\}\s*$', '', text, flags=re.DOTALL)
+    text = re.sub(r'^\s*\{[^{}]*"image_type"[^{}]*\}\s*\n', '', text, flags=re.DOTALL | re.MULTILINE)
+    
+    # 7. 마크다운 헤딩 제거 (# ## ### 등)
+    text = re.sub(r'^#{1,6}\s+.*$', '', text, flags=re.MULTILINE)
+    
+    # 8. 리스트 마커 제거 (-, *, 1., 2. 등) - 줄 전체 제거
+    text = re.sub(r'^[\s]*[-*+]\s+.+$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^[\s]*\d+\.\s+.+$', '', text, flags=re.MULTILINE)
+    
+    # 9. 표 관련 제거 (|, ---|--- 등)
+    text = re.sub(r'^\|.*\|$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^[\s]*[-|:]+[\s]*$', '', text, flags=re.MULTILINE)
+    
+    # 10. 블록인용 제거 (> )
+    text = re.sub(r'^[\s]*>\s*', '', text, flags=re.MULTILINE)
+    
+    # 11. 링크 제거 ([text](url) -> text)
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    
+    # 이미지 제거 (![alt](url) -> alt)
+    text = re.sub(r'!\[([^\]]*)\]\([^)]+\)', r'\1', text)
+    
+    # 12. 강조 마크다운 제거 (**, *, __, _)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'__([^_]+)__', r'\1', text)
+    text = re.sub(r'_([^_]+)_', r'\1', text)
+    
+    # 13. 수평선 제거 (---, ***)
+    text = re.sub(r'^[-*_]{3,}\s*$', '', text, flags=re.MULTILINE)
+    
+    # 14. 공백 정리 (연속된 공백/줄바꿈을 단일 공백으로)
+    text = re.sub(r'\s+', ' ', text)
+    
+    # 앞뒤 공백 제거
+    text = text.strip()
+    
+    # 글자수 반환 (한글/영문/숫자/공백/문장부호 모두 1자로 카운트)
+    return len(text)
+
+
 # ── 스키마 검증 게이트 ─────────────────────────────────────────────
 
 def _validate_draft_schema(draft_md: str, meta: dict = None) -> tuple[bool, str]:
@@ -517,7 +519,7 @@ def _validate_draft_schema(draft_md: str, meta: dict = None) -> tuple[bool, str]
     
     Args:
         draft_md: 검증할 초안 마크다운 문자열
-        meta: 선택적 메타데이터 딕셔너리 (image_keyword 등을 포함)
+        meta: 선택적 메타데이터 딕셔너리 (image_keyword, char_count 등을 포함)
         
     Returns:
         tuple[bool, str]: (검증 결과, 실패 시 원인 메시지)
@@ -560,6 +562,21 @@ def _validate_draft_schema(draft_md: str, meta: dict = None) -> tuple[bool, str]
                 return False, f"Frontmatter에 필수 필드 '{field}'가 없습니다"
     else:
         return False, "Frontmatter(---로 시작하는 섹션)가 없습니다"
+    
+    # 5. 글자수 검증 (meta에 char_count가 있는 경우)
+    if meta and isinstance(meta, dict) and meta.get('char_count'):
+        cc = meta['char_count']
+        actual = count_body_chars(draft_md)
+        if actual < cc.get('min', 0):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[QUALITY] 글자수 미달: {actual}자 (최소 {cc['min']}자)")
+            return True, f"quality_warning: undercount ({actual}/{cc['min']})"
+        if actual > cc.get('max', 999999):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[QUALITY] 글자수 초과: {actual}자 (최대 {cc['max']}자)")
+            return True, f"quality_warning: overcount ({actual}/{cc['max']})"
     
     return True, "스키마 검증 통과"
 

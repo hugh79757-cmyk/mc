@@ -1,0 +1,79 @@
+# 통합 릭 방어 설정 — 단일 소스
+# 기존: chain_drafter.py, chain_publisher_core.py, audit/audit_chain.py, conftest.py
+
+prompt_leak:
+  # chain_drafter.py _PROMPT_LEAK_RE 패턴들
+  patterns:
+    - "^#\\s*Role"
+    - "^#\\s*SEO\\s*기본\\s*원칙"
+    - "^#\\s*Frontmatter\\s*Rules"
+    - "^#\\s*Content\\s*Structure"
+    - "^#\\s*Formatting\\s*Rules"
+    - "^#\\s*H2\\s*제목\\s*SEO\\s*규칙"
+    - "^#\\s*Tone\\s*&\\s*Manner"
+    - "^#\\s*Output\\s*Checklist"
+    - "^#\\s*Chain\\s*Context"
+    - "^#\\s*이미지\\s*플레이스홀더"
+    - "^#\\s*이미지\\s*유형\\s*판단"
+    - "^##\\s*title\\s*규칙"
+    - "^##\\s*description\\s*규칙"
+    - "^##\\s*tags\\s*규칙"
+    - "^##\\s*categories\\s*규칙"
+    - "^##\\s*절대\\s*금지"
+    - "^##\\s*링크"
+    - "이전\\s*포스트\\s*\\("
+    - "다음\\s*포스트\\s*\\("
+    - "{{.*ENTRY_LINK.*}}"
+    - "{{.*FUNNEL_LINK.*}}"
+    - "{{.*CPA_LINK.*}}"
+    - "\\[citation:\\d+\\]"
+    - "참고\\s*자료\\s*:"
+    - "출처\\s*:"
+    - "image_type\\s*결정\\s*기준"
+    - "\\*\\*\\[.*\\]\\*\\*"
+  action: "remove_block"  # 헤더부터 다음 헤더까지 블록 제거
+
+cta_leak:
+  # chain_publisher_core.py D8-GATE + audit + conftest 통합
+  patterns:
+    - "더\\s*(?:깊이\\s*)?알아보기"
+    - "계속\\s*읽기"
+    - "관련\\s*주제"
+    - "아래\\s*버튼"
+    - "링크를\\s*클릭"
+    - "관련\\s*글"
+    - "시리즈\\s*보기"
+    - "이\\s*시리즈\\s*보기"
+    - "전체\\s*글\\s*모아보기"
+    - "모아보기"
+    - "이어서\\s*(?:실전\\s*)?적용법"
+    - "관련\\s*주제\\s*보기"
+    - "더\\s*자세히\\s*보기"
+    - "더\\s*깊이\\s*알아보기"
+  action: "remove_inline"  # 매칭된 문자열만 제거
+  forbidden_cta:
+    - "지금\\s*(?:구매|매수|계약|청약|예약)"
+    - "한정\\s*수량"
+    - "마감\\s*임박"
+    - "최저가\\s*보장"
+    - "오늘만\\s*특가"
+    - "곤두박질"
+    - "오늘\\s*계약"
+    - "아래\\s*버튼"
+    - "링크를\\s*클릭"
+  action: "warn_only"  # 발견 시 WARNING만
+
+placeholder_leak:
+  # {{...}} 패턴 (shortcode {{< >}} 제외)
+  pattern: r'\{\{(?!<|%)([^}]+)\}\}'
+  action: "remove_inline"
+
+html_tag_leak:
+  # 허용되지 않은 HTML 태그
+  tags: ["div", "span", "meta", "script", "ins", "link", "p", "a", "table", "blockquote", "figure", "del"]
+  action: "remove_block"
+
+json_leak:
+  # raw JSON 객체 (image_type, chart_type 포함)
+  pattern: r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'
+  action: "remove_block"

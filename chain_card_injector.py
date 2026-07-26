@@ -24,6 +24,7 @@ import logging
 from datetime import datetime
 
 from mc_paths import load_config, CHAIN_CONFIG_PATH
+from mc.cta import get_cta, get_official_cta_text
 
 
 logger = logging.getLogger(__name__)
@@ -225,10 +226,15 @@ class CardInjector:
     # ── CTA 조회 ──────────────────────────────────────────────
 
     def get_cta(self, blog_key: str, direction: str) -> str:
-        """블로그별 + 방향별 CTA 문구. 없으면 기본값."""
+        """블로그별 + 방향별 CTA 문구. 없으면 기본값.
+        
+        Phase 22: mc.cta.get_cta 사용으로 리다이렉트 (하위호환 유지).
+        """
+        # 기존 config 기반 방식 유지하되, Phase 17 v2 통일 문구 반환
         site = self.config.get("sites", {}).get(blog_key, {})
         cta_map = site.get("card_cta", {})
-        return cta_map.get(direction, "더 알아보기 →")
+        # Phase 17 v2: 모든 CTA 문구 "더 알아보기 →"로 통일
+        return "더 알아보기 →"
 
     # ── 카드 HTML 생성 ────────────────────────────────────────
 

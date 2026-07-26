@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 
+from mc.cta import replace_ai_cta, detect_ai_cta
 from mc_paths import load_config, CHAIN_CONFIG_PATH
 
 from image.r2_uploader import get_r2_config, upload_all_images, HUGO_R2_DOMAINS
@@ -569,6 +570,18 @@ class PublisherCore:
             if r2_thumb_url:
                 _fm_fields["featureimage"] = f'"{r2_thumb_url}"'
 
+            # SEO 메타 보강: description 150자 제한
+            desc = _fm_fields.get("description", "").strip().strip('"').strip("'")
+            if desc:
+                if len(desc) > 150:
+                    logger.warning(f"[SEO] description 150자 초과 ({len(desc)}자): {slug} — 잘라서 저장")
+                    desc = desc[:147] + "..."
+                _fm_fields["description"] = f'"{desc}"'
+
+            # SEO 메타: images 배열에 og:image URL 포함 (Blowfish/PaperMod 호환)
+            if r2_thumb_url:
+                _fm_fields["images"] = f'["{r2_thumb_url}"]'
+
             # frontmatter 재조립
             _new_fm_lines = ["---"]
             for _k, _v in _fm_fields.items():
@@ -611,6 +624,8 @@ class PublisherCore:
                 cleaned = _extract_clean_body(text)
                 # Phase 13 R2: clean markdown symbols before FM reassembly
                 cleaned_body = _clean_markdown_symbols(cleaned.body)
+                # Phase 22: SEO - 이미지 alt 텍스트 자동 추가
+                cleaned_body = _ensure_image_alt(cleaned_body, title)
                 # 프론트매터 보존: 본문만 정제(sanitize)하고 _fixed 에 조립된 FM 블록을 재결합.
                 # FM을 버리면 no-FM 파일이 되어 Blowfish/PaperMod 테마가 페이지를 빌드에서 제외함(404).
                 _fm_match = re.search(r'^---\n.*?\n---\n', _fixed, re.DOTALL)
@@ -620,30 +635,15 @@ class PublisherCore:
                 logger.error(f"본문 추출 실패: {e}")
                 return ("", "hugo", "")
             # D8: CTA 텍스트 릭 스캐너 — 본문에 CTA 문구/플레이스홀더 직접 노출 검출
-            _cta_leak_patterns = [
-                r'더 알아보기', r'더 깊이 알아보기', r'계속 읽기',
-                r'관련 주제', r'아래 버튼', r'링크를 클릭',
-                r'관련 글', r'시리즈 보기', r'이 시리즈 보기',
-                r'전체 글 모아보기', r'모아보기',
-            ]
-            _leaks_found = []
-            for _pat in _cta_leak_patterns:
-                for _m in re.finditer(_pat, text):
-                    _ctx = text[max(0, _m.start()-20):_m.end()+20].replace('\n', ' ')
-                    _leaks_found.append(f"  ⚠ CTA leak: '{_m.group()}' @ pos {_m.start()} (ctx: ...{_ctx}...)")
-            # 플레이스홀더 검출: {{...}} 패턴 (shortcode {{< >}} 제외)
-            for _m in re.finditer(r'\{\{(?!<|%)([^}]+)\}\}', text):
-                _ctx = text[max(0, _m.start()-20):_m.end()+20].replace('\n', ' ')
-                _leaks_found.append(f"  ⚠ Placeholder leak: '{{{{{_m.group(1)}}}}}' @ pos {_m.start()} (ctx: ...{_ctx}...)")
+            # Phase 22: mc.cta.detect_ai_cta / replace_ai_cta 사용
+            _leaks_found = detect_ai_cta(text)
             if _leaks_found:
                 logger.warning(f"[D8-GATE] CTA/placeholder leak detected in {slug} — {len(_leaks_found)} matches")
-                for _l in _leaks_found:
-                    logger.warning(_l)
-                # 자동 제거: CTA 문구를 본문에서 삭제
-                for _pat in _cta_leak_patterns:
-                    text = re.sub(_pat, '', text)
-                # 플레이스홀더 자동 제거
-                text = re.sub(r'\{\{(?!<|%)([^}]+)\}\}', '', text)
+                for leak in _leaks_found:
+                    _ctx = text[max(0, leak['position']-20):leak['position']+len(leak['match'])+20].replace('\n', ' ')
+                    logger.warning(f"  ⚠ CTA leak: '{leak['match']}' @ pos {leak['position']} (ctx: ...{_ctx}...)")
+                # 자동 제거: AI CTA 문구 제거
+                text = replace_ai_cta(text)
                 logger.warning(f"[D8-GATE] Auto-removed {len(_leaks_found)} leak(s) from {slug}")
             index_md.write_text(text, encoding="utf-8")
 
@@ -1012,6 +1012,33 @@ class PublisherCore:
             print("  [publisher] ⚠️ git push timeout")
         except Exception as e:
             print(f"  [publisher] ⚠️ git push error: {e}")
+
+
+def _ensure_image_alt(text: str, title: str) -> str:
+    """
+    이미지 마크다운에서 alt 텍스트가 비어있으면 자동 채우기.
+    
+    ![](url) → ![{title[:30]}](url)
+    ![alt](url) → 그대로 유지 (이미 alt가 있음)
+    
+    Args:
+        text: 마크다운 본문
+        title: 포스트 제목 (alt 텍스트 생성용)
+        
+    Returns:
+        alt 텍스트가 보완된 텍스트
+    """
+    if not title:
+        title = "image"
+    
+    def repl(m):
+        alt = m.group(1)
+        url = m.group(2)
+        if not alt or alt.strip() == "":
+            alt = title[:30]
+        return f"![{alt}]({url})"
+    
+    return re.sub(r'!\[([^\]]*)\]\((https?://[^)]+)\)', repl, text)
 
 
 # ── Phase 13 R2: Markdown symbol cleanup ──────────────────────────

@@ -242,6 +242,19 @@ keyword_categories:
       next_post: "더 알아보기 →"
       entry_funnel: "{{ENTRY_LINK}}"
       fallback: "관련 주제 보기 →"
+    char_count:
+      rotcha:          # Step 1 (기초/정보형)
+        min: 1000
+        max: 1500
+        target: 1250
+      issue_techpawz:  # Step 2 (분석/응용형)
+        min: 1500
+        max: 2500
+        target: 2000
+      techpawz:        # Step 3 (전문/심화형)
+        min: 1500
+        max: 2500
+        target: 2000
     step1_sections:
     - '## {keyword} — 위치와 기본 정보'
     - '## {keyword} — 시설과 특징 살펴보기'
@@ -265,6 +278,19 @@ keyword_categories:
       next_post: "더 알아보기 →"
       entry_funnel: "{{ENTRY_LINK}}"
       fallback: "관련 주제 보기 →"
+    char_count:
+      rotcha:
+        min: 1000
+        max: 1500
+        target: 1250
+      issue_techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+      techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
     step1_sections:
     - '## {keyword} — 단지 기본 정보'
     - '## {keyword} — 평면도와 타입별 특징'
@@ -287,6 +313,19 @@ keyword_categories:
       next_post: "더 알아보기 →"
       entry_funnel: "{{ENTRY_LINK}}"
       fallback: "관련 주제 보기 →"
+    char_count:
+      rotcha:
+        min: 1000
+        max: 1500
+        target: 1250
+      issue_techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+      techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
     step1_sections:
     - '## {keyword} — 제품 개요와 스펙'
     - '## {keyword} — 트림별 가격과 옵션'
@@ -309,6 +348,19 @@ keyword_categories:
       next_post: "더 알아보기 →"
       entry_funnel: "{{ENTRY_LINK}}"
       fallback: "관련 주제 보기 →"
+    char_count:
+      rotcha:
+        min: 1000
+        max: 1500
+        target: 1250
+      issue_techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+      techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
     step1_sections:
     - '## {keyword} — 기본 개념과 시장 흐름'
     - '## {keyword} — 최근 성과와 수익률'
@@ -330,6 +382,19 @@ keyword_categories:
       next_post: "더 알아보기 →"
       entry_funnel: "{{ENTRY_LINK}}"
       fallback: "관련 주제 보기 →"
+    char_count:
+      rotcha:
+        min: 1000
+        max: 1500
+        target: 1250
+      issue_techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+      techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
     step1_sections:
     - '## {keyword} — 개요와 핵심 특징'
     - '## {keyword} — 주요 기능과 장점'

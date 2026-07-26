@@ -124,6 +124,8 @@ MIGRATIONS_SQL = [
     "ALTER TABLE chain_posts ADD COLUMN smoke_test_checked_at TEXT",
     "ALTER TABLE chain_posts ADD COLUMN smoke_test_result TEXT",
     "ALTER TABLE chain_posts ADD COLUMN smoke_test_detail TEXT",
+        # Phase 22: Quality warnings column
+    "ALTER TABLE chain_posts ADD COLUMN quality_warnings TEXT",
 ]
 
 
@@ -513,6 +515,20 @@ def update_post_draft(post_id: int, draft_md: str, slug: str):
     )
     conn.commit()
     conn.close()
+
+
+def update_quality_warnings(post_id: int, warnings: list):
+    """품질 경고 리스트를 JSON으로 저장."""
+    import json
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET quality_warnings = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(warnings), now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
 
 def update_post_published_md(post_id: int, published_md: str):
     """Save R2-replaced content for card injection to use (preserves draft_md original)."""

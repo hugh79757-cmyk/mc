@@ -365,20 +365,13 @@ def assert_valid_frontmatter(fm_text: str):
 
 
 def assert_no_prompt_leak(text: str):
-    """Assert no prompt leak patterns in text."""
-    forbidden = [
-        "# Role (역할)",
-        "# SEO 기본 원칙",
-        "## 서론",
-        "## 본론",
-        "## 결론",
-        "# Chain Context",
-        "절대 금지",
-        "이미지 플레이스홀더",
-        "다음은 요청하신",
-    ]
-    for pattern in forbidden:
-        assert pattern not in text, f"Prompt leak detected: {pattern}"
+    """Assert no prompt leak patterns in text (uses mc.leak_defense)."""
+    from mc.leak_defense import strip_leaks
+    _, report = strip_leaks(text, context="test")
+    for leak_type, data in report.items():
+        if leak_type == "prompt_leak" and data["removed"] > 0:
+            matches = [m.get("match", "") for m in data["matches"]]
+            assert False, f"Prompt leak detected: {matches}"
 
 
 def assert_no_unresolved_markers(text: str):
@@ -396,7 +389,10 @@ def assert_no_unresolved_markers(text: str):
 
 
 def assert_no_cta_leak(text: str):
-    """Assert no AI-generated CTA blocks."""
-    forbidden = ["더 깊이 알아보기", "더 자세히 보기", "이어서 실전 적용법", "관련 주제 보기"]
-    for pattern in forbidden:
-        assert pattern not in text, f"CTA leak detected: {pattern}"
+    """Assert no AI-generated CTA blocks (uses mc.leak_defense)."""
+    from mc.leak_defense import strip_leaks
+    _, report = strip_leaks(text, context="test")
+    cta_data = report.get("cta_leak", {})
+    if cta_data["removed"] > 0:
+        matches = [m.get("match", "") for m in cta_data["matches"]]
+        assert False, f"CTA leak detected: {matches}"
