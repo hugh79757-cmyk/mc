@@ -155,6 +155,7 @@ def init_db():
     """Create tables if they don't exist + run migrations."""
     conn = get_conn()
     conn.executescript(SCHEMA_SQL)
+    conn.executescript(KEYWORD_QUEUE_SCHEMA_SQL)
     conn.commit()
     conn.close()
     _run_migrations()
@@ -850,6 +851,128 @@ SEARCH_MIGRATIONS_SQL = [
 ]
 
 
+# ── Phase 23: Keyword Queue ──
+
+KEYWORD_QUEUE_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS keyword_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword TEXT NOT NULL,
+    category TEXT,
+    priority INTEGER DEFAULT 3,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    processed_at TEXT,
+    chain_id INTEGER,
+    error_msg TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_keyword_queue_status ON keyword_queue(status);
+CREATE INDEX IF NOT EXISTS idx_keyword_queue_priority ON keyword_queue(priority ASC, created_at ASC);
+"""
+
+
+def init_keyword_queue_table():
+    """Create keyword_queue table if not exists."""
+    conn = get_conn()
+    conn.executescript(KEYWORD_QUEUE_SCHEMA_SQL)
+    conn.commit()
+    conn.close()
+
+
+def add_keyword_queue(keyword: str, category: str = None, priority: int = 3) -> Dict:
+    """Add keyword to queue. Returns dict with success status."""
+    from datetime import datetime
+    conn = get_conn()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        conn.execute(
+            "INSERT INTO keyword_queue (keyword, category, priority, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
+            (keyword, category, priority, now)
+        )
+        conn.commit()
+        return {"success": True, "keyword": keyword, "status": "added"}
+    except sqlite3.IntegrityError:
+        # Check existing status
+        row = conn.execute("SELECT status, category FROM keyword_queue WHERE keyword = ?", (keyword,)).fetchone()
+        return {"success": False, "keyword": keyword, "status": "duplicate", "existing_status": row["status"] if row else None}
+    finally:
+        conn.close()
+
+
+def get_next_keyword() -> Optional[Dict]:
+    """Get next pending keyword by priority (high priority = low number = first)."""
+    from datetime import datetime
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id, keyword, category, priority FROM keyword_queue WHERE status = 'pending' ORDER BY priority ASC, created_at LIMIT 1"
+    ).fetchone()
+    if row:
+        conn.execute(
+            "UPDATE keyword_queue SET status = 'processing', processed_at = ? WHERE id = ?",
+            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), row["id"])
+        )
+        conn.commit()
+        conn.close()
+        return dict(row)
+    conn.close()
+    return None
+
+
+def mark_keyword_done(keyword: str, chain_id: int):
+    """Mark keyword as done with chain_id."""
+    from datetime import datetime
+    conn = get_conn()
+    conn.execute(
+        "UPDATE keyword_queue SET status = 'done', processed_at = ?, chain_id = ? WHERE keyword = ?",
+        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), chain_id, keyword)
+    )
+    conn.commit()
+    conn.close()
+
+
+def mark_keyword_failed(keyword: str, error_msg: str):
+    """Mark keyword as failed with error message."""
+    from datetime import datetime
+    conn = get_conn()
+    conn.execute(
+        "UPDATE keyword_queue SET status = 'failed', processed_at = ?, error_msg = ? WHERE keyword = ?",
+        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), error_msg, keyword)
+    )
+    conn.commit()
+    conn.close()
+
+
+def list_keyword_queue(status: str = None) -> list[dict]:
+    """List keyword queue entries."""
+    conn = get_conn()
+    if status:
+        rows = conn.execute("SELECT * FROM keyword_queue WHERE status = ? ORDER BY priority ASC, created_at", (status,)).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM keyword_queue ORDER BY priority ASC, created_at").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def remove_keyword_queue(queue_id: int) -> bool:
+    """Remove keyword from queue (only pending)."""
+    conn = get_conn()
+    cur = conn.execute("DELETE FROM keyword_queue WHERE id = ? AND status = 'pending'", (queue_id,))
+    conn.commit()
+    conn.close()
+    return cur.rowcount > 0
+
+
+def get_chains_since(date_str: str) -> list[dict]:
+    """Get chains created since given date."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM chains WHERE created_at >= ? ORDER BY created_at DESC",
+        (date_str,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def init_search_columns():
     """Add context_md and search_sources columns to chain_posts if missing."""
     conn = get_conn()
@@ -883,3 +1006,93 @@ def update_post_context(post_id: int, context_md: str, search_sources: str = Non
 if __name__ == "__main__":
     init_db()
     print(f"[mc] DB initialized at {_db_path()}")
+
+
+# ── Phase 23: Keyword Queue Functions ──
+
+def add_keyword_queue(keyword: str, category: str = None, priority: int = 3) -> dict:
+    """Add keyword to queue. Returns dict with success status.
+    Allows duplicate keywords (no UNIQUE constraint). 
+    If same keyword exists in 'done' status, warns but still adds."""
+    conn = get_conn()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Check for existing done keyword
+    row = conn.execute("SELECT status FROM keyword_queue WHERE keyword = ? AND status = 'done'", (keyword,)).fetchone()
+    if row:
+        conn.close()
+        return {"success": False, "keyword": keyword, "status": "duplicate", "existing_status": "done", "warning": f"Keyword '{keyword}' already completed (done)"}
+    
+    # Insert new keyword (allows duplicates for pending/processing/failed)
+    cur = conn.execute(
+        "INSERT INTO keyword_queue (keyword, category, priority, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
+        (keyword, category, priority, now)
+    )
+    conn.commit()
+    conn.close()
+    return {"success": True, "id": cur.lastrowid, "keyword": keyword, "status": "added"}
+
+
+def get_next_keyword() -> dict | None:
+    """Get next pending keyword by priority (asc) and created_at (asc). Update to processing."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id, keyword, category, priority FROM keyword_queue WHERE status = 'pending' ORDER BY priority ASC, created_at ASC LIMIT 1"
+    ).fetchone()
+    if row:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            "UPDATE keyword_queue SET status = 'processing', processed_at = ? WHERE id = ?",
+            (now, row["id"])
+        )
+        conn.commit()
+        conn.close()
+        return dict(row)
+    conn.close()
+    return None
+
+
+def mark_keyword_done(keyword: str, chain_id: int):
+    """Mark keyword as done with chain_id."""
+    conn = get_conn()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute(
+        "UPDATE keyword_queue SET status = 'done', processed_at = ?, chain_id = ? WHERE keyword = ?",
+        (now, chain_id, keyword)
+    )
+    conn.commit()
+    conn.close()
+
+
+def mark_keyword_failed(keyword: str, error_msg: str):
+    """Mark keyword as failed with error message."""
+    conn = get_conn()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute(
+        "UPDATE keyword_queue SET status = 'failed', processed_at = ?, error_msg = ? WHERE keyword = ?",
+        (now, error_msg, keyword)
+    )
+    conn.commit()
+    conn.close()
+
+
+def list_keyword_queue(status: str = None) -> list[dict]:
+    """List keywords in queue, optionally filtered by status."""
+    conn = get_conn()
+    if status:
+        rows = conn.execute("SELECT * FROM keyword_queue WHERE status = ? ORDER BY priority ASC, created_at ASC", (status,)).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM keyword_queue ORDER BY priority ASC, created_at ASC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_chains_since(date_str: str) -> list[dict]:
+    """Get chains created since date."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM chains WHERE created_at >= ? ORDER BY created_at DESC",
+        (date_str,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

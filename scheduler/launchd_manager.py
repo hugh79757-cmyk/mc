@@ -55,6 +55,61 @@ class LaunchdManager:
         )
         print(f"  [scheduler] ✅ launchctl loaded: {label}")
 
+    def add_auto_task(
+        self,
+        hour: int = 9,
+        minute: int = 0,
+        label: str = "com.mc.auto",
+        python_path: str = None,
+        project_root: str = None,
+    ):
+        """launchd plist 생성 및 load (mc auto 실행)."""
+        project_root = project_root or str(MC_ROOT)
+        python_path = python_path or "/usr/bin/env python3"
+        
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        plist_path = LAUNCH_AGENTS_DIR / f"{label}.plist"
+        
+        program_args = [
+            python_path,
+            "-m", "cli.mc",
+            "auto",
+        ]
+        
+        plist = {
+            "Label": label,
+            "ProgramArguments": program_args,
+            "WorkingDirectory": project_root,
+            "StartCalendarInterval": {"Hour": hour, "Minute": minute},
+            "StandardOutPath": str(LOG_DIR / "mc-auto-%Y-%m-%d.log"),
+            "StandardErrorPath": str(LOG_DIR / "mc-auto-error.log"),
+            "KeepAlive": False,
+            "RunAtLoad": False,
+            "EnvironmentVariables": {
+                "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+            },
+        }
+        
+        LAUNCH_AGENTS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(plist_path, "wb") as f:
+            plistlib.dump(plist, f)
+        print(f"  [scheduler] ✅ plist created: {plist_path}")
+        
+        # launchctl load
+        result = subprocess.run(
+            ["launchctl", "load", str(plist_path)],
+            capture_output=True, timeout=15, check=False,
+        )
+        if result.returncode == 0:
+            print(f"  [scheduler] ✅ launchctl loaded: {label}")
+        else:
+            # 이미 로드된 경우 unload 후 재시도
+            subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True, check=False)
+            subprocess.run(["launchctl", "load", str(plist_path)], capture_output=True, check=False)
+            print(f"  [scheduler] ✅ launchctl reloaded: {label}")
+        
+        return plist_path
+
     def remove_task(self, label: str):
         """plist unload 및 삭제."""
         plist_path = LAUNCH_AGENTS_DIR / f"{label}.plist"
@@ -71,7 +126,7 @@ class LaunchdManager:
     def list_tasks(self) -> list[dict]:
         """LaunchAgents에서 mc plist 목록."""
         tasks = []
-        pattern = "com.mc.publisher."
+        pattern = "com.mc."
         if LAUNCH_AGENTS_DIR.exists():
             for f in LAUNCH_AGENTS_DIR.glob(f"{pattern}*.plist"):
                 tasks.append({

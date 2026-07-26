@@ -1,0 +1,30 @@
+# config/notify.yaml — 알림 채널 설정
+
+notify:
+  enabled: false          # 기본 비활성화 (사용자가 URL 설정 후 true)
+  
+  # Webhook 기반 (Slack, Discord, Telegram, Generic)
+  webhook:
+    url: ""               # 예: https://hooks.slack.com/services/... 또는 Discord webhook URL
+    template: |
+      *{title}*
+      {detail}
+      Level: {level}
+      Time: {timestamp}
+    timeout: 10
+  
+  # 이메일 (Phase 24 구현 예정)
+  email:
+    enabled: false
+    smtp_host: ""
+    smtp_port: 587
+    username: ""
+    password: ""
+    from_addr: ""
+    to_addrs: []
+  
+  # 알림 레벨별 필터
+  levels:
+    error: true
+    warning: false
+    info: false

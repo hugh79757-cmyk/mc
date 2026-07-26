@@ -33,6 +33,12 @@ class CronManager:
         except ImportError:
             self._add_task_fallback(command, cron_expr)
 
+    def add_auto_task(self, hour: int = 9, minute: int = 0, description: str = "mc auto daily"):
+        """crontab에 mc auto 작업 추가."""
+        command = f"cd {MC_ROOT} && /usr/bin/env python3 -m cli.mc auto >> logs/mc-auto-$(date +%Y-%m-%d).log 2>&1"
+        cron_expr = f"{minute} {hour} * * *"
+        self.add_task(command, cron_expr, description)
+
     def remove_task(self, command: str):
         """crontab에서 mc 작업 제거."""
         try:
