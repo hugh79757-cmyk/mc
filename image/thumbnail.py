@@ -46,14 +46,19 @@ FONT_BOLD_PATH = Path("assets/fonts/NotoSansKR-Bold.otf")  # optional
 # ── API 키 로딩 ──
 
 def _load_env() -> dict:
-    """Load env vars from .env.common or system env."""
-    env_path = Path(".env.common")
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            line = line.strip()
-            if "=" in line and not line.startswith("#"):
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    """Load env vars from ~/.env.common (절대경로 우선), then local .env/.env.common, then system env."""
+    candidates = [
+        Path.home() / ".env.common",
+        Path(".env.common"),
+        Path(".env"),
+    ]
+    for env_path in candidates:
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
     return {
         "unsplash_key": os.getenv("UNSPLASH_ACCESS_KEY", ""),
         "pexels_key": os.getenv("PEXELS_API_KEY", ""),
@@ -241,103 +246,89 @@ def add_text_overlay(
     subtitle: Optional[str] = None,
     target_size: tuple[int, int] = (1024, 1024),
 ) -> Path:
-    """
-    Add text overlay to a thumbnail image.
-
-    - Resizes/crops image to target_size (center-square crop then resize).
-    - Adds a dark gradient overlay at the bottom for readability.
-    - Draws title text (large, centered) and optional subtitle (smaller).
-
-    Returns path to the overlaid image.
-    """
+    """실사 사진 위에 큰 제목 + 하단 강조 그라데이션 오버레이."""
     img = Image.open(image_path).convert("RGB")
 
-    # ── 1:1 center crop ──
+    W, H = target_size
+
+    # 1:1 center crop + resize
     w, h = img.size
     side = min(w, h)
     left = (w - side) // 2
     top = (h - side) // 2
-    img = img.crop((left, top, left + side, top + side))
-    img = img.resize(target_size, Image.LANCZOS)
+    img = img.crop((left, top, left + side, top + side)).resize(target_size, Image.LANCZOS)
 
-    # ── dark gradient overlay (bottom 60%) ──
+    # 하단 강조 그라데이션 (55% 지점부터, 최대 alpha 220)
     overlay = Image.new("RGBA", target_size, (0, 0, 0, 0))
-    overlay_draw = ImageDraw.Draw(overlay)
-    for y in range(target_size[1]):
-        # gradient: start at 40% height, 0 opacity → 100% at bottom
-        gradient_start = int(target_size[1] * 0.35)
-        if y < gradient_start:
-            continue
-        t = (y - gradient_start) / (target_size[1] - gradient_start)
-        alpha = int(t * 180)  # max 180/255
-        overlay_draw.line([(0, y), (target_size[0], y)], fill=(0, 0, 0, alpha))
+    od = ImageDraw.Draw(overlay)
+    g_start = int(H * 0.45)
+    for y in range(g_start, H):
+        t = (y - g_start) / (H - g_start)
+        alpha = int((t ** 1.3) * 220)
+        od.line([(0, y), (W, y)], fill=(0, 0, 0, alpha))
     img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
 
     draw = ImageDraw.Draw(img)
 
-    # ── title font sizing ──
-    title_font_size = 48
-    subtitle_font_size = 28
+    padding = 64
+    usable_w = W - padding * 2
 
-    # Scale font based on title length
-    if len(title) > 50:
-        title_font_size = 28
-    elif len(title) > 30:
-        title_font_size = 36
+    # 제목 폰트: 길이에 따라 크게 (기존보다 대폭 확대)
+    n = len(title)
+    if n <= 18:
+        title_size = 88
+    elif n <= 28:
+        title_size = 72
+    elif n <= 40:
+        title_size = 60
+    else:
+        title_size = 50
+    sub_size = max(28, int(title_size * 0.42))
 
-    title_font = _load_font(title_font_size)
-    sub_font = _load_font(subtitle_font_size)
+    title_font = _load_font(title_size)
+    sub_font = _load_font(sub_size)
 
-    padding = 60
-    usable_w = target_size[0] - padding * 2
-
-    # ── wrap & draw title ──
     wrapped_title = _fit_text(draw, title, title_font, usable_w)
     title_lines = wrapped_title.split("\n")
-    line_height = title_font_size + 8
-    total_title_h = len(title_lines) * line_height
+    line_h = title_size + 14
+    total_title_h = len(title_lines) * line_h
 
-    # subtitle
-    sub_h = 0
     wrapped_sub = ""
+    sub_h = 0
     if subtitle:
         wrapped_sub = _fit_text(draw, subtitle, sub_font, usable_w)
-        sub_h = len(wrapped_sub.split("\n")) * (subtitle_font_size + 6)
+        sub_lines = wrapped_sub.split("\n")
+        sub_h = len(sub_lines) * (sub_size + 8)
 
-    # ── vertical position (bottom-aligned) ──
-    total_h = total_title_h + sub_h + 20
-    y_start = target_size[1] - padding - total_h
+    # 컬러 강조 바 + 제목을 하단 1/3 지점에 배치 (바닥에서 살짝 위로)
+    block_h = total_title_h + (sub_h + 24 if subtitle else 0)
+    y_start = H - padding - block_h - 20
 
-    # draw title
+    # 좌측 컬러 강조 바
+    bar_x = padding - 24
+    draw.rectangle([bar_x, y_start, bar_x + 8, y_start + block_h], fill=(255, 90, 60))
+
+    # 제목 (좌측 정렬, 그림자)
     y = y_start
     for line in title_lines:
-        bbox = draw.textbbox((0, 0), line, font=title_font)
-        lw = bbox[2] - bbox[0]
-        x = (target_size[0] - lw) // 2
-        # text shadow for readability
-        draw.text((x + 2, y + 2), line, font=title_font, fill=(0, 0, 0, 200))
-        draw.text((x, y), line, font=title_font, fill=(255, 255, 255))
-        y += line_height
+        draw.text((padding + 3, y + 3), line, font=title_font, fill=(0, 0, 0))
+        draw.text((padding, y), line, font=title_font, fill=(255, 255, 255))
+        y += line_h
 
-    # draw subtitle
+    # 부제목
     if subtitle and wrapped_sub:
-        y += 10
+        y += 12
         for line in wrapped_sub.split("\n"):
-            bbox = draw.textbbox((0, 0), line, font=sub_font)
-            lw = bbox[2] - bbox[0]
-            x = (target_size[0] - lw) // 2
-            draw.text((x + 1, y + 1), line, font=sub_font, fill=(0, 0, 0, 160))
-            draw.text((x, y), line, font=sub_font, fill=(220, 220, 220))
-            y += subtitle_font_size + 6
+            draw.text((padding + 2, y + 2), line, font=sub_font, fill=(0, 0, 0))
+            draw.text((padding, y), line, font=sub_font, fill=(230, 230, 230))
+            y += sub_size + 8
 
-    # ── save ──
     safe_slug = re.sub(r"[^a-zA-Z0-9가-힣_-]", "", str(image_path.stem))[:60]
-    safe_slug = re.sub(r"^thumb_", "", safe_slug)  # avoid double thumb_ prefix
+    safe_slug = re.sub(r"^thumb_", "", safe_slug)
     out_path = IMAGE_DIR / f"thumb_{safe_slug}.webp"
-    img.save(out_path, "WEBP", quality=85)
+    img.save(out_path, "WEBP", quality=88)
     print(f"  [thumbnail] Text overlay saved → {out_path}")
     return out_path
-
 
 # ── 메인 오케스트레이터 ──
 
