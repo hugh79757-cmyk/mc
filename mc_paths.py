@@ -98,8 +98,9 @@ def get_chain_direction_role(chain_type: str, step: int) -> str:
 def classify_keyword(keyword: str) -> str:
     """
     시드 키워드 성격 자동 분류.
-    prompts.yaml의 keyword_categories 패턴을 읽어 판별.
-    Returns: "travel" | "real_estate" | "automotive" | "stock" | "etc"
+    prompts.yaml의 keyword_categories 패턴을 config에서 자동으로 읽어 판별.
+    새 카테고리는 prompts.yaml에 추가만 하면 자동 인식됨 (코드 수정 불필요).
+    Returns: keyword_categories의 키 중 하나, 또는 "etc".
     """
     import re
 
@@ -112,9 +113,12 @@ def classify_keyword(keyword: str) -> str:
     prompts = load_prompts()
     categories = prompts.get("keyword_categories", {})
 
-    for cat_name in ("travel", "stock", "real_estate", "automotive", "etc"):
-        cat_config = categories.get(cat_name, {})
-        patterns = cat_config.get("patterns", [])
+    # etc는 항상 마지막 fallback. 나머지는 config 정의 순서대로 순회.
+    cat_names = [c for c in categories.keys() if c != "etc"]
+
+    for cat_name in cat_names:
+        cat_config = categories.get(cat_name, {}) or {}
+        patterns = cat_config.get("patterns", []) or []
         for pat in patterns:
             if re.search(pat, kw):
                 return cat_name

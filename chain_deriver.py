@@ -19,19 +19,19 @@ from shared.ai_writer import generate
 
 import chain_db as db
 
-# ── Category-specific lateral prompt keys for validation ──
-_LATERAL_CATEGORY_KEYS = [
-    "derive_user_lateral_travel",
-    "derive_user_lateral_real_estate",
-    "derive_user_lateral_automotive",
-    "derive_user_lateral_stock",
-    "derive_user_lateral_etc",
-]
+# ── Category-specific lateral prompt validation (config 자동 로드) ──
+def _expected_lateral_keys(prompts: dict) -> list:
+    """prompts.yaml의 keyword_categories 키로부터 기대되는 lateral 프롬프트 키 목록 생성.
+    새 카테고리를 config에 추가하면 자동으로 검증 대상에 포함됨 (코드 수정 불필요)."""
+    categories = prompts.get("keyword_categories", {}) or {}
+    return [f"derive_user_lateral_{cat}" for cat in categories.keys()]
 
 
 def _validate_lateral_prompts(prompts: dict) -> None:
-    """로드 시점에 5개 category별 lateral 프롬프트 존재 여부 검증."""
-    missing = [k for k in _LATERAL_CATEGORY_KEYS if k not in prompts]
+    """로드 시점에 category별 lateral 프롬프트 존재 여부 검증 (config 기반).
+    누락 시 경고만 출력 — deriver는 depth 프롬프트로 폴백 가능."""
+    expected = _expected_lateral_keys(prompts)
+    missing = [k for k in expected if k not in prompts]
     if missing:
         print(f"[mc] ⚠️ Missing lateral prompt(s): {', '.join(missing)}")
 

@@ -93,6 +93,7 @@ keyword_mapping:
   real_estate: depth
   automotive: depth
   stock: depth
+  customer_service: lateral
   etc: depth
 
 # === 체인 뎁스별 블로그 할당 ===
