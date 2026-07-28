@@ -1,6 +1,6 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-07-28 (Phase 29 complete)
+**Last updated:** 2026-07-28 (Phase 30 complete)
 
 ## Project Reference
 
@@ -35,10 +35,11 @@ See: .planning/PROJECT.md
 | **27 — 카테고리별 Draft 품질 검증** | **✅ Complete** | **12 derive + 36 draft, H2 36/36, 릭 36/36, 글자수 이슈 문서화** |
 | **28 — product 카테고리 추가** | **✅ Complete** | **product keyword category + lateral prompt + 315 tests** |
 | **29 — 블로그 형식/외형 검증** | **✅ Complete** | **audit_format.py 10 checks + 39 tests + baseline 8/10** |
+| **30 — audit_format.py gap closure** | **✅ Complete** | **3 new functions + 13 checks + 47 tests** |
 
 ## Current Metrics
 
-- **pytest:** 354/354 ✅ (315 existing + 39 audit_format tests)
+- **pytest:** 362/362 ✅ (315 existing + 47 audit_format tests)
 - **카테고리:** 11종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/product/etc)
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`
