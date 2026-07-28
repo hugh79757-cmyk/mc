@@ -156,6 +156,7 @@ def sample_prompts():
         "derive_user_lateral_automotive": "Seed: {seed}\nCategory: {category}\nChain type: lateral (automotive)\nStep 3 angle: 구매 확정과 인도 완료\nReturn JSON with 3 topics.",
         "derive_user_lateral_stock": "Seed: {seed}\nCategory: {category}\nChain type: lateral (stock)\nStep 3 angle: 매수/매도 실행과 포트폴리오 관리\nReturn JSON with 3 topics.",
         "derive_user_lateral_etc": "Seed: {seed}\nCategory: {category}\nChain type: lateral (etc)\nStep 3 angle: 최종 구매 확정과 장기 활용\nReturn JSON with 3 topics.",
+        "derive_user_lateral_product": "Seed: {seed}\nCategory: {category}\nChain type: lateral (product)\nStep 3 angle: 최종 구매 가이드\nReturn JSON with 3 topics.",
         "draft_system": "You are a blog writer.",
         "draft_user": "Blog: {blog_name} ({blog_url})\nKeyword: {target_keyword}\nTitle: {title}\nAngle: {angle}\nCategory: {category}\n\nChain Context: {step} / {depth_role}\n\n{prev_context}\n\n{next_context}\n\n[STRUCTURE]\n{h2_guidelines}",
         "keyword_categories": {
@@ -266,6 +267,35 @@ def sample_prompts():
                     "## {keyword} — 가격 비교와 구매처",
                     "## {keyword} — 최종 추천과 선택 기준",
                     "## 마무리 — {keyword} 종합 정리",
+                ],
+            },
+            "product": {
+                "patterns": [
+                    "(갤럭시|galaxy)",
+                    "(아이폰|iphone)",
+                    "(에어팟|airpods?)",
+                    "(맥북|macbook)",
+                    "(PS[345]|엑스박스|xbox|닌텐도|switch)",
+                    "(스마트폰|태블릿|노트북)",
+                    "(자급제)",
+                ],
+                "step1_sections": [
+                    "## {keyword} — 제품 개요와 핵심 스펙",
+                    "## {keyword} — 디자인과 주요 특징",
+                    "## {keyword} — 경쟁 모델과 비교 포인트",
+                    "## 마무리 — {keyword} 핵심 요약",
+                ],
+                "step2_sections": [
+                    "## {keyword} — 스펙 상세 비교와 벤치마크",
+                    "## {keyword} — 실사용 경험과 장단점",
+                    "## {keyword} — 가격대와 구매 전략",
+                    "## 마무리 — {keyword} 비교 분석 정리",
+                ],
+                "step3_sections": [
+                    "## {keyword} — 최종 구매 가이드",
+                    "## {keyword} — 구매처 비교와 할인 혜택",
+                    "## {keyword} — 초기 설정과 활용 팁",
+                    "## 마무리 — {keyword} 구매 결정 지원",
                 ],
             },
         },

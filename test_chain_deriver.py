@@ -15,12 +15,12 @@ class TestClassifyKeyword:
         result = classify_keyword("Python 프로그래밍")
         assert result == "etc"
 
-    def test_shopping_keyword_returns_etc(self):
-        """쇼핑 키워드 → etc (keyword_categories에 shopping 없음)."""
+    def test_shopping_keyword_returns_product(self):
+        """쇼핑 키워드(아이폰) → product (Phase 28: product 카테고리 추가)."""
         from mc_paths import classify_keyword
 
         result = classify_keyword("아이폰 15 구매")
-        assert result == "etc"
+        assert result == "product"
 
     def test_travel_keyword_returns_travel(self):
         """여행 키워드 → travel."""
@@ -139,7 +139,7 @@ class TestResolveChainType:
         """etc → depth (기본 매핑)."""
         from mc_paths import resolve_chain_type
 
-        result = resolve_chain_type("아이폰 15 구매")
+        result = resolve_chain_type("Python 프로그래밍")
         assert result == "depth"
 
     def test_travel_maps_to_lateral(self):
@@ -351,6 +351,7 @@ class TestDeriveLateralCategoryDispatch:
         "real_estate": "계약 확정과 입주 완료",
         "automotive": "구매 확정과 인도 완료",
         "stock": "매수/매도 실행과 포트폴리오 관리",
+        "product": "최종 구매 가이드",
         "etc": "최종 구매 확정과 장기 활용",
     }
     OLD_GENERIC_ANGLE = "산업 구조와 수익화 전망"
@@ -360,7 +361,7 @@ class TestDeriveLateralCategoryDispatch:
         ("아파트 분양", "real_estate"),
         ("전기차 추천", "automotive"),
         ("ETF 투자", "stock"),
-        ("아이폰 17", "etc"),
+        ("아이폰 17", "product"),
     ])
     @patch("chain_deriver.generate")
     @patch("chain_deriver.load_config")
@@ -467,3 +468,46 @@ class TestNewCategoryClassification:
         assert classify_keyword("타이레놀정 복용법") == "medicine"
         assert classify_keyword("이부프로펜 부작용") == "medicine"
         assert classify_keyword("두통 초기증상") == "medicine"
+
+
+class TestProductCategory:
+    """Phase 28: product(전자기기/상품) 카테고리 분류 테스트."""
+
+    def test_product_brand_keywords(self):
+        """ REQ-28.1~28.3: 브랜드 키워드 product 분류 """
+        from mc_paths import classify_keyword
+        assert classify_keyword("갤럭시 폴드8 울트라 자급제") == "product"
+        assert classify_keyword("아이폰 16 프로 가격") == "product"
+        assert classify_keyword("에어팟 프로 3세대") == "product"
+        assert classify_keyword("맥북 프로 M4") == "product"
+
+    def test_product_category_keywords(self):
+        """제품 카테고리 키워드 product 분류"""
+        from mc_paths import classify_keyword
+        assert classify_keyword("PS5 가격") == "product"
+        assert classify_keyword("닌텐도 스위치2") == "product"
+        assert classify_keyword("갤럭시 S25 울트라 자급제") == "product"
+
+    def test_product_lateral_direction(self):
+        """REQ-28.4: product → lateral chain type"""
+        from mc_paths import resolve_chain_type
+        assert resolve_chain_type("갤럭시 폴드8 울트라 자급제") == "lateral"
+        assert resolve_chain_type("아이폰 16 프로 가격") == "lateral"
+
+    def test_product_no_regression_stock(self):
+        """삼성전자 주가 → stock (product priority=50 vs stock ~주가 특수 처리)"""
+        from mc_paths import classify_keyword
+        assert classify_keyword("삼성전자 주가") == "stock"
+        assert classify_keyword("삼성전자주가") == "stock"
+
+    def test_product_no_regression_golf(self):
+        """골프 키워드 → golf_course (priority=10 > product=50)"""
+        from mc_paths import classify_keyword
+        assert classify_keyword("제주 골프장 추천") == "golf_course"
+        assert classify_keyword("남서울CC 예약") == "golf_course"
+
+    def test_product_no_regression_travel(self):
+        """여행 키워드 → travel (regression check)"""
+        from mc_paths import classify_keyword
+        assert classify_keyword("서울 워터파크") == "travel"
+        assert classify_keyword("제주도 여행 코스") == "travel"
