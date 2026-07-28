@@ -106,3 +106,13 @@
 | Phase | Focus | Status |
 |-------|-------|--------|
 | 27 | 카테고리별 Draft 품질 검증 (6종 × 2시드 = 12개) | 🔲 Planning |
+| 28 | 상품(product) 카테고리 추가 — 전자기기/스마트폰 키워드 | 📝 Planned |
+
+### Phase 28 상세
+
+**Goal:** 갤럭시/아이폰/에어팟 등 전자기기 키워드가 product 카테고리로 분류되어 상품 특화 콘텐츠(스펙 비교, 구매 가이드) 생성
+
+**Plans:**
+- [ ] 28-01-PLAN.md — config 변경 (prompts.yaml + chain_config.yaml) + 테스트
+
+**Requirements:** [REQ-28.1, REQ-28.2, REQ-28.3, REQ-28.4, REQ-28.5, REQ-28.6]
