@@ -101,18 +101,36 @@
 - **카테고리:** 10종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/etc)
 - **Phase 14:** complete
 
-## 향후 Phase
+## 완료된 Phase (최근)
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| 27 | 카테고리별 Draft 품질 검증 (6종 × 2시드 = 12개) | 🔲 Planning |
-| 28 | 상품(product) 카테고리 추가 — 전자기기/스마트폰 키워드 | 📝 Planned |
+| 27 | 카테고리별 Draft 품질 검증 | ✅ Complete |
+| 28 | 상품(product) 카테고리 추가 | ✅ Complete |
 
 ### Phase 28 상세
 
 **Goal:** 갤럭시/아이폰/에어팟 등 전자기기 키워드가 product 카테고리로 분류되어 상품 특화 콘텐츠(스펙 비교, 구매 가이드) 생성
 
 **Plans:**
-- [ ] 28-01-PLAN.md — config 변경 (prompts.yaml + chain_config.yaml) + 테스트
+- [x] 28-01-PLAN.md — config 변경 (prompts.yaml + chain_config.yaml) + 테스트 ✅
 
-**Requirements:** [REQ-28.1, REQ-28.2, REQ-28.3, REQ-28.4, REQ-28.5, REQ-28.6]
+**Results:**
+- product keyword_categories block (18 patterns, priority=50)
+- derive_user_lateral_product prompt
+- product: lateral mapping in chain_config.yaml
+- conftest.py + test_chain_deriver.py updated (6 new tests)
+- pytest: 315/315 ✅
+
+## 향후 Phase
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 29 | 블로그 형식/외형 검증 | 📝 Planned |
+
+### Phase 29 계획
+
+**Goal:** 카테고리 11종 체계에서 생성되는 블로그 포스트의 형식/외형이 설계대로 동작하는지 자동 검증
+
+**Plans:**
+- [ ] 29-01-PLAN.md — audit/audit_format.py (10개 검증 체크) + 테스트 + 베이스라인 리포트
