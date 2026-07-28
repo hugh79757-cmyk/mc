@@ -120,7 +120,8 @@ def classify_keyword(keyword: str) -> str:
         cat_config = categories.get(cat_name, {}) or {}
         patterns = cat_config.get("patterns", []) or []
         for pat in patterns:
-            if re.search(pat, kw):
+            # 소문자 kw(한글·일반)와 원본 keyword(대문자 약어 CC 등) 모두 검사
+            if re.search(pat, kw) or re.search(pat, keyword):
                 return cat_name
 
     return _postprocess_stock_priority(kw, "etc")

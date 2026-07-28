@@ -1,7 +1,3 @@
-# ── 매뉴얼 체인 (mc) ── Phase 3 config ──
-
-# === 블로그별 발행 설정 ===
-# === Phase 5: 사이트별 발행 설정 (+ theme/cf_pages_project/permalink) ===
 sites:
   rotcha:
     site_path: /Users/twinssn/Projects/rotcha-blog
@@ -11,12 +7,12 @@ sites:
     hugo_root: /Users/twinssn/Projects/rotcha-blog
     theme: Blowfish
     cf_pages_project: rotcha-blog
-    permalink_pattern: "/posts/:slug/"
+    permalink_pattern: /posts/:slug/
     content_dir: content/posts
     card_cta:
-      depth: "더 알아보기 →"
-      swallow: "더 알아보기 →"
-      lateral: "더 알아보기 →"
+      depth: 더 알아보기 →
+      swallow: 더 알아보기 →
+      lateral: 더 알아보기 →
   issue.techpawz:
     site_path: /Users/twinssn/Projects/issue-techpawz-hugo
     blog_id: manual_issue_techpawz
@@ -25,12 +21,12 @@ sites:
     hugo_root: /Users/twinssn/Projects/issue-techpawz-hugo
     theme: Blowfish
     cf_pages_project: issue-techpawz-hugo
-    permalink_pattern: "/:slug/"
+    permalink_pattern: /:slug/
     content_dir: content/posts
     card_cta:
-      depth: "더 알아보기 →"
-      swallow: "더 알아보기 →"
-      lateral: "더 알아보기 →"
+      depth: 더 알아보기 →
+      swallow: 더 알아보기 →
+      lateral: 더 알아보기 →
   techpawz:
     site_path: /Users/twinssn/Projects/techpawz-hugo
     blog_id: manual_techpawz
@@ -39,55 +35,51 @@ sites:
     hugo_root: /Users/twinssn/Projects/techpawz-hugo
     theme: Blowfish
     cf_pages_project: techpawz-hugo
-    permalink_pattern: "/:slug/"
+    permalink_pattern: /:slug/
     content_dir: content/posts
     card_cta:
-      depth: "더 알아보기 →"
-      swallow: "더 알아보기 →"
-      lateral: "더 알아보기 →"
+      depth: 더 알아보기 →
+      swallow: 더 알아보기 →
+      lateral: 더 알아보기 →
   2_techpawz:
     publisher_type: blogger
-    blog_id: "5484205249958557854"
+    blog_id: '5484205249958557854'
     base_url: https://2.techpawz.com
     blogger_credentials: config/blogger_credentials.json
     token_path: config/blogger_token_2techpawz.json
     card_cta:
-      depth: "더 자세히 보기 →"
-      swallow: "다음 단계 보기 →"
-      lateral: "함께 보면 좋은 글 →"
+      depth: 더 자세히 보기 →
+      swallow: 다음 단계 보기 →
+      lateral: 함께 보면 좋은 글 →
   65_informationhot:
     publisher_type: blogger
-    blog_id: "BLOGGER_BLOG_ID_HERE"
+    blog_id: BLOGGER_BLOG_ID_HERE
     base_url: https://65.informationhot.kr
     blogger_credentials: config/blogger_credentials.json
     token_path: config/blogger_token_65info.json
     card_cta:
-      depth: "더 깊이 알아보기 →"
-      swallow: "이어서 신청방법 보기 →"
-      lateral: "관련 복지혜택 →"
-
-# === 체인 방향별 Step 역할 정의 ===
+      depth: 더 깊이 알아보기 →
+      swallow: 이어서 신청방법 보기 →
+      lateral: 관련 복지혜택 →
 chain_directions:
   depth:
-    label: "깊이 (Depth)"
+    label: 깊이 (Depth)
     step_roles:
-      1: "기초/정보형"
-      2: "분석/응용형"
-      3: "전문/심화형"
+      1: 기초/정보형
+      2: 분석/응용형
+      3: 전문/심화형
   swallow:
-    label: "역방향 (Swallow)"
+    label: 역방향 (Swallow)
     step_roles:
-      1: "구매/소비형"
-      2: "절약/관리형"
-      3: "금융/투자형"
+      1: 구매/소비형
+      2: 절약/관리형
+      3: 금융/투자형
   lateral:
-    label: "횡방향 (Lateral)"
+    label: 횡방향 (Lateral)
     step_roles:
-      1: "주제/정보형"
-      2: "비교/탐색형"
-      3: "비즈니스/확장형"
-
-# === 키워드 성격 → 체인 방향 매핑 ===
+      1: 주제/정보형
+      2: 비교/탐색형
+      3: 비즈니스/확장형
 keyword_mapping:
   travel: lateral
   real_estate: depth
@@ -95,75 +87,73 @@ keyword_mapping:
   stock: depth
   customer_service: lateral
   etc: depth
-
-# === 체인 뎁스별 블로그 할당 ===
+  gov_finance: lateral
+  shopping_brand: lateral
+  golf_course: lateral
 chain_blogs:
   0: rotcha
   1: issue.techpawz
   2: techpawz
-
-# === 체인 방향별 기본 블로그 매핑 (Phase 3) ===
 chain_blog_mapping:
   default:
-    depth: [rotcha, issue.techpawz, techpawz]
-    swallow: [rotcha, issue.techpawz, techpawz]
-    lateral: [rotcha, issue.techpawz, techpawz]
+    depth:
+    - rotcha
+    - issue.techpawz
+    - techpawz
+    swallow:
+    - rotcha
+    - issue.techpawz
+    - techpawz
+    lateral:
+    - rotcha
+    - issue.techpawz
+    - techpawz
   overrides: {}
-
-# === AI Writer 설정 ===
 ai_writer:
   tier: default
   temperature: 0.85
-
-# === 발행 모드 설정 (Phase 3) ===
 publish_mode:
   default: auto
   confirm_before_publish: true
   retry_on_failure: 3
-
-# === 썸네일 이미지 생성 (Phase 7) — primary 이미지 설정 ===
 thumbnail:
   provider: auto
   fallback_chain:
-    - unsplash
-    - pexels
-  target_size: [1024, 1024]
+  - unsplash
+  - pexels
+  target_size:
+  - 1024
+  - 1024
   text_overlay:
     enabled: true
     font: assets/fonts/NotoSansKR-Regular.otf
     bg_alpha: 0.55
-
-# === KREA AI (Phase 9 — Pollinations 3rd fallback) ===
 krea:
   enabled: false
   api_base: https://api.krea.ai
   model: krea/krea-2/medium
-  aspect_ratio: "1:1"
-  resolution: "1K"
+  aspect_ratio: '1:1'
+  resolution: 1K
   creativity: medium
   poll_interval_seconds: 2
   poll_timeout_seconds: 90
-
-# === 차트 이미지 생성 (Phase 8) ===
 chart:
   enabled: true
   output_dir: output/images
-  filename_pattern: "chart_{slug}.jpg"
+  filename_pattern: chart_{slug}.jpg
   font: assets/fonts/NotoSansKR-Regular.otf
   colors:
-    primary: "#2563EB"
-    secondary: "#DC2626"
-    tertiary: "#16A34A"
-  background: "#FFFFFF"
-  text_color: "#1F2937"
+    primary: '#2563EB'
+    secondary: '#DC2626'
+    tertiary: '#16A34A'
+  background: '#FFFFFF'
+  text_color: '#1F2937'
   title_font_size: 42
   label_font_size: 28
-  output_size: [1200, 630]
+  output_size:
+  - 1200
+  - 630
   jpeg_quality: 92
-
-# === Pollinations.ai 이미지 생성 ===
-# DEPRECATED: thumbnail fallback 체인 내에서만 사용.
-# 독립 호출 비활성화 (chain_publisher --image 직접 Pollinations 경로 제거, Phase 7)
 pollinations:
   enabled: false
   base_url: https://image.pollinations.ai/prompt/
@@ -171,30 +161,33 @@ pollinations:
   height: 1024
   model: flux
   rate_limit_seconds: 15
-
-# === Loop 퍼널 설정 (Phase 6) ===
 loop:
   hub_url_base: https://rotcha.kr/hub
   spokes_per_hub: 3
   hub_layout: hub
   cardView: true
   cta:
-    info_cta_text: "관련 글 모두 보기 →"
-    conv_cta_text: "추천 상품 보기 →"
-    conv_cta_url: ""
-
-# === 검색 증강 작성 (Phase 7) ===
+    info_cta_text: 관련 글 모두 보기 →
+    conv_cta_text: 추천 상품 보기 →
+    conv_cta_url: ''
 search:
   enabled: true
   provider: naver
   max_sources: 5
   endpoints_by_angle:
-    basic: ["encyc", "kin", "webkr"]
-    advanced: ["webkr", "news", "blog"]
-    expert: ["news", "webkr", "cafearticle"]
+    basic:
+    - encyc
+    - kin
+    - webkr
+    advanced:
+    - webkr
+    - news
+    - blog
+    expert:
+    - news
+    - webkr
+    - cafearticle
   display_per_endpoint: 5
   timeout: 10
   daily_quota: 25000
-
-# === 체인 DB 경로 ===
 db_path: /Users/twinssn/Projects/5000/data/mc_chains.db
