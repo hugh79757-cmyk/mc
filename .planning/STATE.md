@@ -1,6 +1,6 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-07-28
+**Last updated:** 2026-07-28 (Phase 29 complete)
 
 ## Project Reference
 
@@ -34,10 +34,11 @@ See: .planning/PROJECT.md
 | **26 — 코드베이스 리팩토링** | **🔲 Planning** | **3-wave 계획 수립 완료, 미착수** |
 | **27 — 카테고리별 Draft 품질 검증** | **✅ Complete** | **12 derive + 36 draft, H2 36/36, 릭 36/36, 글자수 이슈 문서화** |
 | **28 — product 카테고리 추가** | **✅ Complete** | **product keyword category + lateral prompt + 315 tests** |
+| **29 — 블로그 형식/외형 검증** | **✅ Complete** | **audit_format.py 10 checks + 39 tests + baseline 8/10** |
 
 ## Current Metrics
 
-- **pytest:** 315/315 ✅
+- **pytest:** 354/354 ✅ (315 existing + 39 audit_format tests)
 - **카테고리:** 11종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/product/etc)
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`
@@ -56,11 +57,12 @@ See: .planning/PROJECT.md
 
 ## Next Action
 
-1. **운영 계속** — 카테고리 10종 체계 가동 중. 새 키워드 → `mc "키워드"` 실행
-2. **(P2) classify_priority 수정** — real_estate priority를 90으로 낮춰 도시명+부동산 키워드 정확 분류
-3. **(P2) _parse_derivation 강화** — ``json\n[...]`` 패턴 지원 추가
-4. **(P3) char_count config 조정** — step1: 2500~3500, step2/3: 2500~3500으로 범위 상향
-5. **(P3) depth 방향 프롬프트 확인** — stock/real_estate의 lateral 프롬프트 사용이 의도된 것인지 확인
-6. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
-7. **Automotive 검색 개선** — search_retriever에 automotive-specific search template 필요
+1. **운영 계속** — 카테고리 11종 체계 가동 중. 새 키워드 → `mc "키워드"` 실행
+2. **Post #488 정리** — 테스트/플레이스홀더 포스트 삭제 시 10/10 checks 통과
+3. **(P2) classify_priority 수정** — real_estate priority를 90으로 낮춰 도시명+부동산 키워드 정확 분류
+4. **(P2) _parse_derivation 강화** — ``json\n[...]`` 패턴 지원 추가
+5. **(P3) char_count config 조정** — step1: 2500~3500, step2/3: 2500~3500으로 범위 상향
+6. **(P3) depth 방향 프롬프트 확인** — stock/real_estate의 lateral 프롬프트 사용이 의도된 것인지 확인
+7. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
+8. **Automotive 검색 개선** — search_retriever에 automotive-specific search template 필요
 

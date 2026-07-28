@@ -126,11 +126,17 @@
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| 29 | 블로그 형식/외형 검증 | 📝 Planned |
+| 29 | 블로그 형식/외형 검증 | ✅ Complete |
 
-### Phase 29 계획
+### Phase 29 상세
 
 **Goal:** 카테고리 11종 체계에서 생성되는 블로그 포스트의 형식/외형이 설계대로 동작하는지 자동 검증
 
 **Plans:**
-- [ ] 29-01-PLAN.md — audit/audit_format.py (10개 검증 체크) + 테스트 + 베이스라인 리포트
+- [x] 29-01-PLAN.md — audit/audit_format.py (10개 검증 체크) + 39 tests + 베이스라인 리포트 ✅
+
+**Results:**
+- audit/audit_format.py: 10 checks (card_count, card_placement, cross_link_url, h2_structure, frontmatter, hugo_html, db_consistency, card_type, external_link_pattern, chain_card_shortcode)
+- test_audit_format.py: 39 tests (all pass)
+- Baseline: 8/10 checks pass (2 failures from test post #488 — expected)
+- pytest: 354/354 ✅
