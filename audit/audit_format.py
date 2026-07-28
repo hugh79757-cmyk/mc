@@ -19,6 +19,7 @@ audit_chain.py가 검사하지 않는 포맷 관련 항목을 검증:
 """
 
 import argparse
+import os
 import re
 import sqlite3
 import subprocess
@@ -562,6 +563,132 @@ def check_chain_card_shortcode(body: str, depth: int, label: str = "") -> list:
     return findings
 
 
+# ── 11. Hugo 빌드 검증 ──────────────────────────────────────────
+
+def check_hugo_build(site_name: str = None, skip: bool = False) -> list:
+    """Hugo 빌드 검증 — 에러/경고 출력. site_name=None이면 전체 사이트."""
+    findings = []
+    if skip:
+        return findings
+
+    hugo_bin = shutil.which("hugo") or "/opt/homebrew/bin/hugo"
+    if not Path(hugo_bin).exists():
+        return [{"check": "hugo_build", "detail": f"hugo 실행 파일 없음: {hugo_bin}"}]
+
+    env = os.environ.copy()
+    env["HUGO_THEMESDIR"] = "/Users/twinssn/Projects/shared-themes"
+
+    sites = {site_name: HUGO_SITES[site_name]} if site_name and site_name in HUGO_SITES else HUGO_SITES
+    for name, site in sites.items():
+        try:
+            build = subprocess.run(
+                [hugo_bin, "--gc", "--minify"],
+                cwd=str(site["path"]),
+                capture_output=True, text=True, timeout=120, env=env,
+            )
+            if build.returncode != 0:
+                errors = [l for l in build.stderr.splitlines() if "ERROR" in l][:5]
+                findings.append({
+                    "check": "hugo_build",
+                    "detail": f"{name}: 빌드 실패 (exit {build.returncode})",
+                    "errors": errors or [build.stderr[:200]],
+                })
+            else:
+                warnings = [l.strip() for l in build.stderr.splitlines()
+                            if "WARN" in l][:3]
+                if warnings:
+                    findings.append({
+                        "check": "hugo_build",
+                        "detail": f"{name}: 빌드 성공, 경고 {len(warnings)}건",
+                        "warnings": warnings,
+                    })
+        except subprocess.TimeoutExpired:
+            findings.append({
+                "check": "hugo_build",
+                "detail": f"{name}: 빌드 타임아웃 (120초)",
+            })
+    return findings
+
+
+# ── 12. HTML 렌더링 검증 ─────────────────────────────────────────
+
+def check_html_render(slug: str, site_name: str, label: str = "") -> list:
+    """Hugo 출력 HTML에서 og:image + 카드 렌더링 검증"""
+    findings = []
+    site = HUGO_SITES.get(site_name)
+    if not site:
+        return findings
+
+    output_prefix = site["output_prefix"]
+    html_path = site["path"] / "public" / output_prefix / slug / "index.html"
+
+    if not html_path.exists():
+        findings.append({
+            "post": label, "check": "html_render",
+            "detail": f"HTML 파일 없음: {html_path}",
+        })
+        return findings
+
+    try:
+        html = html_path.read_text(encoding="utf-8")
+    except Exception as e:
+        findings.append({
+            "post": label, "check": "html_render",
+            "detail": f"HTML 읽기 실패: {e}",
+        })
+        return findings
+
+    # 1. og:image 메타 태그 존재 여부
+    if 'property="og:image"' not in html and 'name="og:image"' not in html:
+        findings.append({
+            "post": label, "check": "html_render",
+            "detail": "og:image 메타 태그 없음",
+        })
+
+    # 2. 카드 shortcode가 HTML로 렌더링되었는지 확인
+    # chain-card shortcode는 <div class="chain-card"> 또는 유사 HTML로 렌더링됨
+    # 원시 shortcode {{< 가 HTML에 잔존하면 실패
+    if "{{<" in html and "chain-card" in html:
+        findings.append({
+            "post": label, "check": "html_render",
+            "detail": "chain-card shortcode가 HTML에 원시 상태로 잔존",
+        })
+
+    return findings
+
+
+# ── 13. 라이브 접근 검증 ─────────────────────────────────────────
+
+def check_live_access(published_url: str, label: str = "") -> list:
+    """라이브 사이트 HTTP 200 확인"""
+    import urllib.request
+    import urllib.error
+
+    findings = []
+    if not published_url:
+        return findings
+
+    try:
+        req = urllib.request.Request(published_url, method="HEAD")
+        resp = urllib.request.urlopen(req, timeout=10)
+        if resp.status != 200:
+            findings.append({
+                "post": label, "check": "live_access",
+                "detail": f"HTTP {resp.status} — 예상: 200",
+            })
+    except urllib.error.HTTPError as e:
+        findings.append({
+            "post": label, "check": "live_access",
+            "detail": f"HTTP 에러 {e.code}: {e.reason}",
+        })
+    except Exception as e:
+        findings.append({
+            "post": label, "check": "live_access",
+            "detail": f"접근 실패: {str(e)[:80]}",
+        })
+    return findings
+
+
 # ── 메인 검증 함수 ───────────────────────────────────────────────
 
 _CHECK_LABELS = {
@@ -575,6 +702,9 @@ _CHECK_LABELS = {
     "card_type": "카드 타입",
     "external_link_pattern": "외부링크 패턴",
     "chain_card_shortcode": "chain-card shortcode",
+    "hugo_build": "Hugo 빌드",
+    "html_render": "HTML 렌더링",
+    "live_access": "라이브 접근",
 }
 
 
@@ -613,9 +743,19 @@ def scan_chain_format(chain_id: int, dry_run: bool = False) -> dict:
             results["hugo_html"].extend(
                 check_hugo_html_rendering(slug, site_name, label)
             )
+            results["html_render"].extend(
+                check_html_render(slug, site_name, label)
+            )
+            results["live_access"].extend(
+                check_live_access(p.get("published_url"), label)
+            )
 
     # DB 일관성 (전체 체인 레벨)
     results["db_consistency"].extend(check_db_consistency(posts))
+
+    # Hugo 빌드 검증 (dry_run이 아닐 때만, 체인 단위 1회)
+    if not dry_run:
+        results["hugo_build"].extend(check_hugo_build(skip=dry_run))
 
     return results
 
@@ -690,7 +830,7 @@ def main():
     parser.add_argument("--chain-id", type=int, help="검증할 체인 ID")
     parser.add_argument("--all", action="store_true", help="모든 체인 전수검사")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Hugo 빌드 없이 검증 (HTML 렌더링 검증 스킵)")
+                        help="Hugo 빌드/HTML 렌더링/라이브 접근 검증 스킵")
 
     args = parser.parse_args()
 
