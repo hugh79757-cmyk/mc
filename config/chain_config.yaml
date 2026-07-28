@@ -91,6 +91,7 @@ keyword_mapping:
   shopping_brand: lateral
   golf_course: lateral
   medicine: lateral
+  product: lateral
 chain_blogs:
   0: rotcha
   1: issue.techpawz
