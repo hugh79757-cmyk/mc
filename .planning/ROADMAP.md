@@ -127,6 +127,7 @@
 | Phase | Focus | Status |
 |-------|-------|--------|
 | 29 | 블로그 형식/외형 검증 | ✅ Complete |
+| 30 | audit_format.py gap closure (3건 미이행 해소) | 📝 Planned |
 
 ### Phase 29 상세
 
@@ -140,3 +141,10 @@
 - test_audit_format.py: 39 tests (all pass)
 - Baseline: 8/10 checks pass (2 failures from test post #488 — expected)
 - pytest: 354/354 ✅
+
+### Phase 30 계획
+
+**Goal:** Phase 29 self-audit에서 발견한 계약 미이행 3건 해소 (check_hugo_build, check_html_render, check_live_access)
+
+**Plans:**
+- [ ] 30-01-PLAN.md — 3개 함수 추가 + 테스트 + CLI 통합
