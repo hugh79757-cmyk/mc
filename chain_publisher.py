@@ -109,29 +109,9 @@ def _preflight_check() -> bool:
 
 # ── 이미지 생성 (Legacy) ──
 
-def generate_image_remote(image_prompt: str, image_keyword: str, pollinations_cfg: dict) -> str:
-    base_url = pollinations_cfg["base_url"]
-    width = pollinations_cfg.get("width", 1024)
-    height = pollinations_cfg.get("height", 768)
-    rate_limit = pollinations_cfg.get("rate_limit_seconds", 15)
-
-    encoded_prompt = urllib.parse.quote(image_prompt)
-    image_url = f"{base_url}{encoded_prompt}.jpg?width={width}&height={height}&model=flux"
-
-    print(f"  [publisher] Image URL: {image_url[:100]}...")
-    try:
-        req = urllib.request.Request(image_url, method="HEAD")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            print(f"  [publisher]     Response: {resp.status}")
-    except Exception as e:
-        print(f"  [publisher]     {e}")
-
-    print(f"  [publisher]     {rate_limit}s rate limit...")
-    time.sleep(rate_limit)
-    return image_url
-
 
 # ── 체인 이미지 생성 ──
+from image.thumbnail import _infer_source_from_path
 
 def _write_image_log(post_id: int, slug: str, message: str) -> None:
     """이미지 생성 성공/실패 결과를 logs/에 보존 (관측성)."""
@@ -177,7 +157,7 @@ except ImportError as e:
     print(f"[publisher] image/ package not found ({e}), using legacy URL")
 
 
-def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: str) -> int:
+def _process_post_image(post: dict, blog_key: str, chain_type: str) -> int:
     """단일 포스트 이미지 생성 (ThreadPoolExecutor용). Returns post_id."""
     post_id = post["id"]
     print(f"\n  [publisher] Image — post #{post_id}")
@@ -194,7 +174,7 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
     _disk = _find_disk_image(_slug)
     if _disk:
         _abs = str(_disk)
-        db.update_content_image(post_id, _abs, "pollinations")
+        db.update_content_image(post_id, _abs, "stock")
         db.update_post_image(post_id, f"/images/{_disk.name}")
         print(f"    ↷ 디스크 파일 백필 (post #{post_id}): {_abs}")
         _write_image_log(post_id, _slug,
@@ -256,11 +236,11 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
                     ContentType="image/webp"
                 )
             content_r2_url = f"{os.getenv('R2_PUBLIC_URL')}/{_content_key}"
-            db.update_content_image(post_id, str(image_path), "unsplash")
+            db.update_content_image(post_id, str(image_path), _infer_source_from_path(image_path))
             db.update_post_image(post_id, f"/images/{image_path.name}")
             _write_image_log(post_id, _slug, f"IMAGE GEN OK post_id={post_id}\ncontent_r2={content_r2_url}\n")
         except Exception as e:
-            db.update_content_image(post_id, str(image_path), "unsplash")
+            db.update_content_image(post_id, str(image_path), _infer_source_from_path(image_path))
             db.update_post_image(post_id, f"/images/{image_path.name}")
             _write_image_log(post_id, _slug, f"IMAGE GEN OK (R2 upload failed: {e})\n")
 
@@ -275,7 +255,7 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
             )
             print(f"  [publisher] Thumbnail generated from content image: {thumb_path}")
             # R2 upload (기존 코드 유지 — thumb_key 경로, put_object)
-            _thumb_source = "unsplash"  # content image과 동일한 소스 (thumbnail 자체 소스 불필요)
+            _thumb_source = _infer_source_from_path(image_path)  # content image과 동일한 소스
             thumb_source = _thumb_source
             from image.r2_uploader import get_r2_client, _resolve_bucket
             import os
@@ -314,11 +294,12 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
             )
             db.update_post_draft(post_id, updated, post.get("slug", ""))
     else:
-        image_url = generate_image_remote(
-            post["image_prompt"], post["image_keyword"], pol_cfg,
-        )
-        post["image_url"] = image_url
-        db.update_post_image(post_id, image_url)
+        # Pollinations 사용 금지 (손가락 왜곡 등 품질 문제). 스톡(image 패키지)
+        # 로드 실패 시 이미지 없이 명시적 실패 처리 — AI 생성 fallback 절대 금지.
+        print(f"  [publisher] \u274c 스톡 이미지 모듈(use_new_image) 미로드 "
+              f"— post #{post_id} 이미지 생성 건너뜀 (Pollinations 금지)")
+        db.update_post_status(post_id, "image_failed",
+                              error_log="stock image module unavailable; pollinations disabled")
 
     return post_id
 
@@ -330,7 +311,6 @@ def generate_chain_images(chain_id: int) -> None:
         return
 
     config = load_config()
-    pol_cfg = config.get("pollinations", {})
     posts = db.get_chain_posts(chain_id)
     chain_type = chain.get("chain_type", "depth")
     db.update_chain_status(chain_id, "generating")
@@ -346,7 +326,7 @@ def generate_chain_images(chain_id: int) -> None:
     post_ids = []
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {
-            executor.submit(_process_post_image, post, blog_keys[post["id"]], pol_cfg, chain_type): post["id"]
+            executor.submit(_process_post_image, post, blog_keys[post["id"]], chain_type): post["id"]
             for post in posts
         }
         for future in as_completed(futures):

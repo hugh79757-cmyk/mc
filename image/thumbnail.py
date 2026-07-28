@@ -408,23 +408,8 @@ def generate_thumbnail(
           if result:
             return (result, source)
 
-    elif fallback_name == "pollinations":
-      print(f" [thumbnail] Pollinations fallback → {keyword}")
-      downloaded = _pollinations_fallback(keyword, slug or title)
-      if downloaded:
-        source = "pollinations"
-        result = add_text_overlay(downloaded, title, subtitle, target_size)
-        if result:
-          return (result, source)
-
-    elif fallback_name == "krea":
-      print(f" [thumbnail] Krea fallback → {keyword}")
-      downloaded = _krea_fallback(keyword, slug or title)
-      if downloaded:
-        source = "krea"
-        result = add_text_overlay(downloaded, title, subtitle, target_size)
-        if result:
-          return (result, source)
+    # Pollinations/Krea (AI 생성) fallback 전면 금지 — 스톡(Pexels/Unsplash)만 허용.
+    # fallback_chain에 이름이 남아 있어도 매칭 분기가 없어 무시된다.
 
   print(f" [thumbnail] All providers failed for '{keyword}'")
   return None
