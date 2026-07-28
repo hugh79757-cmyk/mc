@@ -359,40 +359,6 @@ keyword_categories:
     - '## {keyword} — 자주 묻는 문의 유형과 해결 방법'
     - '## {keyword} — 실제 이용자 후기와 평판'
     - '## 마무리 — {keyword} 현명하게 이용하기'
-  etc:
-    patterns: []
-    cta_phrases:
-      next_post: 더 알아보기 →
-      entry_funnel: '{{ENTRY_LINK}}'
-      fallback: 관련 주제 보기 →
-    char_count:
-      rotcha:
-        min: 1000
-        max: 1500
-        target: 1250
-      issue_techpawz:
-        min: 1500
-        max: 2500
-        target: 2000
-      techpawz:
-        min: 1500
-        max: 2500
-        target: 2000
-    step1_sections:
-    - '## {keyword} — 개요와 핵심 특징'
-    - '## {keyword} — 주요 기능과 장점'
-    - '## {keyword} — 선택 시 고려사항'
-    - '## 마무리 — {keyword} 핵심 요약'
-    step2_sections:
-    - '## {keyword} — 실전 활용법'
-    - '## {keyword} — 효과적인 설정과 팁'
-    - '## {keyword} — 유사 서비스와 비교'
-    - '## 마무리 — {keyword} 실전 가치'
-    step3_sections:
-    - '## {keyword} — 실제 사용 후기와 평점'
-    - '## {keyword} — 가격 비교와 구매처'
-    - '## {keyword} — 최종 추천과 선택 기준'
-    - '## 마무리 — {keyword} 종합 정리'
   gov_finance:
     patterns:
     - (실업급여|내일배움카드|국민내일배움|주휴수당|4대보험|부가세|종합소득세|연말정산|퇴직금|소상공인|정책자금|지원금|장려금|보조금|국민연금|건강보험료|근로장려금|자녀장려금|계산기|신청방법|지원사업|육아휴직급여|조기재취업수당)
@@ -498,6 +464,72 @@ keyword_categories:
     - '## {keyword} — 근처 맛집과 숙박 추천'
     - '## {keyword} — 실제 라운딩 후기와 코스 공략'
     - '## 마무리 — {keyword} 공식 예약으로 마무리'
+  medicine:
+    patterns:
+    - (정$|캡슐$|시럽$|연고$|크림$|산$|정[0-9]|캡슐[0-9]|초기증상|증상$|효능$|부작용|복용법|성분|처방|일반의약품|전문의약품)
+    cta_phrases:
+      next_post: 더 알아보기 →
+      entry_funnel: '{{ENTRY_LINK}}'
+      fallback: 관련 주제 보기 →
+    char_count:
+      rotcha:
+        min: 1000
+        max: 1500
+        target: 1250
+      issue_techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+      techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+    step1_sections:
+    - '## {keyword} — 어떤 약·증상인가'
+    - '## {keyword} — 주요 정보 개요'
+    - '## 마무리 — {keyword} 요약'
+    step2_sections:
+    - '## {keyword} — 효능·효과와 사용'
+    - '## {keyword} — 복용·사용 시 주의사항'
+    - '## 마무리 — {keyword} 안전 사용'
+    step3_sections:
+    - '## {keyword} — 부작용과 주의점'
+    - '## {keyword} — 자주 묻는 질문'
+    - '## 마무리 — {keyword} 전문가 상담 안내'
+  etc:
+    patterns: []
+    cta_phrases:
+      next_post: 더 알아보기 →
+      entry_funnel: '{{ENTRY_LINK}}'
+      fallback: 관련 주제 보기 →
+    char_count:
+      rotcha:
+        min: 1000
+        max: 1500
+        target: 1250
+      issue_techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+      techpawz:
+        min: 1500
+        max: 2500
+        target: 2000
+    step1_sections:
+    - '## {keyword} — 개요와 핵심 특징'
+    - '## {keyword} — 주요 기능과 장점'
+    - '## {keyword} — 선택 시 고려사항'
+    - '## 마무리 — {keyword} 핵심 요약'
+    step2_sections:
+    - '## {keyword} — 실전 활용법'
+    - '## {keyword} — 효과적인 설정과 팁'
+    - '## {keyword} — 유사 서비스와 비교'
+    - '## 마무리 — {keyword} 실전 가치'
+    step3_sections:
+    - '## {keyword} — 실제 사용 후기와 평점'
+    - '## {keyword} — 가격 비교와 구매처'
+    - '## {keyword} — 최종 추천과 선택 기준'
+    - '## 마무리 — {keyword} 종합 정리'
 derive_user_lateral_customer_service: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **고객센터 실용 안내(customer_service)** 방향입니다.\n검색자는 대부분 해당 고객센터에 실제로 연결하려는 일반 이용자입니다. 운영자 관점(KPI/시스템도입/미래전망)이 아니라, 이용자가 즉시 써먹을 실용 정보를 제공하세요.\n\nStep 1(회사/서비스 소개형) -> Step 2(연결방법/이용팁형) -> Step 3(내선·문의유형·후기형) 순서로 체인을 구성하세요. 독자가 \"이 회사가 뭐지\" -> \"어떻게 연결하지\" -> \"실제로 어떤가\"로 자연스럽게 이동하게 만드세요.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 관련 회사/서비스 소개 (회사/서비스 소개형)\",\n    \"angle\": \"이 회사는 어떤 곳이고 어떤 서비스를 제공하는가\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"고객센터/서비스\",\n    \"key_points\": [\"회사 개요\", \"제공 서비스\", \"이용 대상\", \"고객센터가 필요한 상황\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 고객센터 연결 방법 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\": \"시드 키워드\
   \ 고객센터 연결 방법과 이용 팁 (연결방법/이용팁형)\",\n    \"angle\": \"전화번호, 채널별 연결법, 잘 되는 시간대, ARS 우회, 앱/온라인 대안\",\n    \"key_points\": [\"대표/전용 전화번호\", \"채널별 연결 방법\", \"연결 잘 되는 시간대\", \"ARS 단축 팁\", \"온라인·앱 대안\"],\n    \"bridge_logic\": \"Step 3에서 다룰 내선번호·문의유형·실제 후기 예고\"\n  }},\n  {{\n    \"step\": 3,\n    \"depth\": 2,\n    \"domain\": \"techpawz.com\",\n    \"title\": \"시드 키워드 고객센터 내선·자주 묻는 문의·이용 후기 (내선/문의유형/후기형)\",\n    \"angle\": \"업무별 내선번호, 자주 묻는 문의 유형과 해결법, 실제 이용자 후기와 평판\",\n    \"key_points\": [\"업무별 내선/메뉴 안내\", \"자주 묻는 문의 TOP\", \"문의 유형별 해결법\", \"실제 이용 후기/평판\", \"공식 사이트 안내\"],\n    \"bridge_logic\": \"공식 고객센터 사이트/전화로 안내하며 마무리\"\n  }}\n]\n\n규칙:\n- 각 step의 title, domain, angle, target_keyword, category_guess, key_points(3-5개), image_prompt, image_keyword, bridge_logic를 반드시 포함\n- Step 1(소개) -> Step 2(연결 방법/팁) -> Step 3(내선/문의유형/후기) 흐름 유지\n- 전화번호, 운영시간, 연결 방법 등 검색 자료에 근거한 실용 정보를 우선하고, 추측성 미래 전망은 배제\n- Step 3에서는 실제 이용자 관점의 후기/평판과 공식 사이트 안내로 마무리\n- bridge_logic: 현재 글의 마무리에서 다음 글(Step+1)로 자연스럽게 연결하는 방법\n"
 derive_user_lateral_gov_finance: "시드 키워드: \"{seed}\"\n키워드 카테고리: {category}\n\n이 키워드는 **정부지원·금융 실용 안내(gov_finance)** 방향입니다.\n검색자는 지원금·수당·세금 등을 실제로 신청하거나 계산하려는 일반 국민입니다. 제도의 개요 -> 신청/계산 방법 -> FAQ·공식 창구 순으로 즉시 써먹을 정보를 제공하세요.\n\nStep 1(제도 개요형) -> Step 2(신청·계산 방법형) -> Step 3(FAQ·주의사항형) 순서로 체인을 구성하세요. 독자가 자연스럽게 다음 단계로 이동하도록 각 글 끝에서 다음 글을 예고하세요.\n\n다음 조건을 만족하는 블로그 체인을 JSON 배열로 생성하세요:\n\n[\n  {{\n    \"step\": 1,\n    \"depth\": 0,\n    \"domain\": \"rotcha.kr\",\n    \"title\": \"시드 키워드 관련 제도 개요형 글 제목\",\n    \"angle\": \"이 제도가 무엇이고 누가 얼마를 받는가\",\n    \"target_keyword\": \"메인 키워드\",\n    \"category_guess\": \"정부지원/금융\",\n    \"key_points\": [\"제도 개요\", \"지원 대상\", \"지원 금액\", \"핵심 요건\"],\n    \"image_prompt\": \"이미지 생성을 위한 영어 프롬프트\",\n    \"image_keyword\": \"이미지 파일명용 영문 키워드\",\n    \"bridge_logic\": \"Step 2에서 다룰 내용 예고\"\n  }},\n  {{\n    \"step\": 2,\n    \"depth\": 1,\n    \"domain\": \"issue.techpawz.com\",\n    \"title\": \"시드 키워드 신청·계산 방법형 글 제목\",\n    \"angle\": \"어떻게 신청하고 계산기로 어떻게 계산하는가\"\

@@ -90,6 +90,7 @@ keyword_mapping:
   gov_finance: lateral
   shopping_brand: lateral
   golf_course: lateral
+  medicine: lateral
 chain_blogs:
   0: rotcha
   1: issue.techpawz
