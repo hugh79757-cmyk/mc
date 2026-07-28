@@ -113,8 +113,11 @@ def classify_keyword(keyword: str) -> str:
     prompts = load_prompts()
     categories = prompts.get("keyword_categories", {})
 
-    # etc는 항상 마지막 fallback. 나머지는 config 정의 순서대로 순회.
+    # etc는 항상 마지막 fallback. 나머지는 priority 오름차순(작을수록 먼저) 순회.
+    # priority 미지정 시 기본 100. 동점이면 config 정의 순서 유지(안정 정렬).
+    # → 강한 신호(예: golf_course의 CC)가 약한 부수 신호(travel 지역명)보다 우선.
     cat_names = [c for c in categories.keys() if c != "etc"]
+    cat_names.sort(key=lambda c: (categories.get(c, {}) or {}).get("priority", 100))
 
     for cat_name in cat_names:
         cat_config = categories.get(cat_name, {}) or {}

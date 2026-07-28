@@ -350,3 +350,46 @@ class TestCLI:
         source = open(chain_deriver.__file__).read()
         assert "if __name__ == \"__main__\"" in source
         assert "derive_chain" in source
+
+
+class TestGolfCoursePriority:
+    """골프장 우선순위 회귀 테스트 (priority 필드 도입).
+
+    골프장 키워드는 지역명(travel 패턴)을 포함해도 golf_course로 분류되어야 한다.
+    예: '남서울CC' 의 '서울' 이 travel 지역 패턴에 걸리지만, golf_course.priority=10
+    이 travel(기본 100)보다 먼저 검사되므로 golf_course 가 우선한다.
+    """
+
+    def test_golf_with_region_name_prefers_golf(self):
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("남서울CC 예약") == "golf_course"
+        assert classify_keyword("부산CC 그린피") == "golf_course"
+        assert classify_keyword("제주 골프장") == "golf_course"
+        assert classify_keyword("남서울CC 라운딩") == "golf_course"
+
+    def test_priority_does_not_break_plain_travel(self):
+        """priority 도입이 기존 travel 분류를 깨지 않는다."""
+        from mc_paths import classify_keyword
+
+        assert classify_keyword("제주도 여행 코스") == "travel"
+        assert classify_keyword("서울 워터파크") == "travel"
+        assert classify_keyword("한화리조트") == "travel"
+
+
+class TestNewCategoryClassification:
+    """신규 카테고리(customer_service/gov_finance/medicine) 분류 회귀."""
+
+    def test_customer_service(self):
+        from mc_paths import classify_keyword
+        assert classify_keyword("삼성전자서비스 고객센터") == "customer_service"
+
+    def test_gov_finance(self):
+        from mc_paths import classify_keyword
+        assert classify_keyword("근로장려금 신청자격") == "gov_finance"
+
+    def test_medicine(self):
+        from mc_paths import classify_keyword
+        assert classify_keyword("타이레놀정 복용법") == "medicine"
+        assert classify_keyword("이부프로펜 부작용") == "medicine"
+        assert classify_keyword("두통 초기증상") == "medicine"
