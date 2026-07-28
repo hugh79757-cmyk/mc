@@ -1,8 +1,8 @@
 # STATE.md — mc (Manual Chain)
 
 **Updated:** 2026-07-28
-**Phase:** Phase 26 리팩토링 계획 수립 + 카테고리 10종 체계 구축 + 파서 안정성 개선
-**Status:** ✅ 309/309, 카테고리 10종 lateral prompt 완비, golf_course/medicine E2E 검증, 파서 BOM/텍스트 대응 강화
+**Phase:** Phase 27 플랜 수립 + 카테고리 10종 체계 구축 + 파서 안정성 개선
+**Status:** ✅ 309/309, 카테고리 10종 lateral prompt 완비, golf_course/medicine E2E 검증, 파서 BOM/텍스트 대응 강화, Phase 27 플랜 수립
 
 ## Current Baseline
 

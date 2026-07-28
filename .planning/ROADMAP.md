@@ -96,7 +96,13 @@
 
 ## 현황
 
-- **pytest:** 231/231 ✅
+- **pytest:** 309/309 ✅
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
-- **이미지 파이프라인:** 전체 종료
+- **카테고리:** 10종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/etc)
 - **Phase 14:** complete
+
+## 향후 Phase
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 27 | 카테고리별 Draft 품질 검증 (6종 × 2시드 = 12개) | 🔲 Planning |
