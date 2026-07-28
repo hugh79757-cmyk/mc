@@ -112,11 +112,14 @@ def derive_chain(seed: str, chain_type: str = None,
     # ── 6. DB 저장 (with chain_type) ──
     db.init_db()
     chain_id = db.create_chain(seed, depth_count=len(posts_data), chain_type=resolved_type)
-    for post in posts_data:
+    for _idx, post in enumerate(posts_data):
+        # step/depth 정규화: AI가 준 값 무시하고 배열 순서로 강제 (slug 충돌 방지)
+        _step = _idx + 1          # 1, 2, 3
+        _depth = _idx             # 0, 1, 2
         db.create_chain_post(
             chain_id=chain_id,
-            depth=post.get("depth", post.get("step", 1) - 1),
-            step=post.get("step", post.get("depth", 0) + 1),
+            depth=_depth,
+            step=_step,
             chain_type=resolved_type,
             title=post.get("title", ""),
             target_keyword=post.get("target_keyword", ""),
