@@ -54,9 +54,7 @@ See: .planning/PROJECT.md
 
 ## Next Action
 
-1. **Phase 26 리팩토링 착수** — `.planning/phase-26/PLAN.md` 참고 (3-wave, 공통 유틸→카드 모듈화→파이프라인)
-2. **Persona 어조 설계** — config/personas.yaml + site/depth별 tone 주입
-3. **Shortcode git 추적** — rotcha/techpawz layouts/shortcodes/ (1분 작업)
-4. **Chain #28 rotcha 복구** — ````json` 제거 후 재발행
-5. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
+1. **운영 계속** — 카테고리 10종 체계 가동 중. 새 키워드 → `mc "키워드"` 실행
+2. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
+3. **Automotive 검색 개선** — search_retriever에 automotive-specific search template 필요
 

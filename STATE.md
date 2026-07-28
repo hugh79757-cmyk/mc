@@ -101,9 +101,5 @@ cd /Users/twinssn/Projects/rotcha-blog && HUGO_THEMESDIR=/Users/twinssn/Projects
 
 ## 잔존 위험
 
-1. **Phase 26 리팩토링 미착수** — 계획만 수립됨, 구현 시작 안 됨
-2. **Persona 어조 설계 미착수** — site/depth별 tone 설정 필요
-3. **Shortcode git 미추적** — rotcha/techpawz layouts/shortcodes/ UNTRACKED
-4. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
-5. **Automotive 검색 무효** — Naver에서 자동차 스펙 데이터 미제공
-6. **Chain #28 rotcha 복구 미완** — ````json` 제거 후 재발행 필요
+1. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
+2. **Automotive 검색 무효** — Naver에서 자동차 스펙 데이터 미제공
