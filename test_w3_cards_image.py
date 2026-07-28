@@ -425,10 +425,9 @@ class TestCardFixW1:
         # 다음 글 카드 없음
         assert result.count("chain-card") == 0
 
-    def test_d0_no_duplicate_next_card(self):
-        """D0에 다음 글 카드가 중복 주입되지 않음 (중간+하단)."""
+    def test_d0_mid_and_bottom_cards(self):
+        """H2>=3이면 중간+하단 2개 카드 (중간=2번째 H2 직후, 하단=마지막 H2 이후)."""
         injector = self._make_injector()
-        # H2가 3개 이상인 본문 (중간 카드 조건)
         md = "---\ntitle: D0\n---\n\n## H1\n본문1\n\n## H2\n본문2\n\n## H3\n본문3\n"
         result = injector.inject_cards_into_draft(
             draft_md=md,
@@ -438,7 +437,26 @@ class TestCardFixW1:
             direction="next",
             is_last=False,
         )
-        # 다음 글 카드 1개만 (중간 카드 제거됨)
+        # 중간 1 + 하단 1 = 총 2개
+        assert result.count("chain-card") == 2
+        # 상단(첫 H2 이전)에는 카드 없음 — 첫 H1 앞에 카드가 오면 안 됨
+        assert result.index("chain-card") > result.index("## H1")
+        # 중간 카드는 3번째 H2(## H3) 직전에 위치
+        first_card = result.index("chain-card")
+        assert result.index("## H3") > first_card
+
+    def test_d0_short_body_bottom_card_only(self):
+        """H2<3이면 중간 카드 없이 하단 카드 1개만."""
+        injector = self._make_injector()
+        md = "---\ntitle: D0\n---\n\n## H1\n본문1\n\n## H2\n본문2\n"
+        result = injector.inject_cards_into_draft(
+            draft_md=md,
+            next_title="D1 글",
+            next_url="https://example.com/d1",
+            blog_key="rotcha",
+            direction="next",
+            is_last=False,
+        )
         assert result.count("chain-card") == 1
 
     def test_d0_card_points_to_d1(self):

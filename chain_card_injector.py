@@ -389,6 +389,26 @@ class CardInjector:
             return before + "\n\n" + card_html + "\n" + after
         return content + "\n\n" + card_html
 
+    def inject_mid_card(self, content: str, card_html: str) -> str:
+        """H2가 3개 이상일 때만 2번째 H2 섹션 직후에 중간 카드 삽입.
+
+        상단(첫 H2 이전)은 광고 전용이라 건드리지 않고,
+        하단 카드와 겹치지 않도록 마지막 H2 섹션에는 넣지 않는다.
+        조건 미충족 시 원본을 그대로 반환.
+        """
+        h2_positions = [
+            m.start() for m in re.finditer(r"^##\s", content, re.MULTILINE)
+        ]
+        # H2가 3개 미만이면 중간 카드 없음 (본문이 짧아 광고 밀도 보호)
+        if len(h2_positions) < 3:
+            return content
+        # 2번째 H2 섹션의 끝 = 3번째 H2 시작 직전
+        second_h2_start = h2_positions[1]
+        third_h2_start = h2_positions[2]
+        before = content[:third_h2_start].rstrip()
+        after = content[third_h2_start:]
+        return before + "\n\n" + card_html + "\n\n" + after
+
     # ── 메인 진입점 (draft_md 기반) ────────────────────────────────
 
     @staticmethod
@@ -549,6 +569,20 @@ class CardInjector:
             cta = self.get_cta(blog_key, direction)
             next_card = self.build_card_html(next_title, next_url, cta)
             body = self.inject_bottom_card(body, next_card)
+
+        # 중간 카드: H2>=3일 때 2번째 H2 직후 1개 (하단 카드와 별개, 총 2개 구조)
+        # is_last(Depth 2)는 다음 글이 없으므로 중간에도 외부 링크 카드로 유도,
+        # 그 외에는 다음 글 카드로 이탈 방지.
+        if is_last:
+            mid_links = self.find_external_links(
+                title=post_title, keyword=post_keyword, seed=seed_keyword
+            )
+            mid_card = self.build_external_link_card(mid_links, seed_keyword=seed_keyword)
+        else:
+            mid_cta = self.get_cta(blog_key, direction)
+            mid_card = self.build_card_html(next_title, next_url, mid_cta)
+        if mid_card:
+            body = self.inject_mid_card(body, mid_card)
 
         return fm + "\n\n" + body if fm else body
 
