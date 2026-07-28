@@ -179,6 +179,14 @@ def _process_post_image(post: dict, blog_key: str, chain_type: str) -> int:
         print(f"    ↷ 디스크 파일 백필 (post #{post_id}): {_abs}")
         _write_image_log(post_id, _slug,
                          f"IMAGE BACKFILL post_id={post_id}\ndisk={_abs}\nimage_meta.content_image_path set via update_content_image\n")
+        # 백필 경로에서도 본문 이미지 삽입(figure 치환) 수행 — 미수행 시 마커/맨 경로가
+        # 그대로 남아 발행 후 raw URL 텍스트로 노출되는 버그 방지.
+        if img_inject and post.get("draft_md"):
+            _updated = img_inject(
+                post["draft_md"], post.get("slug", ""),
+                blog_key, post.get("step", 1), post["title"],
+            )
+            db.update_post_draft(post_id, _updated, post.get("slug", ""))
         return post_id
 
     if use_new_image:

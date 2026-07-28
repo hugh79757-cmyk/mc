@@ -319,13 +319,13 @@ class CardInjector:
             url = primary["url"]
             label = primary.get("label", "공식 사이트")
             parts.append(
-                f'<div style="margin:1.5em 0;padding:1em;border:1px solid #e5e7eb;'
-                f'border-radius:8px;background:#f0fdf4;text-align:center">'
-                f'<p style="font-size:0.85em;color:#666;margin:0 0 0.3em 0">관련 공식 사이트</p>'
-                f'<p style="font-size:0.95em;font-weight:bold;margin:0 0 0.5em 0">{label}</p>'
+                f'<div style="margin:1.5em 0;padding:1em;'
+                f'border-radius:8px;background:#DC2626;text-align:center">'
+                f'<p style="font-size:0.85em;color:rgba(255,255,255,0.85);margin:0 0 0.3em 0">관련 공식 사이트</p>'
+                f'<p style="font-size:1.05em;font-weight:bold;color:#fff;margin:0 0 0.5em 0">{label}</p>'
                 f'<a href="{url}" target="_blank" rel="noopener" '
-                f'style="display:inline-block;padding:0.5em 1.5em;background:#16a34a;color:#fff;'
-                f'border-radius:4px;text-decoration:none;font-size:0.9em">'
+                f'style="display:inline-block;padding:0.5em 1.5em;background:rgba(255,255,255,0.2);color:#fff;'
+                f'border-radius:4px;text-decoration:none;font-weight:600;font-size:0.9em">'
                 f'바로가기 →</a>'
                 f'</div>'
             )
@@ -506,9 +506,9 @@ class CardInjector:
         # 3. Fallback: <div style="margin:1.5em 0;padding:1em;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa;text-align:center">...더 많은 정보...</div>
         _ext_card_count = 0
         # Pattern 1: Primary card with "관련 공식 사이트" + "바로가기"
+        # 색상/스타일 무관하게 내용 키워드로 매칭 (붉은/초록 카드 모두 제거)
         primary_pattern = (
-            r'<div style="margin:1\.5em 0;padding:1em;border:1px solid #e5e7eb;'
-            r'border-radius:8px;background:#f0fdf4;text-align:center">'
+            r'<div style="margin:1\.5em 0;padding:1em;[^"]*text-align:center">'
             r'.*?관련 공식 사이트.*?'
             r'바로가기 →</a>'
             r'.*?</div>'
