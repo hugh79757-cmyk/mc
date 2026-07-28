@@ -133,14 +133,30 @@ def derive_chain(seed: str, chain_type: str = None,
 
 
 def _parse_derivation(content: str) -> list:
-    """AI 응답에서 JSON 배열 파싱 (```json 마크다운 대응)."""
+    """AI 응답에서 JSON 배열 파싱 (```json 마크다운, BOM, 불필요 텍스트 대응)."""
+    import re
+
+    # 0) BOM 및 제어 문자 제거
+    content = content.strip().replace("\ufeff", "")
+    # zero-width space / joiner / soft-hyphen 등 제거
+    content = re.sub(r'[\u200b-\u200f\u2028-\u202f\ufeff]', '', content)
+
+    # 1) 코드 펜스 추출 시도
     if "```json" in content:
         content = content.split("```json")[1].split("```")[0].strip()
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
 
-    try:
-        data = json.loads(content)
+    # 2) 직접 파싱
+    def _try_parse(s: str):
+        """Returns (parsed_data, error). error is None on success."""
+        try:
+            data = json.loads(s)
+            return data, None
+        except (json.JSONDecodeError, ValueError) as e:
+            return None, e
+
+    def _extract_list(data) -> list:
         if isinstance(data, list):
             return data
         if isinstance(data, dict):
@@ -148,17 +164,55 @@ def _parse_derivation(content: str) -> list:
                 if key in data and isinstance(data[key], list):
                     return data[key]
         return []
-    except json.JSONDecodeError as e:
-        print(f"[mc] ⚠️ JSON parse error: {e}")
-        if "[" in content and "]" in content:
-            try:
-                start = content.index("[")
-                end = content.rindex("]") + 1
-                data = json.loads(content[start:end])
-                return data if isinstance(data, list) else []
-            except (json.JSONDecodeError, ValueError):
-                pass
+
+    data, err = _try_parse(content)
+    if data is not None:
+        result = _extract_list(data)
+        if result:
+            return result
+        # dict이지만 인식된 키 없음 → 그대로 빈 리스트 반환 (fallback 안 함)
         return []
+
+    # 3) fallback: JSON 배열 추출 — 첫 `[` ~ 마지막 `]` (중괄호 포함 후보만)
+    #    AI가 JSON 앞뒤에 설명 텍스트를 붙이는 경우 대응
+    #    (json.loads가 실패한 경우에만 실행 — dict 응답은 여기 안 옴)
+    if "[" in content and "]" in content:
+        first_bracket = content.index("[")
+        last_bracket = content.rindex("]")
+        candidate = content[first_bracket:last_bracket + 1]
+        data, _ = _try_parse(candidate)
+        if data is not None:
+            result = _extract_list(data)
+            if result:
+                return result
+
+        # 더 공격적: `[` ~ `]` 중 `{`를 포함한 후보만 선택 (설명 텍스트 내 `[` 오염 방지)
+        bracket_pairs = [
+            (m.start(), content.rindex("]"))
+            for m in re.finditer(r'\[\s*\{', content)
+            if m.start() < content.rindex("]")
+        ]
+        for start, end in reversed(bracket_pairs):
+            data, _ = _try_parse(content[start:end + 1])
+            if data is not None:
+                result = _extract_list(data)
+                if result:
+                    return result
+
+    # 4) 최후 수단: 전체 `[` 위치에서 시도
+    if "[" in content and "]" in content:
+        end = content.rindex("]") + 1
+        for i, ch in enumerate(content):
+            if ch == "[":
+                data, _ = _try_parse(content[i:end])
+                if data is not None:
+                    result = _extract_list(data)
+                    if result:
+                        return result
+
+    print(f"[mc] ⚠️ _parse_derivation: 모든 파싱 전략 실패 (content 길이={len(content)})")
+    print(f"    앞 200자: {content[:200]!r}")
+    return []
 
 
 def _print_chain_summary(chain_id: int):

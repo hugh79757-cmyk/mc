@@ -269,6 +269,80 @@ class TestDeriveChain:
         assert result == 0
 
 
+class TestParseDerivationRobustness:
+    """_parse_derivation 파싱 안정성 테스트 (BOM, 불필요 텍스트, 코드펜스 대응)."""
+
+    def _parse(self, content: str) -> list:
+        from chain_deriver import _parse_derivation
+        return _parse_derivation(content)
+
+    def test_clean_json_array(self):
+        """정상 JSON 배열."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        assert self._parse(json.dumps(data)) == data
+
+    def test_bom_prefix(self):
+        """BOM(\ufeff)이 앞에 붙은 JSON."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        assert self._parse("\ufeff" + json.dumps(data)) == data
+
+    def test_zero_width_space(self):
+        """제로폭 공백(\u200b)이 섞인 JSON."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        raw = json.dumps(data).replace('"step"', '"\u200bstep"')
+        assert self._parse(raw) == data
+
+    def test_text_before_json(self):
+        """JSON 앞에 설명 텍스트가 붙은 경우."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        raw = "아래는 JSON 결과입니다.\n" + json.dumps(data)
+        assert self._parse(raw) == data
+
+    def test_text_after_json(self):
+        """JSON 뒤에 설명 텍스트가 붙은 경우."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        raw = json.dumps(data) + "\n\n이상입니다."
+        assert self._parse(raw) == data
+
+    def test_text_around_json(self):
+        """JSON 앞뒤에 텍스트가 있는 경우."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        raw = "결과:\n" + json.dumps(data) + "\n끝"
+        assert self._parse(raw) == data
+
+    def test_code_fence_json(self):
+        """```json 코드 펜스로 감싼 경우."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        raw = "```json\n" + json.dumps(data) + "\n```"
+        assert self._parse(raw) == data
+
+    def test_code_fence_plain(self):
+        """``` 코드 펜스로 감싼 경우 (json 태그 없음)."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        raw = "```\n" + json.dumps(data) + "\n```"
+        assert self._parse(raw) == data
+
+    def test_dict_with_posts_key(self):
+        """dict 응답 — posts 키로 리스트 포함."""
+        data = [{"step": 1, "depth": 0, "title": "A"}]
+        raw = json.dumps({"posts": data})
+        assert self._parse(raw) == data
+
+    def test_dict_with_topics_key_not_extracted(self):
+        """dict 응답 — topics 키는 인식하지 않음 → 빈 리스트."""
+        raw = json.dumps({"topics": [{"title": "Only One", "depth": 0}]})
+        assert self._parse(raw) == []
+
+    def test_empty_input(self):
+        """빈 입력."""
+        assert self._parse("") == []
+        assert self._parse("   ") == []
+
+    def test_no_json_at_all(self):
+        """JSON이 전혀 없는 텍스트."""
+        assert self._parse("이것은 일반 텍스트입니다.") == []
+
+
 class TestDeriveLateralCategoryDispatch:
     """category별 lateral 프롬프트 분기 검증."""
 
