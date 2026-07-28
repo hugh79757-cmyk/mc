@@ -1017,27 +1017,27 @@ class PublisherCore:
 def _ensure_image_alt(text: str, title: str) -> str:
     """
     이미지 마크다운에서 alt 텍스트가 비어있으면 자동 채우기.
-    
+
     ![](url) → ![{title[:30]}](url)
     ![alt](url) → 그대로 유지 (이미 alt가 있음)
-    
+
     Args:
         text: 마크다운 본문
         title: 포스트 제목 (alt 텍스트 생성용)
-        
+
     Returns:
         alt 텍스트가 보완된 텍스트
     """
     if not title:
         title = "image"
-    
+
     def repl(m):
         alt = m.group(1)
         url = m.group(2)
         if not alt or alt.strip() == "":
             alt = title[:30]
         return f"![{alt}]({url})"
-    
+
     return re.sub(r'!\[([^\]]*)\]\((https?://[^)]+)\)', repl, text)
 
 

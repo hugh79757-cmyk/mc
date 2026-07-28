@@ -210,7 +210,7 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
         )
         # DB image_prompt를 실제 전달값으로 갱신 (W3)
         db.update_post_image_prompt(post_id, full_prompt)
-        
+
         # Retry with exponential backoff
         max_retries = 3
         base_wait = 2
@@ -230,7 +230,7 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
                 _write_image_log(post_id, _slug,
                                 f"IMAGE GEN FAIL post_id={post_id}\nerror={_err}\nfull_prompt={full_prompt[:500]}\n")
                 return post_id
-        
+
         if not image_result or not image_result.ok:
             return post_id
 
@@ -263,7 +263,7 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
             db.update_content_image(post_id, str(image_path), "unsplash")
             db.update_post_image(post_id, f"/images/{image_path.name}")
             _write_image_log(post_id, _slug, f"IMAGE GEN OK (R2 upload failed: {e})\n")
-        
+
         # Generate thumbnail from content image (로컬 파일 재사용, API 호출 없음)
         try:
             print(f"  [publisher] Generating thumbnail from content image for post #{post_id}...")
@@ -306,7 +306,7 @@ def _process_post_image(post: dict, blog_key: str, pol_cfg: dict, chain_type: st
             print(f"  [publisher] ⚠️ Thumbnail generation from content image failed: {e}")
             import traceback
             traceback.print_exc()
-        
+
         if post.get("draft_md"):
             updated = img_inject(
                 post["draft_md"], post.get("slug", ""),
@@ -342,7 +342,7 @@ def generate_chain_images(chain_id: int) -> None:
 
     print(f"\n  [publisher] Generating images for {len(posts)} posts (parallel)...")
     start_time = time.time()
-    
+
     post_ids = []
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {
@@ -358,7 +358,7 @@ def generate_chain_images(chain_id: int) -> None:
                 print(f"  [publisher] ⚠️ Post #{post_id} image generation failed: {e}")
                 import traceback
                 traceback.print_exc()
-    
+
     elapsed = time.time() - start_time
     print(f"\n  [publisher] Chain #{chain_id} images done in {elapsed:.1f}s (parallel)")
 
@@ -652,42 +652,42 @@ def backfill_card_injection() -> None:
 def smoke_test(chain_id: int) -> dict:
     """
     발행 완료된 체인의 각 포스트 URL에 대해 smoke test 수행.
-    
+
     검증:
     - HTTP 200 응답
     - <title> 태그 존재
     - og:image 메타태그 존재 → 해당 URL HTTP 200
-    
+
     실패해도 경고만 출력 (롤백 없음).
-    
+
     Returns:
-        dict: {post_id: {"url": str, "status_code": int, "title_found": bool, 
+        dict: {post_id: {"url": str, "status_code": int, "title_found": bool,
                          "og_image_url": str, "og_image_ok": bool, "overall": "pass"|"fail"}}
     """
     import requests as _requests
     import re as _re
-    
+
     posts = db.get_chain_posts(chain_id)
     results = {}
-    
+
     for post in posts:
         url = post.get("published_url")
         if not url:
             print(f"  [smoke] Post #{post['id']}: no published_url — skipping")
             continue
-        
-        detail = {"url": url, "status_code": None, "title_found": False, 
+
+        detail = {"url": url, "status_code": None, "title_found": False,
                   "og_image_url": None, "og_image_ok": False, "error": None}
-        
+
         try:
             resp = _requests.get(url, timeout=10, allow_redirects=True)
             detail["status_code"] = resp.status_code
-            
+
             if resp.status_code == 200:
                 # <title> 존재 확인
                 title_match = _re.search(r'<title[^>]*>(.*?)</title>', resp.text, _re.IGNORECASE | _re.DOTALL)
                 detail["title_found"] = bool(title_match and title_match.group(1).strip())
-                
+
                 # og:image URL 추출 및 검증
                 og_match = _re.search(
                     r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](.*?)["\']',
@@ -703,24 +703,24 @@ def smoke_test(chain_id: int) -> dict:
                     except Exception as e:
                         detail["og_image_ok"] = False
                         detail["error"] = f"og:image fetch failed: {e}"
-            
-            overall = "pass" if (resp.status_code == 200 and 
-                                  detail["title_found"] and 
+
+            overall = "pass" if (resp.status_code == 200 and
+                                  detail["title_found"] and
                                   detail["og_image_ok"]) else "fail"
-            
+
         except Exception as e:
             overall = "fail"
             detail["error"] = str(e)
-        
+
         detail["overall"] = overall
         results[post["id"]] = detail
-        
+
         # DB 기록
         db.update_smoke_test_result(post["id"], overall, detail)
-        
+
         status_icon = "✅" if overall == "pass" else "⚠️"
         print(f"  [smoke] {status_icon} Post #{post['id']}: {url} → {detail['status_code'] if 'resp' in locals() else 'ERR'}, title={'Y' if detail['title_found'] else 'N'}, og:image={'Y' if detail['og_image_ok'] else 'N'}")
-    
+
     return results
 
 
@@ -840,11 +840,11 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
     print(f"\n{'='*60}\n[mc] Drafting chain #{chain_id}\n{'='*60}\n")
     drafted = draft_chain(chain_id, seed, use_context=use_context)
     print(f"\n[mc] Draft complete: {len(drafted)} posts")
-    
+
     # 스키마 검증 게이트
     print(f"\n{'─'*60}\n[mc] Validating draft schema...\n{'─'*60}\n")
     validation_passed = True
-    
+
     for post in drafted:
         draft_md = post.get("draft_md", "")
         meta = post.get("meta")
@@ -852,7 +852,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
             print(f"  [ERROR] Post {post.get('step', 'N/A')} has empty draft")
             validation_passed = False
             break
-            
+
         result, message = _validate_draft_schema(draft_md, meta)
         if result:
             print(f"  [OK] Post {post.get('step', 'N/A')} schema validation passed")
@@ -864,14 +864,14 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
             print(f"  [ERROR] Post {post.get('step', 'N/A')} schema validation failed: {message}")
             validation_passed = False
             break
-    
+
     if not validation_passed:
         print(f"\n[ERROR] Schema validation failed for chain #{chain_id}")
         print("[ERROR] Publishing aborted due to schema violations")
         if not draft_only:
             print("Tip: Check draft files for missing H2 headings or image markers")
         return None
-    
+
     print(f"\n[mc] All posts schema validation passed ✓")
 
     if draft_only:
@@ -1033,7 +1033,7 @@ if __name__ == "__main__":
     parser.add_argument("--publish-manual", action="store_true",
                         help="Manual publish (HTML + URL input)")
     parser.add_argument("--inject", action="store_true", help="Card injection only (legacy HTML)")
-    
+
     # Phase 5: New flags
     parser.add_argument("--inject-card", action="store_true",
                         help="Card injection (draft_md based + re-publish)")
@@ -1057,7 +1057,7 @@ if __name__ == "__main__":
                         help="Enable Naver search context for drafting (default)")
     parser.add_argument("--no-search", action="store_true",
                         help="Disable Naver search context")
-    
+
     parser.add_argument("--blog-step1", type=str, help="Blog key for step 1 (override)")
     parser.add_argument("--blog-step2", type=str, help="Blog key for step 2 (override)")
     parser.add_argument("--blog-step3", type=str, help="Blog key for step 3 (override)")

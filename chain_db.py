@@ -1012,17 +1012,17 @@ if __name__ == "__main__":
 
 def add_keyword_queue(keyword: str, category: str = None, priority: int = 3) -> dict:
     """Add keyword to queue. Returns dict with success status.
-    Allows duplicate keywords (no UNIQUE constraint). 
+    Allows duplicate keywords (no UNIQUE constraint).
     If same keyword exists in 'done' status, warns but still adds."""
     conn = get_conn()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
     # Check for existing done keyword
     row = conn.execute("SELECT status FROM keyword_queue WHERE keyword = ? AND status = 'done'", (keyword,)).fetchone()
     if row:
         conn.close()
         return {"success": False, "keyword": keyword, "status": "duplicate", "existing_status": "done", "warning": f"Keyword '{keyword}' already completed (done)"}
-    
+
     # Insert new keyword (allows duplicates for pending/processing/failed)
     cur = conn.execute(
         "INSERT INTO keyword_queue (keyword, category, priority, status, created_at) VALUES (?, ?, ?, 'pending', ?)",

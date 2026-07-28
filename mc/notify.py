@@ -28,43 +28,43 @@ def _load_notify_config() -> dict:
 def send_alert(title: str, detail: str, level: str = "error") -> bool:
     """
     알림 전송. 실패해도 False만 반환 (예외 전파 안 함).
-    
+
     Args:
         title: 알림 제목
         detail: 상세 내용
         level: "error" | "warning" | "info"
-    
+
     Returns:
         성공 시 True, 실패/비활성화 시 False
     """
     config = _load_notify_config()
     notify_cfg = config.get("notify", {})
-    
+
     if not notify_cfg.get("enabled", False):
         return False
-    
+
     if not notify_cfg.get("levels", {}).get(level, False):
         return False
-    
+
     webhook_cfg = notify_cfg.get("webhook", {})
     webhook_url = webhook_cfg.get("url", "")
     if not webhook_url:
         logger.debug("Webhook URL not configured")
         return False
-    
+
     template = webhook_cfg.get("template", "*{title}*\n{detail}\nLevel: {level}\nTime: {timestamp}")
     timeout = webhook_cfg.get("timeout", 10)
-    
+
     payload_text = template.format(
         title=title,
         detail=detail,
         level=level.upper(),
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
-    
+
     # Slack/Discord/Generic webhook 모두 text 필드 지원 가정
     payload = {"text": payload_text}
-    
+
     try:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(

@@ -190,13 +190,13 @@ def _insert_body_image_marker(draft_md: str) -> str:
   if m:
     pos = m.start()
     return draft_md[:pos].rstrip() + "\n\n<!--todo:image-->\n\n" + draft_md[pos:]
-  
+
   # H2 헤딩이 없으면 첫 번째 빈 줄 직전에 마커 삽입 (백업 방식)
   lines = draft_md.split('\n')
   for i, line in enumerate(lines):
     if line.strip() == "" and i > 0:  # 빈 줄이고 첫 줄이 아닐 때
       return '\n'.join(lines[:i]) + "\n\n<!--todo:image-->\n\n" + '\n'.join(lines[i:])
-  
+
   # 그래도 없으면 마지막에 추가
   return draft_md.rstrip() + "\n\n<!--todo:image-->\n\n"
 
@@ -448,65 +448,65 @@ def count_body_chars(draft_md: str) -> int:
     """
     if not draft_md or not draft_md.strip():
         return 0
-    
+
     text = draft_md
-    
+
     # 1. Frontmatter 제거 (---...--- 블록)
     text = re.sub(r'^---\s*\n.*?\n---\s*\n', '', text, flags=re.DOTALL | re.MULTILINE)
-    
+
     # 2. 코드 블록 제거 (```...```)
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
-    
+
     # 3. 인라인 코드 제거 (`...`)
     text = re.sub(r'`[^`]*`', '', text)
-    
+
     # 4. 이미지 마커 제거 (<!--todo:image-->, <!--todo:chart-->, <!-- image:... -->)
     text = re.sub(r'<!--\s*todo:(image|chart)\s*-->', '', text)
     text = re.sub(r'<!--\s*image:.*?\s*-->', '', text)
     text = re.sub(r'<!--\s*thumbnail:.*?\s*-->', '', text)
-    
+
     # 5. HTML 주석 제거 (<!-- ... -->)
     text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
-    
+
     # 6. JSON 메타데이터 블록 제거 (마크다운 코드블록 밖의 JSON 객체)
     text = re.sub(r'\n\s*\{[^{}]*"image_type"[^{}]*\}\s*$', '', text, flags=re.DOTALL)
     text = re.sub(r'^\s*\{[^{}]*"image_type"[^{}]*\}\s*\n', '', text, flags=re.DOTALL | re.MULTILINE)
-    
+
     # 7. 마크다운 헤딩 제거 (# ## ### 등)
     text = re.sub(r'^#{1,6}\s+.*$', '', text, flags=re.MULTILINE)
-    
+
     # 8. 리스트 마커 제거 (-, *, 1., 2. 등) - 줄 전체 제거
     text = re.sub(r'^[\s]*[-*+]\s+.+$', '', text, flags=re.MULTILINE)
     text = re.sub(r'^[\s]*\d+\.\s+.+$', '', text, flags=re.MULTILINE)
-    
+
     # 9. 표 관련 제거 (|, ---|--- 등)
     text = re.sub(r'^\|.*\|$', '', text, flags=re.MULTILINE)
     text = re.sub(r'^[\s]*[-|:]+[\s]*$', '', text, flags=re.MULTILINE)
-    
+
     # 10. 블록인용 제거 (> )
     text = re.sub(r'^[\s]*>\s*', '', text, flags=re.MULTILINE)
-    
+
     # 11. 링크 제거 ([text](url) -> text)
     text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
-    
+
     # 이미지 제거 (![alt](url) -> alt)
     text = re.sub(r'!\[([^\]]*)\]\([^)]+\)', r'\1', text)
-    
+
     # 12. 강조 마크다운 제거 (**, *, __, _)
     text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
     text = re.sub(r'__([^_]+)__', r'\1', text)
     text = re.sub(r'_([^_]+)_', r'\1', text)
-    
+
     # 13. 수평선 제거 (---, ***)
     text = re.sub(r'^[-*_]{3,}\s*$', '', text, flags=re.MULTILINE)
-    
+
     # 14. 공백 정리 (연속된 공백/줄바꿈을 단일 공백으로)
     text = re.sub(r'\s+', ' ', text)
-    
+
     # 앞뒤 공백 제거
     text = text.strip()
-    
+
     # 글자수 반환 (한글/영문/숫자/공백/문장부호 모두 1자로 카운트)
     return len(text)
 
@@ -516,53 +516,53 @@ def count_body_chars(draft_md: str) -> int:
 def _validate_draft_schema(draft_md: str, meta: dict = None) -> tuple[bool, str]:
     """
     초안 마크다운의 스키마를 검증합니다.
-    
+
     Args:
         draft_md: 검증할 초안 마크다운 문자열
         meta: 선택적 메타데이터 딕셔너리 (image_keyword, char_count 등을 포함)
-        
+
     Returns:
         tuple[bool, str]: (검증 결과, 실패 시 원인 메시지)
     """
     if not draft_md or not draft_md.strip():
         return False, "초안이 비어 있습니다"
-    
+
     # 1. H2 헤딩 검증 (최소 1개)
     h2_pattern = r'^##\s+.+$'
     h2_matches = re.findall(h2_pattern, draft_md, re.MULTILINE)
     if len(h2_matches) < 1:
         return False, "본문에 최소 1개 이상의 H2 헤딩이 필요합니다"
-    
+
     # 2. 이미지 마커 검증 (<!--todo:image--> 또는 <!--todo:chart-->)
     image_marker_pattern = r'<!--todo:(image|chart)-->'
     image_markers = re.findall(image_marker_pattern, draft_md)
     if not image_markers:
         return False, "이미지 마커(<!--todo:image--> 또는 <!--todo:chart-->)가 필요합니다"
-    
+
     # Determine if any chart marker is present
     has_chart = '<!--todo:chart-->' in draft_md
-    
+
     # 3. 이미지 키워드 검증 (meta가 제공되고, 차트 마커가 아닌 경우)
     if meta is not None and not has_chart:
         image_keyword = meta.get('image_keyword') if isinstance(meta, dict) else None
         if not image_keyword or not str(image_keyword).strip():
             return False, "이미지 마커에 대한 image_keyword가 비어 있습니다"
-    
+
     # 4. Frontmatter 검증 (필수 필드)
     frontmatter_pattern = r'^---\s*\n(.*?)\n---\s*$'
     frontmatter_match = re.search(frontmatter_pattern, draft_md, re.DOTALL | re.MULTILINE)
-    
+
     if frontmatter_match:
         frontmatter_content = frontmatter_match.group(1)
         required_fields = ['title', 'description', 'tags', 'categories']
-        
+
         for field in required_fields:
             # YAML 형식과 평범한 텍스트 형식 모두 지원
             if f'{field}:' not in frontmatter_content:
                 return False, f"Frontmatter에 필수 필드 '{field}'가 없습니다"
     else:
         return False, "Frontmatter(---로 시작하는 섹션)가 없습니다"
-    
+
     # 5. 글자수 검증 (meta에 char_count가 있는 경우)
     if meta and isinstance(meta, dict) and meta.get('char_count'):
         cc = meta['char_count']
@@ -577,7 +577,7 @@ def _validate_draft_schema(draft_md: str, meta: dict = None) -> tuple[bool, str]
             logger = logging.getLogger(__name__)
             logger.warning(f"[QUALITY] 글자수 초과: {actual}자 (최대 {cc['max']}자)")
             return True, f"quality_warning: overcount ({actual}/{cc['max']})"
-    
+
     return True, "스키마 검증 통과"
 
 

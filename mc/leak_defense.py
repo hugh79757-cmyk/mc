@@ -55,11 +55,11 @@ _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern",
 def strip_leaks(text: str, context: str = "body") -> Tuple[str, Dict[str, Any]]:
     """
     통합 릭 제거 함수.
-    
+
     Args:
         text: 원본 텍스트
         context: "draft" | "body" | "html" | "test" — 컨텍스트별 규칙 적용
-    
+
     Returns:
         (cleaned_text, report_dict)
         report_dict: {
@@ -72,34 +72,34 @@ def strip_leaks(text: str, context: str = "body") -> Tuple[str, Dict[str, Any]]:
     """
     if not text:
         return text, _empty_report()
-    
+
     report = _empty_report()
     cleaned = text
-    
+
     # 1. Prompt leak 제거 (context: "draft"에서만)
     if context in ("draft", "test"):
         cleaned, prompt_report = _remove_prompt_leaks(cleaned)
         report["prompt_leak"] = prompt_report
-    
+
     # 2. CTA leak 제거 (context: "body", "test"에서)
     if context in ("body", "test"):
         cleaned, cta_report = _remove_cta_leaks(cleaned)
         report["cta_leak"] = cta_report
-    
+
     # 3. Placeholder leak 제거 (모든 context)
     cleaned, placeholder_report = _remove_placeholders(cleaned)
     report["placeholder_leak"] = placeholder_report
-    
+
     # 4. HTML tag leak 제거 (context: "html", "test"에서)
     if context in ("html", "test"):
         cleaned, html_report = _remove_html_tags(cleaned)
         report["html_leak"] = html_report
-    
+
     # 5. JSON leak 제거 (context: "draft", "body", "test"에서)
     if context in ("draft", "body", "test"):
         cleaned, json_report = _remove_json_leaks(cleaned)
         report["json_leak"] = json_report
-    
+
     return cleaned, report
 
 
@@ -107,13 +107,13 @@ def has_leaks(text: str, context: str = "test") -> bool:
     """릭 존재 여부만 검사 (제거하지 않음)"""
     if not text:
         return False
-    
+
     # Prompt leak
     if context in ("draft", "test"):
         for pattern in _PROMPT_LEAK_PATTERNS:
             if pattern.search(text):
                 return True
-    
+
     # CTA leak
     if context in ("body", "test"):
         for pattern in _CTA_LEAK_PATTERNS:
@@ -122,22 +122,22 @@ def has_leaks(text: str, context: str = "test") -> bool:
         for pattern in _FORBIDDEN_CTA_PATTERNS:
             if pattern.search(text):
                 return True
-    
+
     # Placeholder
     if _PLACEHOLDER_PATTERN.search(text):
         return True
-    
+
     # HTML tags
     if context in ("html", "test"):
         for tag in _HTML_TAGS:
             if re.search(rf'<{tag}[\s>]', text):
                 return True
-    
+
     # JSON
     if context in ("draft", "body", "test"):
         if _JSON_LEAK_PATTERN.search(text):
             return True
-    
+
     return False
 
 
@@ -162,7 +162,7 @@ def _remove_prompt_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
     skip_block = False
     removed = 0
     matches = []
-    
+
     for ln in lines:
         stripped = ln.strip()
         if stripped == "---":
@@ -177,13 +177,13 @@ def _remove_prompt_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
         if in_frontmatter or not past_frontmatter:
             out.append(ln)
             continue
-        
+
         if skip_block:
             if stripped.startswith("#") and not any(p.match(stripped) for p in _PROMPT_LEAK_PATTERNS):
                 skip_block = False
                 out.append(ln)
             continue
-        
+
         matched = False
         for pattern in _PROMPT_LEAK_PATTERNS:
             if pattern.match(stripped):
@@ -191,14 +191,14 @@ def _remove_prompt_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
                 matches.append({"pattern": pattern.pattern, "match": stripped[:50], "action": "block_removed"})
                 removed += 1
                 break
-        
+
         if matched:
             if stripped.startswith("#"):
                 skip_block = True
             continue
-        
+
         out.append(ln)
-    
+
     return "".join(out), {"removed": removed, "matches": matches}
 
 
@@ -207,24 +207,24 @@ def _remove_cta_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
     cleaned = text
     removed = 0
     matches = []
-    
+
     # 일반 CTA 패턴
     for pattern in _CTA_LEAK_PATTERNS:
         for m in pattern.finditer(cleaned):
             matches.append({"pattern": pattern.pattern, "match": m.group(), "position": m.start(), "type": "cta"})
             removed += 1
-    
+
     # 금지 CTA 패턴 (더 강한 로깅)
     for pattern in _FORBIDDEN_CTA_PATTERNS:
         for m in pattern.finditer(cleaned):
             matches.append({"pattern": pattern.pattern, "match": m.group(), "position": m.start(), "type": "forbidden_cta"})
             removed += 1
             logger.warning(f"[LEAK] 금지 CTA 감지: '{m.group()}' @ pos {m.start()}")
-    
+
     # 제거 (일반 + 금지)
     for pattern in _CTA_LEAK_PATTERNS + _FORBIDDEN_CTA_PATTERNS:
         cleaned = pattern.sub('', cleaned)
-    
+
     return cleaned, {"removed": removed, "matches": matches}
 
 
@@ -233,13 +233,13 @@ def _remove_placeholders(text: str) -> Tuple[str, Dict[str, Any]]:
     cleaned = text
     removed = 0
     matches = []
-    
+
     for m in _PLACEHOLDER_PATTERN.finditer(cleaned):
         matches.append({"match": m.group(), "position": m.start(), "inner": m.group(1)})
         removed += 1
-    
+
     cleaned = _PLACEHOLDER_PATTERN.sub('', cleaned)
-    
+
     return cleaned, {"removed": removed, "matches": matches}
 
 
@@ -248,23 +248,23 @@ def _remove_html_tags(text: str) -> Tuple[str, Dict[str, Any]]:
     cleaned = text
     removed = 0
     matches = []
-    
+
     for tag in _HTML_TAGS:
         # <tag ...> ... </tag> 블록 전체 제거
         pattern = re.compile(rf'<{tag}[^>]*>.*?</{tag}>', re.DOTALL | re.IGNORECASE)
         for m in pattern.finditer(cleaned):
             matches.append({"tag": tag, "match": m.group()[:100], "position": m.start()})
             removed += 1
-        
+
         # 단일 태그 <tag .../> 도 제거
         pattern2 = re.compile(rf'<{tag}[^>]*/>', re.IGNORECASE)
         for m in pattern2.finditer(cleaned):
             matches.append({"tag": tag, "match": m.group()[:100], "position": m.start()})
             removed += 1
-        
+
         cleaned = pattern.sub('', cleaned)
         cleaned = pattern2.sub('', cleaned)
-    
+
     return cleaned, {"removed": removed, "matches": matches}
 
 
@@ -273,13 +273,13 @@ def _remove_json_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
     cleaned = text
     removed = 0
     matches = []
-    
+
     for m in _JSON_LEAK_PATTERN.finditer(cleaned):
         matches.append({"match": m.group()[:100], "position": m.start()})
         removed += 1
-    
+
     cleaned = _JSON_LEAK_PATTERN.sub('', cleaned)
-    
+
     return cleaned, {"removed": removed, "matches": matches}
 
 
@@ -290,7 +290,7 @@ def reload_config() -> None:
     global _LEAK_CONFIG, _PROMPT_LEAK_PATTERNS, _CTA_LEAK_PATTERNS
     global _FORBIDDEN_CTA_PATTERNS, _PLACEHOLDER_PATTERN
     global _HTML_TAGS, _JSON_LEAK_PATTERN
-    
+
     _LEAK_CONFIG = _load_leak_patterns()
     _PROMPT_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("prompt_leak", {}).get("patterns", []))
     _CTA_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("cta_leak", {}).get("patterns", []))

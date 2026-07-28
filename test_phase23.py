@@ -38,7 +38,7 @@ class TestKeywordQueue(unittest.TestCase):
         # Mock chain_config.yaml to use test database
         cls.config_patcher = patch("mc_paths.load_config")
         mock_load = cls.config_patcher.start()
-        
+
         def mock_load_config(config_name="chain_config.yaml"):
             if config_name == "chain_config.yaml":
                 return {"db_path": get_test_db_path()}
@@ -50,9 +50,9 @@ class TestKeywordQueue(unittest.TestCase):
                 with open(path, "r", encoding="utf-8") as f:
                     return yaml.safe_load(f)
             return {}
-        
+
         mock_load.side_effect = mock_load_config
-        
+
         # Force re-initialization of chain_db
         import chain_db as db
         db.cfg = None
@@ -85,16 +85,16 @@ class TestKeywordQueue(unittest.TestCase):
         # First add
         result1 = self.db.add_keyword_queue("삼성갤럭시", "tech", 3)
         self.assertTrue(result1["success"])
-        
+
         # Second add - should succeed (same keyword allowed for pending)
         result2 = self.db.add_keyword_queue("삼성갤럭시", "tech", 1)
         self.assertTrue(result2["success"])
         self.assertEqual(result2["status"], "added")
-        
+
         # Mark first one as done
         item = self.db.get_next_keyword()  # Gets the first one
         self.db.mark_keyword_done(item["keyword"], 999)
-        
+
         # Third add - should warn because keyword exists in 'done' status
         result3 = self.db.add_keyword_queue("삼성갤럭시", "tech", 2)
         self.assertFalse(result3["success"])
@@ -111,17 +111,17 @@ class TestKeywordQueue(unittest.TestCase):
         self.db.add_keyword_queue("keyword1", "travel", 3)
         self.db.add_keyword_queue("keyword2", "tech", 1)  # Highest priority
         self.db.add_keyword_queue("keyword3", "stock", 2)
-        
+
         # Should get priority 1 first
         item = self.db.get_next_keyword()
         self.assertEqual(item["keyword"], "keyword2")
         self.assertEqual(item["priority"], 1)
-        
+
         # Should get priority 2 next
         item = self.db.get_next_keyword()
         self.assertEqual(item["keyword"], "keyword3")
         self.assertEqual(item["priority"], 2)
-        
+
         # Should get priority 3 last
         item = self.db.get_next_keyword()
         self.assertEqual(item["keyword"], "keyword1")
@@ -140,9 +140,9 @@ class TestKeywordQueue(unittest.TestCase):
         """Test marking keyword as done with chain_id."""
         self.db.add_keyword_queue("완료테스트", "travel", 3)
         item = self.db.get_next_keyword()
-        
+
         self.db.mark_keyword_done(item["keyword"], 123)
-        
+
         queue = self.db.list_keyword_queue()
         self.assertEqual(queue[0]["status"], "done")
         self.assertEqual(queue[0]["chain_id"], 123)
@@ -152,9 +152,9 @@ class TestKeywordQueue(unittest.TestCase):
         """Test marking keyword as failed with error message."""
         self.db.add_keyword_queue("실패테스트", "tech", 2)
         item = self.db.get_next_keyword()
-        
+
         self.db.mark_keyword_failed(item["keyword"], "Connection timeout")
-        
+
         queue = self.db.list_keyword_queue()
         self.assertEqual(queue[0]["status"], "failed")
         self.assertEqual(queue[0]["error_msg"], "Connection timeout")
@@ -164,10 +164,10 @@ class TestKeywordQueue(unittest.TestCase):
         self.db.add_keyword_queue("키워드1", "travel", 3)
         self.db.add_keyword_queue("키워드2", "tech", 1)
         self.db.add_keyword_queue("키워드3", "stock", 2)
-        
+
         all_items = self.db.list_keyword_queue()
         self.assertEqual(len(all_items), 3)
-        
+
         # Filter by status
         pending = self.db.list_keyword_queue("pending")
         self.assertEqual(len(pending), 3)
@@ -177,20 +177,20 @@ class TestKeywordQueue(unittest.TestCase):
     def test_remove_keyword_pending_only(self):
         """Test removing keyword - only pending allowed."""
         self.db.add_keyword_queue("삭제테스트", "travel", 3)
-        
+
         # Get the queue ID
         queue = self.db.list_keyword_queue()
         qid = queue[0]["id"]
-        
+
         # Should work for pending
         result = self.db.remove_keyword_queue(qid)
         self.assertTrue(result)
-        
+
         # Add another and mark as done
         self.db.add_keyword_queue("삭제테스트2", "tech", 2)
         item = self.db.get_next_keyword()
         self.db.mark_keyword_done(item["keyword"], 999)
-        
+
         # Should fail for done (remove_keyword_queue only works on pending)
         queue = self.db.list_keyword_queue()
         done_id = queue[0]["id"]
@@ -205,7 +205,7 @@ class TestQueueModule(unittest.TestCase):
     def setUpClass(cls):
         cls.config_patcher = patch("mc_paths.load_config")
         mock_load = cls.config_patcher.start()
-        
+
         def mock_load_config(config_name="chain_config.yaml"):
             if config_name == "chain_config.yaml":
                 return {"db_path": get_test_db_path()}
@@ -216,9 +216,9 @@ class TestQueueModule(unittest.TestCase):
                 with open(path, "r", encoding="utf-8") as f:
                     return yaml.safe_load(f)
             return {}
-        
+
         mock_load.side_effect = mock_load_config
-        
+
         import chain_db as db
         db.cfg = None
         db.MC_DB_PATH = get_test_db_path()
@@ -239,14 +239,14 @@ class TestQueueModule(unittest.TestCase):
     def test_add_keyword(self):
         """Test queue.add_keyword wrapper."""
         from mc.queue import add_keyword
-        
+
         result = add_keyword("큐모듈테스트", "travel", 2)
         self.assertTrue(result["success"])
 
     def test_get_next_keyword(self):
         """Test queue.get_next_keyword wrapper."""
         from mc.queue import add_keyword, get_next_keyword
-        
+
         add_keyword("다음키워드", "tech", 1)
         item = get_next_keyword()
         self.assertIsNotNone(item)
@@ -255,12 +255,12 @@ class TestQueueModule(unittest.TestCase):
     def test_mark_done_by_id(self):
         """Test queue.mark_done with queue_id."""
         from mc.queue import add_keyword, get_next_keyword, mark_done
-        
+
         add_keyword("완료테스트", "travel", 3)
         item = get_next_keyword()
-        
+
         mark_done(item["id"], 456)
-        
+
         queue = self.db.list_keyword_queue()
         self.assertEqual(queue[0]["status"], "done")
         self.assertEqual(queue[0]["chain_id"], 456)
@@ -268,12 +268,12 @@ class TestQueueModule(unittest.TestCase):
     def test_mark_failed_by_id(self):
         """Test queue.mark_failed with queue_id."""
         from mc.queue import add_keyword, get_next_keyword, mark_failed
-        
+
         add_keyword("실패테스트", "tech", 2)
         item = get_next_keyword()
-        
+
         mark_failed(item["id"], "Network error")
-        
+
         queue = self.db.list_keyword_queue()
         self.assertEqual(queue[0]["status"], "failed")
         self.assertEqual(queue[0]["error_msg"], "Network error")
@@ -281,24 +281,24 @@ class TestQueueModule(unittest.TestCase):
     def test_list_queue(self):
         """Test queue.list_queue wrapper."""
         from mc.queue import add_keyword, list_queue
-        
+
         add_keyword("목록1", "travel", 3)
         add_keyword("목록2", "tech", 1)
-        
+
         items = list_queue()
         self.assertEqual(len(items), 2)
-        
+
         pending = list_queue("pending")
         self.assertEqual(len(pending), 2)
 
     def test_remove_keyword(self):
         """Test queue.remove_keyword wrapper."""
         from mc.queue import add_keyword, remove_keyword
-        
+
         add_keyword("제거테스트", "travel", 3)
         queue = self.db.list_keyword_queue()
         qid = queue[0]["id"]
-        
+
         result = remove_keyword(qid)
         self.assertTrue(result)
 
@@ -310,7 +310,7 @@ class TestAutoCommand(unittest.TestCase):
     def setUpClass(cls):
         cls.config_patcher = patch("mc_paths.load_config")
         mock_load = cls.config_patcher.start()
-        
+
         def mock_load_config(config_name="chain_config.yaml"):
             if config_name == "chain_config.yaml":
                 return {"db_path": get_test_db_path()}
@@ -321,9 +321,9 @@ class TestAutoCommand(unittest.TestCase):
                 with open(path, "r", encoding="utf-8") as f:
                     return yaml.safe_load(f)
             return {}
-        
+
         mock_load.side_effect = mock_load_config
-        
+
         import chain_db as db
         db.cfg = None
         db.MC_DB_PATH = get_test_db_path()
@@ -345,16 +345,16 @@ class TestAutoCommand(unittest.TestCase):
     def test_auto_empty_queue(self, mock_get_next):
         """Test mc auto exits gracefully when queue is empty."""
         mock_get_next.return_value = None
-        
+
         from cli.mc import _cmd_auto
         import argparse
-        
+
         args = argparse.Namespace(dry_run=False)
-        
+
         import logging
         logger = logging.getLogger("test")
         result = _cmd_auto(args, logger)
-        
+
         self.assertEqual(result, 0)
         mock_get_next.assert_called_once()
 
@@ -365,16 +365,16 @@ class TestAutoCommand(unittest.TestCase):
         """Test mc auto processes keyword successfully."""
         mock_get_next.return_value = {"id": 1, "keyword": "자동처리", "priority": 3}
         mock_run_chain.return_value = 789
-        
+
         from cli.mc import _cmd_auto
         import argparse
-        
+
         args = argparse.Namespace(dry_run=False)
-        
+
         import logging
         logger = logging.getLogger("test")
         result = _cmd_auto(args, logger)
-        
+
         self.assertEqual(result, 0)
         mock_run_chain.assert_called_once_with("자동처리", publish_mode="auto", use_context=True)
         mock_mark_done.assert_called_once_with(1, 789)
@@ -386,16 +386,16 @@ class TestAutoCommand(unittest.TestCase):
         """Test mc auto handles failure."""
         mock_get_next.return_value = {"id": 1, "keyword": "실패키워드", "priority": 3}
         mock_run_chain.side_effect = Exception("API error")
-        
+
         from cli.mc import _cmd_auto
         import argparse
-        
+
         args = argparse.Namespace(dry_run=False)
-        
+
         import logging
         logger = logging.getLogger("test")
         result = _cmd_auto(args, logger)
-        
+
         self.assertEqual(result, 1)
         mock_mark_failed.assert_called_once()
 
@@ -403,16 +403,16 @@ class TestAutoCommand(unittest.TestCase):
     def test_auto_dry_run(self, mock_get_next):
         """Test mc auto --dry-run doesn't process."""
         mock_get_next.return_value = {"id": 1, "keyword": "드라이런", "priority": 2}
-        
+
         from cli.mc import _cmd_auto
         import argparse
-        
+
         args = argparse.Namespace(dry_run=True)
-        
+
         import logging
         logger = logging.getLogger("test")
         result = _cmd_auto(args, logger)
-        
+
         self.assertEqual(result, 0)
         # Should NOT call mark_done or mark_failed
 
@@ -425,7 +425,7 @@ class TestScheduleCommand(unittest.TestCase):
         """Test schedule setup on macOS creates launchd plist."""
         mock_cmd_schedule.return_value = 0
         import argparse
-        
+
         args = argparse.Namespace(
             schedule_action="setup",
             hour=9,
@@ -433,11 +433,11 @@ class TestScheduleCommand(unittest.TestCase):
             no_launchd=False,
             daily=True
         )
-        
+
         import logging
         logger = logging.getLogger("test")
         result = mock_cmd_schedule(args, logger)
-        
+
         self.assertEqual(result, 0)
         mock_cmd_schedule.assert_called_once()
 
@@ -446,7 +446,7 @@ class TestScheduleCommand(unittest.TestCase):
         """Test schedule setup on Linux uses cron."""
         mock_cmd_schedule.return_value = 0
         import argparse
-        
+
         args = argparse.Namespace(
             schedule_action="setup",
             hour=9,
@@ -454,11 +454,11 @@ class TestScheduleCommand(unittest.TestCase):
             no_launchd=True,
             daily=True
         )
-        
+
         import logging
         logger = logging.getLogger("test")
         result = mock_cmd_schedule(args, logger)
-        
+
         self.assertEqual(result, 0)
         mock_cmd_schedule.assert_called_once()
 
@@ -497,7 +497,7 @@ class TestNotifyModule(unittest.TestCase):
         mock_resp = MagicMock()
         mock_resp.status = 200
         mock_urlopen.return_value.__enter__.return_value = mock_resp
-        
+
         with patch("mc.notify._load_notify_config", return_value={
             "notify": {"enabled": True, "webhook": {"url": "http://webhook", "timeout": 10}, "levels": {"error": True}}
         }):
@@ -509,7 +509,7 @@ class TestNotifyModule(unittest.TestCase):
     def test_send_alert_webhook_failure(self, mock_urlopen):
         """Test send_alert handles webhook failure gracefully."""
         mock_urlopen.side_effect = Exception("Connection refused")
-        
+
         with patch("mc.notify._load_notify_config", return_value={
             "notify": {"enabled": True, "webhook": {"url": "http://webhook", "timeout": 10}, "levels": {"error": True}}
         }):
@@ -541,7 +541,7 @@ class TestStatusCommand(unittest.TestCase):
     def setUpClass(cls):
         cls.config_patcher = patch("mc_paths.load_config")
         mock_load = cls.config_patcher.start()
-        
+
         def mock_load_config(config_name="chain_config.yaml"):
             if config_name == "chain_config.yaml":
                 return {"db_path": get_test_db_path()}
@@ -552,9 +552,9 @@ class TestStatusCommand(unittest.TestCase):
                 with open(path, "r", encoding="utf-8") as f:
                     return yaml.safe_load(f)
             return {}
-        
+
         mock_load.side_effect = mock_load_config
-        
+
         import chain_db as db
         db.cfg = None
         db.MC_DB_PATH = get_test_db_path()
@@ -578,9 +578,9 @@ class TestStatusCommand(unittest.TestCase):
         """Test status with no chains."""
         from cli.mc import _cmd_status
         import argparse
-        
+
         args = argparse.Namespace(days=7, json=False)
-        
+
         import logging
         logger = logging.getLogger("test")
         import io, sys
@@ -591,7 +591,7 @@ class TestStatusCommand(unittest.TestCase):
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         self.assertEqual(result, 0)
         self.assertIn("No chains in last 7 days", output)
 
@@ -600,17 +600,17 @@ class TestStatusCommand(unittest.TestCase):
         # Create some test chains
         chain_id = self.db.create_chain("테스트키워드", 3, "depth")
         self.db.update_chain_status(chain_id, "completed")
-        
+
         # Add a published post
         post_id = self.db.create_chain_post(chain_id, 0, "Test Title", "테스트키워드")
         self.db.update_published_url(post_id, "https://rotcha.kr/test", "hugo")
         self.db.update_smoke_test_result(post_id, "pass")
-        
+
         from cli.mc import _cmd_status
         import argparse
-        
+
         args = argparse.Namespace(days=7, json=False)
-        
+
         import logging
         logger = logging.getLogger("test")
         import io, sys
@@ -621,7 +621,7 @@ class TestStatusCommand(unittest.TestCase):
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         self.assertEqual(result, 0)
         self.assertIn("Total chains:   1", output)
         self.assertIn("✅ Completed:    1", output)
@@ -632,13 +632,13 @@ class TestStatusCommand(unittest.TestCase):
         """Test status --json output."""
         chain_id = self.db.create_chain("JSON테스트", 3, "depth")
         self.db.update_chain_status(chain_id, "completed")
-        
+
         from cli.mc import _cmd_status
         import argparse
         import json
-        
+
         args = argparse.Namespace(days=7, json=True)
-        
+
         import logging
         logger = logging.getLogger("test")
         import io, sys
@@ -649,7 +649,7 @@ class TestStatusCommand(unittest.TestCase):
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
-        
+
         self.assertEqual(result, 0)
         data = json.loads(output)
         self.assertEqual(data["total_chains"], 1)
@@ -665,7 +665,7 @@ class TestQueueCLI(unittest.TestCase):
     def setUpClass(cls):
         cls.config_patcher = patch("mc_paths.load_config")
         mock_load = cls.config_patcher.start()
-        
+
         def mock_load_config(config_name="chain_config.yaml"):
             if config_name == "chain_config.yaml":
                 return {"db_path": get_test_db_path()}
@@ -676,9 +676,9 @@ class TestQueueCLI(unittest.TestCase):
                 with open(path, "r", encoding="utf-8") as f:
                     return yaml.safe_load(f)
             return {}
-        
+
         mock_load.side_effect = mock_load_config
-        
+
         import chain_db as db
         db.cfg = None
         db.MC_DB_PATH = get_test_db_path()
@@ -700,7 +700,7 @@ class TestQueueCLI(unittest.TestCase):
         """Test mc queue add command."""
         from cli.mc import main
         import sys, io
-        
+
         # Use subparsers - need to call queue add directly
         with patch.object(sys, 'argv', ["mc", "queue", "add", "테스트키워드", "--category", "travel", "--priority", "2"]):
             old_stdout = sys.stdout
@@ -710,17 +710,17 @@ class TestQueueCLI(unittest.TestCase):
                 output = sys.stdout.getvalue()
             finally:
                 sys.stdout = old_stdout
-        
+
         self.assertIn("✅ Added: 테스트키워드", output)
 
     def test_queue_list_cli(self):
         """Test mc queue list command."""
         self.db.add_keyword_queue("키워드1", "travel", 3)
         self.db.add_keyword_queue("키워드2", "tech", 1)
-        
+
         from cli.mc import main
         import sys, io
-        
+
         with patch.object(sys, 'argv', ["mc", "queue", "list"]):
             old_stdout = sys.stdout
             sys.stdout = io.StringIO()
@@ -729,17 +729,17 @@ class TestQueueCLI(unittest.TestCase):
                 output = sys.stdout.getvalue()
             finally:
                 sys.stdout = old_stdout
-        
+
         self.assertIn("키워드1", output)
         self.assertIn("키워드2", output)
 
     def test_queue_next_cli(self):
         """Test mc queue next command."""
         self.db.add_keyword_queue("다음키워드", "travel", 2)
-        
+
         from cli.mc import main
         import sys, io
-        
+
         with patch.object(sys, 'argv', ["mc", "queue", "next"]):
             old_stdout = sys.stdout
             sys.stdout = io.StringIO()
@@ -748,16 +748,16 @@ class TestQueueCLI(unittest.TestCase):
                 output = sys.stdout.getvalue()
             finally:
                 sys.stdout = old_stdout
-        
+
         self.assertIn("다음키워드", output)
 
     def test_queue_remove_cli(self):
         """Test mc queue remove command."""
         self.db.add_keyword_queue("삭제할키워드", "travel", 3)
-        
+
         from cli.mc import main
         import sys, io
-        
+
         with patch.object(sys, 'argv', ["mc", "queue", "remove", "삭제할키워드"]):
             old_stdout = sys.stdout
             sys.stdout = io.StringIO()
@@ -766,7 +766,7 @@ class TestQueueCLI(unittest.TestCase):
                 output = sys.stdout.getvalue()
             finally:
                 sys.stdout = old_stdout
-        
+
         # Check if removal succeeded (keyword was pending)
         if "✅ Removed" in output:
             self.assertIn("✅ Removed: 삭제할키워드", output)

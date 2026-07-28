@@ -41,13 +41,13 @@ def get_cta(
 ) -> dict:
     """
     카테고리와 depth에 맞는 공식 CTA 반환.
-    
+
     Args:
         category: keyword_categories 키 (travel, real_estate, automotive, stock, etc)
         depth: 0, 1, 2 (step = depth + 1)
         next_url: 다음 단계 포스트 URL (chain_card용)
         hub_url: hub 페이지 URL (Step 3 hub_cta용)
-    
+
     Returns:
         dict: {
             'html': '...',           # 최종 렌더링될 HTML/shortcode
@@ -59,7 +59,7 @@ def get_cta(
     """
     templates = _CTA_TEMPLATES.get("cta_templates", {})
     link_dest = _CTA_TEMPLATES.get("link_destinations", {})
-    
+
     # Depth별 CTA 타입 결정
     if depth == 2:  # Step 3
         cta_type = "hub"
@@ -130,12 +130,12 @@ _FORBIDDEN_CTA_PATTERNS = [
 def detect_ai_cta(text: str) -> list[dict]:
     """
     본문에서 AI가 생성한 임의 CTA 패턴 감지.
-    
+
     Returns:
         list of dict: {'pattern': str, 'match': str, 'position': int}
     """
     matches = []
-    
+
     # 일반 AI CTA 패턴
     for pattern in _AI_CTA_PATTERNS:
         for m in re.finditer(pattern, text):
@@ -144,7 +144,7 @@ def detect_ai_cta(text: str) -> list[dict]:
                 "match": m.group(),
                 "position": m.start(),
             })
-    
+
     # 금지 CTA 패턴 (더 강한 경고)
     for pattern in _FORBIDDEN_CTA_PATTERNS:
         for m in re.finditer(pattern, text):
@@ -154,72 +154,72 @@ def detect_ai_cta(text: str) -> list[dict]:
                 "position": m.start(),
                 "forbidden": True,
             })
-    
+
     return matches
 
 
 def replace_ai_cta(text: str, official_cta: str = "더 알아보기 →") -> str:
     """
     감지된 AI CTA를 제거하고 공식 CTA 안내 주석으로 대체.
-    
+
     Args:
         text: 원본 텍스트
         official_cta: 공식 CTA 문구 (기본: "더 알아보기 →")
-    
+
     Returns:
         정제된 텍스트
     """
     if not text:
         return text
-    
+
     cleaned = text
     matches = detect_ai_cta(text)
-    
+
     if matches:
         logger.warning(f"[CTA] AI CTA {len(matches)}개 감지: {[m['match'] for m in matches]}")
-    
+
     # 금지 CTA는 완전 제거
     for m in matches:
         if m.get("forbidden"):
             cleaned = re.sub(re.escape(m["match"]), "", cleaned)
-    
+
     # 일반 AI CTA도 제거 (공식 CTA는 card_injector에서 주입하므로 본문에서 제거)
     for m in matches:
         if not m.get("forbidden"):
             cleaned = re.sub(re.escape(m["match"]), "", cleaned)
-    
+
     # 플레이스홀더 {{...}} 제거 (shortcode {{< >}} 제외)
     cleaned = re.sub(r'\{\{(?!<|%)([^}]+)\}\}', '', cleaned)
-    
+
     return cleaned
 
 
 def verify_cta_count(content: str, depth: int) -> tuple[bool, str]:
     """
     최종 마크다운에 CTA 블록이 정확히 존재하는지 검증.
-    
+
     Args:
         content: 최종 마크다운
         depth: 0, 1, 2 (step = depth + 1)
-    
+
     Returns:
         (pass: bool, message: str)
     """
     chain_card_count = len(re.findall(r'chain-card', content))
     dual_cta_count = len(re.findall(r'dual-cta', content))
     html_cta_count = len(re.findall(r'<div[^>]*class="[^"]*cta[^"]*"', content))
-    
+
     if depth == 2:  # Step 3: hub CTA 1개
         expected_chain = 1
         if chain_card_count == expected_chain and dual_cta_count == 0 and html_cta_count == 0:
             return True, f"CTA 검증 통과: hub CTA {chain_card_count}개"
         return False, f"CTA 검증 실패: chain-card={chain_card_count} (기대 {expected_chain}), dual-cta={dual_cta_count}, html_cta={html_cta_count}"
-    
+
     elif depth in (0, 1):  # Step 1, 2: chain-card 1개 (하단) + 중간 카드 선택적
         if chain_card_count >= 1 and dual_cta_count == 0 and html_cta_count == 0:
             return True, f"CTA 검증 통과: chain-card {chain_card_count}개"
         return False, f"CTA 검증 실패: chain-card={chain_card_count} (최소 1개), dual-cta={dual_cta_count}, html_cta={html_cta_count}"
-    
+
     return True, "CTA 검증 스킵 (depth 불명)"
 
 

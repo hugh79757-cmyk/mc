@@ -23,3 +23,11 @@ logs/
 
 # macOS
 .DS_Store
+
+# 작업 중 생성된 백업 파일
+*.bak
+*.bak2
+*.bak3
+*.bak_*
+*.backup
+*.backup2

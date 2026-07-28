@@ -33,16 +33,16 @@ def generate_plist(
 ) -> str:
     """launchd plist XML 생성."""
     import plistlib
-    
+
     project_dir = project_dir or str(Path(__file__).resolve().parent.parent)
     log_dir = Path(project_dir) / "logs"
-    
+
     program_args = [
         python_path,
         "-m", "cli.mc",
         "auto",
     ]
-    
+
     plist_dict = {
         "Label": label,
         "ProgramArguments": program_args,
@@ -56,7 +56,7 @@ def generate_plist(
             "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
         },
     }
-    
+
     return plistlib.dumps(plist_dict).decode("utf-8")
 
 
@@ -68,22 +68,22 @@ def install_schedule_macos(
 ) -> str:
     """macOS launchd 스케줄 등록."""
     import plistlib
-    
+
     project_dir = project_dir or str(Path(__file__).resolve().parent.parent)
     log_dir = Path(project_dir) / "logs"
     launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
-    
+
     log_dir.mkdir(parents=True, exist_ok=True)
     launch_agents_dir.mkdir(parents=True, exist_ok=True)
-    
+
     plist_path = launch_agents_dir / f"{label}.plist"
-    
+
     program_args = [
         "/usr/bin/env python3",
         "-m", "cli.mc",
         "auto",
     ]
-    
+
     plist_dict = {
         "Label": label,
         "ProgramArguments": program_args,
@@ -97,21 +97,21 @@ def install_schedule_macos(
             "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
         },
     }
-    
+
     with open(plist_path, "wb") as f:
         plistlib.dump(plist_dict, f)
-    
+
     # load
     result = subprocess.run(
         ["launchctl", "load", str(plist_path)],
         capture_output=True, timeout=15, check=False,
     )
-    
+
     if result.returncode != 0:
         # Already loaded - unload first
         subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True, check=False)
         subprocess.run(["launchctl", "load", str(plist_path)], capture_output=True, check=False)
-    
+
     return str(plist_path)
 
 
@@ -119,7 +119,7 @@ def remove_schedule_macos(label: str = "com.mc.auto") -> bool:
     """macOS launchd 스케줄 제거."""
     launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
     plist_path = launch_agents_dir / f"{label}.plist"
-    
+
     if plist_path.exists():
         subprocess.run(
             ["launchctl", "unload", str(plist_path)],
@@ -134,9 +134,9 @@ def get_status_macos(label: str = "com.mc.auto") -> Dict[str, Any]:
     """macOS launchd 스케줄 상태 확인."""
     launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
     plist_path = launch_agents_dir / f"{label}.plist"
-    
+
     exists = plist_path.exists()
-    
+
     # launchctl list로 확인
     loaded = False
     if exists:
@@ -145,7 +145,7 @@ def get_status_macos(label: str = "com.mc.auto") -> Dict[str, Any]:
             capture_output=True, text=True, timeout=10,
         )
         loaded = label in result.stdout
-    
+
     return {
         "os": "macos",
         "plist_path": str(plist_path) if exists else None,
@@ -165,10 +165,10 @@ def generate_crontab_line(
     """crontab 라인 생성."""
     project_dir = project_dir or str(Path(__file__).resolve().parent.parent)
     log_dir = Path(project_dir) / "logs"
-    
+
     if command is None:
         command = f"cd {project_dir} && /usr/bin/env python3 -m cli.mc auto >> {log_dir}/mc-auto-$(date +%Y-%m-%d).log 2>&1"
-    
+
     return f"{minute} {hour} * * * {command} # mc-auto"
 
 
@@ -182,22 +182,22 @@ def install_schedule_linux(
     project_dir = project_dir or str(Path(__file__).resolve().parent.parent)
     log_dir = Path(project_dir) / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    
+
     if command is None:
         command = f"cd {project_dir} && /usr/bin/env python3 -m cli.mc auto >> {log_dir}/mc-auto-$(date +%Y-%m-%d).log 2>&1"
-    
+
     cron_line = f"{minute} {hour} * * * {command} # mc-auto"
-    
+
     try:
         from crontab import CronTab
         cron = CronTab(user=True)
-        
+
         # Check for existing mc-auto entry
         for job in cron:
             if "# mc-auto" in (job.comment or "") and "mc auto" in str(job):
                 print("  [scheduler] Cron entry already exists")
                 return False
-        
+
         job = cron.new(command=command, comment="mc-auto daily")
         job.setall(minute, hour, "*", "*", "*")
         cron.write()
@@ -207,11 +207,11 @@ def install_schedule_linux(
         try:
             result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10)
             existing = result.stdout if result.returncode == 0 else ""
-            
+
             if cron_line in existing:
                 print("  [scheduler] Cron entry already exists")
                 return False
-            
+
             new_crontab = existing.rstrip() + "\n" + cron_line + "\n"
             proc = subprocess.run(["crontab", "-"], input=new_crontab, text=True, capture_output=True, timeout=10)
             return proc.returncode == 0
@@ -342,25 +342,25 @@ def setup_daily_log_rotation(log_dir: str = None, max_days: int = 30) -> None:
     """일자별 로그 파일 핸들러 설정 + 오래된 로그 삭제."""
     import logging
     from datetime import datetime, timedelta
-    
+
     log_dir = log_dir or str(Path(__file__).resolve().parent.parent / "logs")
     log_path = Path(log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
-    
+
     # 오늘 날짜 로그 파일
     today = datetime.now().strftime("%Y-%m-%d")
     log_file = log_path / f"mc-auto-{today}.log"
-    
+
     # 루트 로거에 FileHandler 추가 (중복 방지)
     root_logger = logging.getLogger()
-    
+
     # 기존 mc-auto 파일 핸들러 제거
     for handler in root_logger.handlers[:]:
         if isinstance(handler, logging.FileHandler):
             if "mc-auto" in handler.baseFilename:
                 root_logger.removeHandler(handler)
                 handler.close()
-    
+
     # 새 핸들러 추가
     file_handler = logging.FileHandler(str(log_file), encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
@@ -371,7 +371,7 @@ def setup_daily_log_rotation(log_dir: str = None, max_days: int = 30) -> None:
         )
     )
     root_logger.addHandler(file_handler)
-    
+
     # 오래된 로그 삭제 (max_days 이상)
     cutoff = datetime.now() - timedelta(days=max_days)
     for log_file in log_path.glob("mc-auto-*.log"):

@@ -22,20 +22,20 @@ def get_published_posts():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT id, chain_id, step, title, hugo_file_path, published_url
         FROM chain_posts
-        WHERE status = 'published' 
-        AND hugo_file_path IS NOT NULL 
+        WHERE status = 'published'
+        AND hugo_file_path IS NOT NULL
         AND hugo_file_path != ''
         ORDER BY id, step
     """)
-    
+
     posts = []
     for row in cursor.fetchall():
         posts.append(dict(row))
-    
+
     conn.close()
     return posts
 
@@ -104,21 +104,21 @@ def remove_markers(file_path):
 def main():
     print("Finding published posts...")
     posts = get_published_posts()
-    
+
     print(f"Found {len(posts)} published posts to check")
-    
+
     fixed_count = 0
     checked_count = 0
-    
+
     for post in posts:
         post_id = post['id']
         file_path = post['hugo_file_path']
-        
+
         if not file_path or not os.path.exists(file_path):
             continue
-            
+
         checked_count += 1
-        
+
         if has_markers(file_path):
             print(f"Found markers in Post #{post_id} (Step {post['step']}): {file_path}")
             if remove_markers(file_path):
@@ -128,11 +128,11 @@ def main():
                 print(f"  ✗ Failed to fix")
         # else:
         #     print(f"No markers in Post #{post_id}")
-    
+
     print(f"\nSummary:")
     print(f"  Checked: {checked_count} files")
     print(f"  Fixed: {fixed_count} files")
-    
+
     if fixed_count > 0:
         print("\nNow rebuilding affected Hugo sites...")
         # Rebuild each site that had fixes
@@ -143,7 +143,7 @@ def main():
                 if post['hugo_file_path'] and post['hugo_file_path'].startswith(site_path):
                     # We'd need to track which were actually fixed - for simplicity, rebuild all that had markers
                     pass
-            
+
             # For now, let's rebuild all three to be safe
             print(f"  Rebuilding {site_name}...")
             result = os.system(f"cd '{site_path}' && /opt/homebrew/bin/hugo --gc --minify")
@@ -151,7 +151,7 @@ def main():
                 print(f"  ✓ {site_name} rebuilt successfully")
             else:
                 print(f"  ✗ {site_name} rebuild failed (exit code {result})")
-        
+
         print("\nDeployment note: After rebuilding, you'll need to run:")
         print("  wrangler pages deploy ./public --project-name [project-name]")
         print("For each site in their respective directories.")

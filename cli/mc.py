@@ -159,7 +159,7 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
     if args.search and args.no_search:
         logger.error("Cannot specify both --search and --no-search")
         return 1
-    
+
     chain_id = run_chain(
         seed=keyword,
         dry_run=args.dry_run,
@@ -317,14 +317,14 @@ def _image_existing(chain_id: int, logger: logging.Logger) -> int:
 def _cmd_queue(args, logger: logging.Logger) -> int:
     """Handle mc queue subcommands."""
     from mc.queue import add_keyword, get_next_keyword, list_queue, remove_keyword
-    
+
     if args.queue_action == "add":
         result = add_keyword(args.keyword, args.category, args.priority)
         if result["success"]:
             print(f"[queue] ✅ Added: {result['keyword']} (priority={args.priority})")
         else:
             print(f"[queue] ⚠️ Duplicate: {result['keyword']} (existing: {result['existing_status']})")
-    
+
     elif args.queue_action == "list":
         items = list_queue(args.status)
         if not items:
@@ -332,20 +332,20 @@ def _cmd_queue(args, logger: logging.Logger) -> int:
             return 0
         for item in items:
             print(f"  {item['priority']} | {item['status']:12} | {item['keyword']:30} | {item.get('category', '-')}")
-    
+
     elif args.queue_action == "next":
         item = get_next_keyword()
         if item:
             print(f"[queue] Next: {item['keyword']} (id={item['id']}, priority={item['priority']})")
         else:
             print("[queue] No pending keywords")
-    
+
     elif args.queue_action == "remove":
         if remove_keyword(args.keyword):
             print(f"[queue] ✅ Removed: {args.keyword}")
         else:
             print(f"[queue] ⚠️ Not found or not pending: {args.keyword}")
-    
+
     return 0
 
 
@@ -358,7 +358,7 @@ def _cmd_auto(args, logger: logging.Logger) -> int:
     from mc.queue import get_next_keyword, mark_done, mark_failed
     from chain_publisher import run_chain
     import traceback
-    
+
     # dry-run: 키워드만 꺼내서 보여주고 실행 안 함
     if args.dry_run:
         item = get_next_keyword()
@@ -367,22 +367,22 @@ def _cmd_auto(args, logger: logging.Logger) -> int:
             return 0
         print(f"[auto] Dry-run: would process '{item['keyword']}' (id={item['id']}, priority={item['priority']})")
         return 0
-    
+
     item = get_next_keyword()
     if not item:
         print("[auto] No pending keywords in queue. Exiting.")
         return 0
-    
+
     keyword = item["keyword"]
     queue_id = item["id"]
     print(f"[auto] Processing: {keyword} (id={queue_id}, priority={item['priority']})")
-    
+
     try:
         chain_id = run_chain(keyword, publish_mode="auto", use_context=True)
         if chain_id:
             mark_done(queue_id, chain_id)
             print(f"[auto] ✅ Chain #{chain_id} completed for '{keyword}'")
-            
+
             # 성공 알림 (실패해도 발행 중단 안 함)
             try:
                 from mc.notify import send_success
@@ -398,7 +398,7 @@ def _cmd_auto(args, logger: logging.Logger) -> int:
         traceback.print_exc()
         mark_failed(queue_id, error_msg)
         print(f"[auto] ❌ Failed: {error_msg}")
-        
+
         # 실패 알림
         try:
             from mc.notify import send_alert
@@ -406,7 +406,7 @@ def _cmd_auto(args, logger: logging.Logger) -> int:
         except Exception:
             pass
         return 1
-    
+
     return 0
 
 
@@ -506,14 +506,14 @@ def _log_cost_summary(logger: logging.Logger, chain_id: int, start_time: datetim
 def _cmd_queue(args, logger: logging.Logger) -> int:
     """Handle mc queue subcommands."""
     from mc.queue import add_keyword, get_next_keyword, list_queue, remove_keyword
-    
+
     if args.queue_action == "add":
         result = add_keyword(args.keyword, args.category, args.priority)
         if result["success"]:
             print(f"[queue] ✅ Added: {result['keyword']} (id={result['id']}, priority={args.priority})")
         else:
             print(f"[queue] ⚠️ Duplicate: {result['keyword']} (existing status: {result['existing_status']})")
-    
+
     elif args.queue_action == "list":
         items = list_queue(args.status)
         if not items:
@@ -522,20 +522,20 @@ def _cmd_queue(args, logger: logging.Logger) -> int:
         for item in items:
             cat = item.get('category', '-') or '-'
             print(f"  {item['priority']} | {item['status']:12} | {item['keyword']:30} | {cat}")
-    
+
     elif args.queue_action == "next":
         item = get_next_keyword()
         if item:
             print(f"[queue] Next: {item['keyword']} (id={item['id']}, priority={item['priority']})")
         else:
             print("[queue] No pending keywords")
-    
+
     elif args.queue_action == "remove":
         if remove_keyword(args.keyword):
             print(f"[queue] ✅ Removed: {args.keyword}")
         else:
             print(f"[queue] ⚠️ Not found or not pending: {args.keyword}")
-    
+
     return 0
 
 
@@ -548,22 +548,22 @@ def _cmd_auto(args, logger: logging.Logger) -> int:
     from mc.queue import get_next_keyword, mark_done, mark_failed
     from chain_publisher import run_chain
     import traceback
-    
+
     dry_run = getattr(args, 'dry_run', False)
-    
+
     item = get_next_keyword()
     if not item:
         print("[auto] No pending keywords in queue. Exiting.")
         return 0
-    
+
     keyword = item["keyword"]
     queue_id = item["id"]
     print(f"[auto] Processing: {keyword} (id={queue_id}, priority={item['priority']})")
-    
+
     if dry_run:
         print(f"[auto] Dry run — would process: {keyword}")
         return 0
-    
+
     try:
         chain_id = run_chain(keyword, publish_mode="auto", use_context=True)
         if chain_id:
@@ -591,7 +591,7 @@ def _cmd_auto(args, logger: logging.Logger) -> int:
         except Exception:
             pass
         return 1
-    
+
     return 0
 
 
@@ -602,18 +602,18 @@ def _cmd_auto(args, logger: logging.Logger) -> int:
 def _cmd_schedule(args, logger: logging.Logger) -> int:
     """Handle mc schedule subcommands using unified scheduler module."""
     from mc.scheduler import install_schedule, remove_schedule, get_status
-    
+
     if args.schedule_action == "setup":
         hour = args.hour
         minute = args.minute
-        
+
         install_schedule(hour=hour, minute=minute)
         print(f"[schedule] ✅ Daily at {hour:02d}:{minute:02d} registered")
-    
+
     elif args.schedule_action == "status":
         status = get_status()
         os_type = status.get("os", "unknown")
-        
+
         if os_type == "macos":
             if status.get("plist_exists"):
                 print(f"  launchd: {status.get('plist_path')}")
@@ -629,13 +629,13 @@ def _cmd_schedule(args, logger: logging.Logger) -> int:
                 print("  No cron tasks")
         else:
             print(f"  Unknown OS: {os_type}")
-    
+
     elif args.schedule_action == "remove":
         if remove_schedule():
             print("  [schedule] ✅ Schedule removed")
         else:
             print("  [schedule] ⚠️ No schedule to remove")
-    
+
     return 0
 
 
@@ -648,20 +648,20 @@ def _cmd_status(args, logger: logging.Logger) -> int:
     import chain_db as db
     from datetime import datetime, timedelta
     import json
-    
+
     days = args.days
     since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    
+
     chains = db.get_chains_since(since)
     if not chains:
         print(f"[status] No chains in last {days} days")
         return 0
-    
+
     total = len(chains)
     completed = sum(1 for c in chains if c["status"] == "completed")
     failed = sum(1 for c in chains if c["status"] == "failed")
     in_progress = total - completed - failed
-    
+
     # 사이트별 발행 수
     site_stats = {}
     for c in chains:
@@ -676,7 +676,7 @@ def _cmd_status(args, logger: logging.Logger) -> int:
                         site_stats["techpawz.com"] = site_stats.get("techpawz.com", 0) + 1
                     elif "informationhot" in url:
                         site_stats["informationhot.kr"] = site_stats.get("informationhot.kr", 0) + 1
-    
+
     # Smoke test 통과율
     smoke_total = 0
     smoke_passed = 0
@@ -688,13 +688,13 @@ def _cmd_status(args, logger: logging.Logger) -> int:
                     smoke_total += 1
                     if p["smoke_test_result"] == "pass":
                         smoke_passed += 1
-    
+
     # 키워드 큐 현황
     queue_items = db.list_keyword_queue()
     queue_stats = {}
     for item in queue_items:
         queue_stats[item["status"]] = queue_stats.get(item["status"], 0) + 1
-    
+
     if args.json:
         print(json.dumps({
             "period_days": days,
@@ -707,7 +707,7 @@ def _cmd_status(args, logger: logging.Logger) -> int:
             "queue_status": queue_stats,
         }, ensure_ascii=False, indent=2))
         return 0
-    
+
     # 터미널 텍스트 출력
     print(f"\n{'='*50}")
     print(f"  mc Status — Last {days} days ({since} ~)")
@@ -741,14 +741,14 @@ def main() -> int:
         description="mc — Manual Chain CLI: one command to derive, draft, image, and publish a blog chain",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    
+
     # ── Main command: mc <keyword> ─────────────────────────────────
     main_parser = subparsers.add_parser("run", help="Run full pipeline (default)")
     main_parser.add_argument("keyword", help="Seed keyword for the chain")
     main_parser.add_argument("--chain-id", type=int, help="Existing chain ID (for --resume / --draft / --image)")
     main_parser.add_argument("--pid-file", type=str, default=None,
                             help="PID file to delete on exit (internal use by --background)")
-    
+
     # Pipeline stage flags
     stage_group = main_parser.add_mutually_exclusive_group()
     stage_group.add_argument("--dry-run", action="store_true",
@@ -761,92 +761,92 @@ def main() -> int:
                              help="Alias for --image")
     stage_group.add_argument("--publish", action="store_true",
                              help="Full pipeline (default if no stage flag)")
-    
+
     # Resume & override
     main_parser.add_argument("--resume", action="store_true",
                             help="Resume interrupted chain (requires --chain-id)")
     main_parser.add_argument("--site", type=str,
                             choices=list(_SITE_BLOG_KEY.keys()),
                             help="Single site override (rotcha / issue.techpawz / techpawz / aikorea24)")
-    
+
     # Search context flags (Phase 20: --search global default)
     main_parser.add_argument("--search", action="store_true", default=True,
                             help="Enable Naver search context (default)")
     main_parser.add_argument("--no-search", action="store_true",
                             help="Disable Naver search context")
-    
+
     # Execution mode
     main_parser.add_argument("--background", action="store_true",
                             help="Run in background (detached process)")
-    
+
     # ── Queue command ─────────────────────────────────────────────
     queue_parser = subparsers.add_parser("queue", help="키워드 큐 관리")
     queue_parser.add_argument("--pid-file", type=str, default=None,
                              help="PID file to delete on exit (internal use)")
     queue_sub = queue_parser.add_subparsers(dest="queue_action")
-    
+
     # queue add
     add_p = queue_sub.add_parser("add", help="키워드 큐에 추가")
     add_p.add_argument("keyword", help="시드 키워드")
     add_p.add_argument("--category", help="카테고리 (travel, stock, automotive, real_estate, etc)")
     add_p.add_argument("--priority", type=int, default=3, choices=range(1, 6), help="우선순위 1~5 (1=최고)")
-    
+
     # queue list
     list_p = queue_sub.add_parser("list", help="큐 목록 조회")
     list_p.add_argument("--status", choices=["pending", "processing", "done", "failed"], help="상태 필터")
-    
+
     # queue next
     next_p = queue_sub.add_parser("next", help="다음 처리할 키워드 1개 조회 (processing으로 변경)")
-    
+
     # queue remove
     remove_p = queue_sub.add_parser("remove", help="큐에서 키워드 제거")
     remove_p.add_argument("keyword", help="제거할 키워드")
-    
+
     # ── Auto command ──────────────────────────────────────────────
     auto_parser = subparsers.add_parser("auto", help="큐에서 다음 키워드 꺼내서 자동 발행")
     auto_parser.add_argument("--pid-file", type=str, default=None,
                             help="PID file to delete on exit (internal use)")
     auto_parser.add_argument("--dry-run", action="store_true", help="키워드만 꺼내서 보여주고 실행은 안 함")
-    
+
     # ── Schedule command ──────────────────────────────────────────
     schedule_parser = subparsers.add_parser("schedule", help="자동 발행 스케줄 관리")
     schedule_parser.add_argument("--pid-file", type=str, default=None,
                                 help="PID file to delete on exit (internal use)")
     schedule_sub = schedule_parser.add_subparsers(dest="schedule_action")
-    
+
     # schedule setup
     setup_p = schedule_sub.add_parser("setup", help="일일 자동 발행 스케줄 등록")
     setup_p.add_argument("--daily", action="store_true", help="매일 실행 (기본값)")
     setup_p.add_argument("--hour", type=int, default=9, help="실행 시각 (시, 0-23)")
     setup_p.add_argument("--minute", type=int, default=0, help="실행 시각 (분, 0-59)")
     setup_p.add_argument("--no-launchd", action="store_true", help="macOS launchd 대신 cron 사용")
-    
+
     # schedule status
     status_p = schedule_sub.add_parser("status", help="현재 스케줄 등록 상태 확인")
-    
+
     # schedule remove
     remove_p = schedule_sub.add_parser("remove", help="스케줄 제거")
     remove_p.add_argument("--all", action="store_true", help="모든 mc 스케줄 제거")
-    
+
     # ── Status command ────────────────────────────────────────────
     status_parser = subparsers.add_parser("status", help="최근 7일 발행 현황 요약")
     status_parser.add_argument("--pid-file", type=str, default=None,
                               help="PID file to delete on exit (internal use)")
     status_parser.add_argument("--days", type=int, default=7, help="조회 기간 (일)")
     status_parser.add_argument("--json", action="store_true", help="JSON 출력")
-    
+
     args = parser.parse_args()
-    
+
     # ── PID file cleanup on exit (for background subprocess) ───────
     if args.pid_file:
         import atexit as _atexit
         _pid_file = Path(args.pid_file)
         if _pid_file.exists():
             _atexit.register(lambda: _pid_file.unlink(missing_ok=True))
-    
+
     # Logging
     logger = _setup_logging()
-    
+
     # ── Route to handler ──────────────────────────────────────────
     if args.command == "run":
         if args.resume and args.chain_id:
@@ -871,26 +871,26 @@ def main() -> int:
         else:
             parser.print_help()
             sys.exit(1)
-    
+
     elif args.command == "queue":
         return _cmd_queue(args, logger)
-    
+
     elif args.command == "auto":
         return _cmd_auto(args, logger)
-    
+
     elif args.command == "schedule":
         return _cmd_schedule(args, logger)
-    
+
     elif args.command == "status":
         return _cmd_status(args, logger)
-    
+
     else:
         # Backward compatibility: if no subcommand, treat as keyword
         if args.keyword and not args.command:
             # This is the old behavior: mc <keyword>
             # We need to parse with the old parser structure
             pass
-        
+
         parser.print_help()
         sys.exit(1)
 
