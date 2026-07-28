@@ -7,7 +7,7 @@
 See: .planning/PROJECT.md
 
 **Core value:** One random keyword → 3 interconnected blog posts on 3 different domains, each going deeper than the last, with images and cross-links — fully automated.
-**Current focus:** 카테고리 10종 E2E 검증 완료 (Phase 27). classify_priority 버그·char_count config 조정·_parse_derivation 강화 필요.
+**Current focus:** product(전자기기/상품) 카테고리 추가 완료 (Phase 28). 11종 체계 가동 중.
 
 ## Phase Status
 
@@ -33,11 +33,12 @@ See: .planning/PROJECT.md
 | **24~25 — 카테고리 10종 확장** | **✅ Complete** | **customer_service/gov_finance/shopping_brand/golf_course/medicine lateral 프롬프트 + step_sections** |
 | **26 — 코드베이스 리팩토링** | **🔲 Planning** | **3-wave 계획 수립 완료, 미착수** |
 | **27 — 카테고리별 Draft 품질 검증** | **✅ Complete** | **12 derive + 36 draft, H2 36/36, 릭 36/36, 글자수 이슈 문서화** |
+| **28 — product 카테고리 추가** | **✅ Complete** | **product keyword category + lateral prompt + 315 tests** |
 
 ## Current Metrics
 
-- **pytest:** 309/309 ✅
-- **카테고리:** 10종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/etc)
+- **pytest:** 315/315 ✅
+- **카테고리:** 11종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/product/etc)
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`
 - **파서 안정성:** BOM/제로폭/코드펜스/텍스트 전후 대응 + 테스트 12건
