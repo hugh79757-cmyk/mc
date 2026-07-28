@@ -386,12 +386,22 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
                 print(f"  [drafter] ⚠️ image_type=chart but chart_type/chart_data missing. Setting to none.")
                 image_type = "none"
 
-        # 자동 이미지 키워드 보강: 이미지/차트 타입에 image_keyword가 없으면 제목으로 fallback
-        needs_image = image_type in ("photo", "chart")
-        if needs_image and (not meta.get("image_keyword") or not str(meta.get("image_keyword")).strip()):
+        # 이미지 검색어 강제: photo는 AI가 준 추상적 image_keyword를 무시하고
+        # 항상 seed_keyword(주제어)로 검색하여 주제 무관 사진(은하/산 등) 방지.
+        # chart는 데이터 시각화라 사진 검색과 무관 — 기존 보강 로직 유지.
+        if image_type == "photo":
+            _seed_kw = (seed_keyword or post.get("title", "")).strip()
+            if _seed_kw:
+                _ai_kw = str(meta.get("image_keyword") or "").strip()
+                meta["image_keyword"] = _seed_kw
+                if _ai_kw and _ai_kw != _seed_kw:
+                    print(f"  [drafter] image_keyword 주제어 강제: '{_ai_kw}' → '{_seed_kw}'")
+                else:
+                    print(f"  [drafter] image_keyword 주제어 설정: '{_seed_kw}'")
+        elif image_type == "chart" and (not meta.get("image_keyword") or not str(meta.get("image_keyword")).strip()):
             default_keyword = (post.get("title", "") or seed_keyword).strip()
             meta["image_keyword"] = default_keyword
-            print(f"  [drafter] image_keyword 자동 보강: '{default_keyword}'")
+            print(f"  [drafter] image_keyword 자동 보강(chart): '{default_keyword}'")
 
         # Phase 7: placeholder insertion
         draft_md = _ensure_featureimage(draft_md)
