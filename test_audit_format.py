@@ -408,3 +408,72 @@ class TestExtractKeywordFromTemplate:
         from audit.audit_format import _extract_keyword_from_template
         result = _extract_keyword_from_template("## 일반 제목")
         assert "일반 제목" in result
+
+
+# ── Hugo 빌드 검증 ──────────────────────────────────────────────
+
+
+class TestHugoBuild:
+    """check_hugo_build 단위테스트."""
+
+    def test_skip_returns_empty(self):
+        """skip=True이면 빈 리스트 반환."""
+        from audit.audit_format import check_hugo_build
+        assert check_hugo_build(skip=True) == []
+
+    def test_nonexistent_site(self):
+        """존재하지 않는 사이트명 → findings 반환 (사이트 not in HUGO_SITES → 전체 사이트 빌드)."""
+        from audit.audit_format import check_hugo_build
+        # site_name not in HUGO_SITES → all sites checked; result is a list
+        result = check_hugo_build(site_name="nonexistent", skip=False)
+        assert isinstance(result, list)
+
+    def test_single_site(self):
+        """site_name 지정 시 해당 사이트만 빌드."""
+        from audit.audit_format import check_hugo_build
+        # rotcha exists in HUGO_SITES
+        result = check_hugo_build(site_name="rotcha", skip=False)
+        assert isinstance(result, list)
+
+
+# ── HTML 렌더링 검증 ──────────────────────────────────────────────
+
+
+class TestHtmlRender:
+    """check_html_render 단위테스트."""
+
+    def test_missing_html_file(self):
+        """HTML 파일 없으면 findings 반환."""
+        from audit.audit_format import check_html_render
+        findings = check_html_render("nonexistent-slug-xyz", "rotcha", "test")
+        assert len(findings) >= 1
+        assert "HTML 파일 없음" in findings[0]["detail"]
+
+    def test_unknown_site(self):
+        """존재하지 않는 사이트 → 빈 리스트."""
+        from audit.audit_format import check_html_render
+        assert check_html_render("slug", "nonexistent", "test") == []
+
+
+# ── 라이브 접근 검증 ──────────────────────────────────────────────
+
+
+class TestLiveAccess:
+    """check_live_access 단위테스트."""
+
+    def test_empty_url(self):
+        """빈 URL → 빈 리스트."""
+        from audit.audit_format import check_live_access
+        assert check_live_access("", "test") == []
+
+    def test_none_url(self):
+        """None URL → 빈 리스트."""
+        from audit.audit_format import check_live_access
+        assert check_live_access(None, "test") == []
+
+    def test_invalid_url(self):
+        """잘못된 URL → findings 반환."""
+        from audit.audit_format import check_live_access
+        findings = check_live_access("http://localhost:19999", "test")
+        assert len(findings) >= 1
+        assert findings[0]["check"] == "live_access"
