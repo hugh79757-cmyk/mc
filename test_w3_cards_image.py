@@ -55,37 +55,45 @@ class TestExternalLinks:
         assert hasattr(injector, "_search_via_api")
         assert not hasattr(injector, "_search_via_bs4")
 
-    def test_classify_authority_government(self):
-        """공공기관 도메인은 1순위."""
-        from chain_card_injector import _classify_authority
-        priority, label = _classify_authority("https://www.dhlottery.co.kr/game")
+    def test_score_official_government(self):
+        """공공 TLD(.or.kr 등)는 priority 1."""
+        from chain_card_injector import _score_official
+        priority, score, label = _score_official(
+            "https://www.nhis.or.kr/menu", keyword="건강보험공단", rank=0
+        )
+        assert priority == 1
+        assert label == "공공기관"
+
+    def test_score_official_brand_signal(self):
+        """브랜드 토큰 + 공식 표현 + 상위 순위 신호로 공식 판정."""
+        from chain_card_injector import _score_official
+        priority, score, label = _score_official(
+            "https://www.twayair.com/booking",
+            title="티웨이항공 공식 홈페이지",
+            keyword="twayair",
+            rank=0,
+        )
         assert priority == 1
 
-    def test_classify_authority_whitelist(self):
-        """화이트리스트 도메인은 1순위."""
-        from chain_card_injector import _classify_authority
-        priority, label = _classify_authority("https://www.twayair.com/booking")
-        assert priority == 1
-        assert "티웨이항공" in label
-
-    def test_classify_authority_platform(self):
-        """네이버 플레이스는 2순위."""
-        from chain_card_injector import _classify_authority
-        priority, label = _classify_authority("https://pcmap.place.naver.com/hotel/123")
+    def test_score_official_platform(self):
+        """네이버 플레이스 등 플랫폼은 priority 2."""
+        from chain_card_injector import _score_official
+        priority, score, label = _score_official(
+            "https://pcmap.place.naver.com/hotel/123"
+        )
         assert priority == 2
-        assert "네이버" in label
 
-    def test_classify_authority_skip_blog(self):
-        """블로그/뉴스는 제외 (0)."""
-        from chain_card_injector import _classify_authority
-        priority, _ = _classify_authority("https://blog.naver.com/post/123")
+    def test_score_official_skip_blog(self):
+        """블로그는 구조적 배제 → priority 0."""
+        from chain_card_injector import _score_official
+        priority, _, _ = _score_official("https://blog.naver.com/post/123")
         assert priority == 0
 
-    def test_classify_authority_fallback(self):
-        """일반 사이트는 3순위."""
-        from chain_card_injector import _classify_authority
-        priority, _ = _classify_authority("https://example.com/info")
-        assert priority == 3
+    def test_score_official_fallback(self):
+        """신호 부족한 일반 사이트는 공식 아님 → priority 0."""
+        from chain_card_injector import _score_official
+        priority, _, _ = _score_official("https://example.com/info", rank=99)
+        assert priority == 0
 
     def test_build_external_link_card_primary(self):
         """1순위 링크가 있을 때 '바로가기' 카드 생성."""
