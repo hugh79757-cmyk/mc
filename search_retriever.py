@@ -9,6 +9,44 @@ from urllib.error import HTTPError
 
 logger = logging.getLogger(__name__)
 
+# ─────────────────────────────────────────────────────────────
+# 검색어 자동 보정
+# config의 term_corrections 매핑을 조회해 잘못된 표기를 올바른 표기로 교체
+# ─────────────────────────────────────────────────────────────
+
+def apply_term_correction(keyword: str, cfg: dict = None) -> str:
+    """
+    검색어 자동 보정: cfg['term_corrections'] 에 등록된 잘못된 표기를 올바른 표기로 교체.
+
+    Args:
+        keyword: 원본 검색어 (사용자 입력)
+        cfg: chain_config.yaml 전체 설정 dict (term_corrections 섹션 포함)
+
+    Returns:
+        보정된 검색어 (매핑이 없으면 원본 유지)
+    """
+    if not cfg:
+        return keyword
+
+    corrections = cfg.get("term_corrections", {})
+    if not corrections:
+        return keyword
+
+    # 1) exact match
+    if keyword in corrections:
+        corrected = corrections[keyword]
+        logger.info("[term_correction] '%s' → '%s' (exact match)", keyword, corrected)
+        return corrected
+
+    # 2) strip whitespace match: "영덕시 포트리조트" → match even without spaces
+    stripped = keyword.replace(" ", "")
+    for wrong, correct in corrections.items():
+        if wrong.replace(" ", "") == stripped:
+            logger.info("[term_correction] '%s' → '%s' (normalized match via '%s')", keyword, correct, wrong)
+            return correct
+
+    return keyword
+
 _cache: dict[str, tuple] = {}
 
 def _cache_key(endpoint: str, query: str, display: int) -> str:
@@ -110,11 +148,17 @@ def retrieve_context_for_post(
     endpoints = endpoints_map.get(angle, ["webkr"])
     max_per = max(1, max_sources // len(endpoints))
 
+    # ── 검색어 자동 보정 ────────────────────────────────────────
+    corrected_keyword = apply_term_correction(keyword, cfg)
+    if corrected_keyword != keyword:
+        logger.info("[search] 검색어 보정: '%s' → '%s'", keyword, corrected_keyword)
+    # ─────────────────────────────────────────────────────────────
+
     seen_links: set = set()
     results: list[dict] = []
 
     for ep in endpoints:
-        ok, data = client.search(keyword, endpoint=ep, display=max_per)
+        ok, data = client.search(corrected_keyword, endpoint=ep, display=max_per)
         if not ok:
             logger.debug("[search] %s failed: %s", ep, data)
             continue
