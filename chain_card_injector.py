@@ -61,6 +61,27 @@ def _extract_domain(url: str) -> str:
         return ""
 
 
+def _decode_idn(domain: str) -> str:
+    """punycode(xn--) 도메인을 유니코드로 디코딩. 실패 시 원본 반환."""
+    try:
+        parts = domain.rsplit(".", 1)
+        # xn-- 접두사가 있는 라벨만 디코딩
+        decoded_parts = []
+        for part in parts[0].split(".") if len(parts) > 1 else [parts[0]]:
+            if not part:
+                continue
+            if part.startswith("xn--"):
+                decoded_parts.append(part.encode("ascii").decode("idna"))
+            else:
+                decoded_parts.append(part)
+        result = ".".join(decoded_parts)
+        if len(parts) > 1:
+            result += "." + parts[1]
+        return result
+    except Exception:
+        return domain
+
+
 def _keyword_tokens(keyword: str) -> list[str]:
     """키워드에서 토큰 추출. 영문(2자+) + 한글(2자+) + 숫자 포함. 도메인 대조용."""
     tokens = [t.lower() for t in re.findall(r"[A-Za-z]{2,}", keyword)]
@@ -83,6 +104,11 @@ def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99
     domain = _extract_domain(url)
     if not domain:
         return (0, 0, "invalid URL")
+
+    # punycode 디코딩: 한글 도메인(시포트리조트.kr → xn--oy2b11opse0mmca85p.kr) 대응
+    domain_unicode = _decode_idn(domain)
+    url_lower = url.lower()
+    url_unicode = url_lower.replace(domain, domain_unicode)  # URL 내 punycode를 한글로 치환
 
     # 플랫폼 (지도/SNS 등) → priority 2 (SKIP보다 먼저 검사: place.naver.com 등이 naver.com skip에 걸리지 않도록)
     for plat_domain, plat_name in AUTHORITY_PLATFORMS.items():
@@ -119,9 +145,9 @@ def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99
         if label == "관련 사이트":
             label = "공식 사이트"
 
-    # 신호 3: 브랜드 토큰(영문+한글)이 도메인에 포함
+    # 신호 3: 브랜드 토큰(영문+한글)이 도메인에 포함 (한글 도메인=punycode 디코딩 대응)
     for tok in _keyword_tokens(keyword):
-        if tok in domain:
+        if tok in domain or (domain_unicode != domain and tok in domain_unicode):
             score += 25
             break
 
@@ -135,11 +161,10 @@ def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99
     elif rank <= 4:
         score += 10
 
-    # 신호 6: 키워드 단어가 URL 경로에 포함 (한글/영문 모두)
-    url_lower = url.lower()
+    # 신호 6: 키워드 단어가 URL 경로에 포함 (한글/영문 모두 + punycode 대응)
     for word in keyword.split():
         word = word.strip().lower()
-        if len(word) >= 2 and word in url_lower:
+        if len(word) >= 2 and (word in url_lower or word in url_unicode):
             score += 15
             break
 
