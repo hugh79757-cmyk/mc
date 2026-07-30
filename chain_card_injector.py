@@ -62,8 +62,14 @@ def _extract_domain(url: str) -> str:
 
 
 def _keyword_tokens(keyword: str) -> list[str]:
-    """키워드에서 영문 토큰(소문자, 2자 이상) 추출. 도메인 대조용."""
-    return [t.lower() for t in re.findall(r"[A-Za-z]{2,}", keyword)]
+    """키워드에서 토큰 추출. 영문(2자+) + 한글(2자+) + 숫자 포함. 도메인 대조용."""
+    tokens = [t.lower() for t in re.findall(r"[A-Za-z]{2,}", keyword)]
+    # 한글 단어도 토큰으로 추출 (띄어쓰기 기준)
+    for word in keyword.split():
+        word = word.strip()
+        if len(word) >= 2:
+            tokens.append(word.lower())
+    return tokens
 
 
 def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99) -> tuple[int, int, str]:
@@ -107,7 +113,13 @@ def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99
         if label == "관련 사이트":
             label = "공식 사이트"
 
-    # 신호 3: 브랜드 영문 토큰이 도메인에 포함
+    # 신호 2B: 검색 결과 제목에 키워드(전체)가 포함 → 강력한 관련성 증거
+    if keyword and title and keyword in title:
+        score += 30
+        if label == "관련 사이트":
+            label = "공식 사이트"
+
+    # 신호 3: 브랜드 토큰(영문+한글)이 도메인에 포함
     for tok in _keyword_tokens(keyword):
         if tok in domain:
             score += 25
@@ -122,6 +134,14 @@ def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99
         score += 20
     elif rank <= 4:
         score += 10
+
+    # 신호 6: 키워드 단어가 URL 경로에 포함 (한글/영문 모두)
+    url_lower = url.lower()
+    for word in keyword.split():
+        word = word.strip().lower()
+        if len(word) >= 2 and word in url_lower:
+            score += 15
+            break
 
     # 임계값: 55 이상이면 공식(priority 1)
     if score >= 55:
