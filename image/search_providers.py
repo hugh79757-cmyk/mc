@@ -13,7 +13,11 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
+
+# Phase 26 W4: BaseImageProvider 인터페이스 + 공유 CacheManager 적응 (03-02)
+from .base_provider import BaseImageProvider
 
 # ── Cache ──
 
@@ -127,6 +131,95 @@ def _to_body_path(downloaded: Path, slug: str, source: str, photo_id: str) -> Pa
         except OSError:
             return downloaded
         return dest
+
+
+# ── BaseImageProvider 기반 클래스 제공자 (Phase 26 W4 — 03-02) ──────
+# 기존 함수 기반 search_body_image 경로와 동일한 검색 로직(API 키 env,
+# image.thumbnail 의 search) 을 BaseImageProvider 인터페이스(fetch/validate)
+# 로 노출하는 적응 클래스. 캐싱은 BaseImageProvider.shared_cache (공유
+# CacheManager 싱글톤) 를 사용한다.
+#
+# ⚠ 행동 보존: 기존 공개 함수 search_body_image / _read_cache /
+#   _write_cache (24h 파일 캐시) 는 무변경 유지 — 이미지 파이프라인
+#   테스트(test_image_search.py 등)가 이 경로에 의존한다. 새 클래스는
+#   위 함수를 건드리지 않으며, 인메모리 캐시(메타데이터)와 파일
+#   캐시(다운로드 경로)는 별도 네임스페이스로 공존한다.
+
+class UnsplashProvider(BaseImageProvider):
+    """Unsplash body-image 제공자 (BaseImageProvider 인터페이스).
+
+    fetch(keyword, timeout=30.0) → photo 메타데이터 dict 또는 None.
+      - image.thumbnail.UnsplashProvider 검색 로직 재사용 (API 키는
+        env UNSPLASH_ACCESS_KEY 또는 생성자 access_key).
+      - 결과는 공유 CacheManager 에 캐시 — 같은 키워드 재요청 시
+        네트워크 호출 없이 즉시 반환.
+    validate(result) → dict + id + 이미지 URL 필드 존재 여부 검증.
+    """
+
+    def __init__(self, access_key: Optional[str] = None):
+        """access_key 미지정 시 env UNSPLASH_ACCESS_KEY 사용."""
+        self._access_key = access_key
+
+    def fetch(self, keyword: str, timeout: float = 30.0) -> Optional[dict]:
+        if not keyword:
+            return None
+        cache_key = f"unsplash:{keyword}"
+        cached = self.shared_cache.get(cache_key)
+        if cached is not None:
+            return cached if isinstance(cached, dict) else None
+        from image.thumbnail import UnsplashProvider as ThumbProvider
+        provider = ThumbProvider(self._access_key or _UNSPLASH_KEY)
+        results = provider.search(keyword)
+        result = results[0] if results else None
+        if self.validate(result):
+            self.shared_cache.set(cache_key, result)
+            return result
+        return None
+
+    def validate(self, result: Any) -> bool:
+        if not isinstance(result, dict):
+            return False
+        if not result.get("id"):
+            return False
+        return bool(result.get("url_raw") or result.get("url_regular") or result.get("url"))
+
+
+class PexelsProvider(BaseImageProvider):
+    """Pexels body-image 제공자 (BaseImageProvider 인터페이스).
+
+    fetch(keyword, timeout=30.0) → photo 메타데이터 dict 또는 None.
+      - image.thumbnail.PexelsProvider 검색 로직 재사용 (API 키는
+        env PEXELS_API_KEY 또는 생성자 api_key).
+      - 결과는 공유 CacheManager 에 캐시.
+    validate(result) → dict + id + 이미지 URL 필드 존재 여부 검증.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        """api_key 미지정 시 env PEXELS_API_KEY 사용."""
+        self._api_key = api_key
+
+    def fetch(self, keyword: str, timeout: float = 30.0) -> Optional[dict]:
+        if not keyword:
+            return None
+        cache_key = f"pexels:{keyword}"
+        cached = self.shared_cache.get(cache_key)
+        if cached is not None:
+            return cached if isinstance(cached, dict) else None
+        from image.thumbnail import PexelsProvider as ThumbProvider
+        provider = ThumbProvider(self._api_key or _PEXELS_KEY)
+        results = provider.search(keyword)
+        result = results[0] if results else None
+        if self.validate(result):
+            self.shared_cache.set(cache_key, result)
+            return result
+        return None
+
+    def validate(self, result: Any) -> bool:
+        if not isinstance(result, dict):
+            return False
+        if not result.get("id"):
+            return False
+        return bool(result.get("url") or result.get("url_original") or result.get("url_raw"))
 
 
 

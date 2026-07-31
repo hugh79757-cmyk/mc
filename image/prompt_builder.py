@@ -12,8 +12,13 @@ Image Keywords: 각 chain_post의 image_keyword를 기반으로
 """
 
 import yaml
+from typing import Optional
 
 from mc_paths import CHAIN_CONFIG_PATH
+
+
+# Phase 26 W4: BaseImageProvider 인터페이스 + 공유 CacheManager 적응 (03-02)
+from .base_provider import BaseImageProvider
 
 POLLINATIONS_STYLE_MAP = {
     "rotcha": "soft pastel illustration, gentle color palette, artistic",
@@ -211,6 +216,77 @@ def build_full_prompt(
     ]
 
     return ". ".join(p for p in parts if p)
+
+
+# ── PromptBuilder 클래스 (Phase 26 W4 — 03-02) ──────────────────────
+# 기존 모듈 함수 build_contextual_prompt / build_full_prompt /
+# get_image_style_for_blog 의 클래스 기반 래퍼. BaseImageProvider
+# 인터페이스(선택적 provider 주입)와 공유 CacheManager 를 사용한다.
+#
+# ⚠ 행동 보존: 기존 함수들은 무변경 유지 — 다른 모듈/테스트가
+#   `from image.prompt_builder import build_full_prompt` 형태로 의존한다.
+
+class PromptBuilder:
+    """이미지 프롬프트 조립 클래스.
+
+    기존 함수형 API 를 인스턴스 메서드로 노출하며, 선택적으로
+    BaseImageProvider 인터페이스를 구현한 이미지 제공자와
+    공유 캐시(CacheManager 싱글톤)를 함께 사용한다.
+
+    Attributes:
+        shared_cache: BaseImageProvider.shared_cache 와 동일한
+            공유 CacheManager 싱글톤 (여러 인스턴스/제공자가 공유).
+        provider: BaseImageProvider 인터페이스 구현체 (선택).
+
+    Example:
+        pb = PromptBuilder()
+        prompt = pb.build_full_prompt("춘천 여행", "rotcha")
+    """
+
+    shared_cache = BaseImageProvider.shared_cache
+
+    def __init__(self, provider: Optional[BaseImageProvider] = None):
+        self.provider = provider
+
+    def build_contextual_prompt(
+        self,
+        image_keyword: str,
+        title: str,
+        blog_key: str,
+        post_angle: str = "",
+        seed_keyword: str = "",
+        step: int = 1,
+        chain_type: str = "depth",
+    ) -> str:
+        """모듈 함수 build_contextual_prompt 위임 (동일 시그니처)."""
+        return build_contextual_prompt(
+            image_keyword, title, blog_key,
+            post_angle=post_angle, seed_keyword=seed_keyword,
+            step=step, chain_type=chain_type,
+        )
+
+    def build_full_prompt(
+        self,
+        image_keyword: str,
+        blog_key: str,
+        chain_type: str = "depth",
+        step: int = 1,
+    ) -> str:
+        """모듈 함수 build_full_prompt 위임 (동일 시그니처)."""
+        return build_full_prompt(image_keyword, blog_key, chain_type=chain_type, step=step)
+
+    def get_style_for_blog(self, blog_key: str) -> str:
+        """블로그별 스타일 프롬프트 조회 (공유 캐시로 저장·조회).
+
+        같은 blog_key 는 두 번째 호출부터 캐시 히트로 즉시 반환.
+        """
+        cache_key = f"style:{blog_key}"
+        cached = self.shared_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        style = get_image_style_for_blog(blog_key)
+        self.shared_cache.set(cache_key, style)
+        return style
 
 
 # ── CLI test ──
