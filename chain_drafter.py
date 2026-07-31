@@ -20,6 +20,13 @@ from datetime import datetime
 
 from mc.leak_defense import strip_leaks
 
+import frontmatter_utils  # frontmatter 처리 단일 진실 공급원 (Phase 26)
+from url_utils import extract_domain  # noqa: F401 — URL 처리 단일 진실 공급원 (Phase 26)
+
+from constants import (  # noqa: F401 — 상수 단일 진실 공급원 (Phase 26)
+    AUTHORITY_DOMAINS, SKIP_DOMAINS, URL_PATTERN,
+)
+
 from chain_models import parse_ai_output, AIParseError, AIOutput
 
 import mc_paths  # noqa: F401 — side effect: sys.path + 5000 주입
@@ -98,77 +105,28 @@ def _build_slug(title: str, keyword: str) -> str:
 # ── Phase 24: FM 코드 조립 ─────────────────────────────────────────────
 
 def _extract_description(body: str, max_len: int = 150) -> str:
-    """body 첫 문단에서 description 추출, 150자 제한."""
-    body = body.strip()
-    if not body:
-        return ""
-    # 첫 번째 문단 (빈 줄 또는 H2 전까지)
-    para = body.split("\n\n")[0].strip()
-    # 첫 1-2 문장 (마침표/물음표/느낌표로 분리)
-    sentences = re.split(r'(?<=[.!?])\s+', para)
-    desc = sentences[0] if sentences else para
-    if len(desc) < 30 and len(sentences) > 1:
-        desc = " ".join(sentences[:2])
-    # 따옴표 이스케이프
-    desc = desc.replace('"', '\\"').replace("'", "\\'")
-    # 150자 제한
-    if len(desc) > max_len:
-        desc = desc[:max_len - 3] + "..."
-    return desc
+    """backward-compat wrapper; use frontmatter_utils.extract_description."""
+    return frontmatter_utils.extract_description(body, max_len)
 
 
 def _build_frontmatter(post: dict, body: str) -> str:
-    """post dict + body로 완전한 Hugo 마크다운 문자열 조립.
+    """backward-compat wrapper; use frontmatter_utils.build_frontmatter.
 
     frontmatter를 코드에서 직접 생성하여 AI의 FM 누수 문제를 구조적으로 방지.
     """
-    title = (post.get("title") or "").replace('"', '\\"')
-    tags = post.get("tags", [])
-    if isinstance(tags, str):
-        tags = [t.strip() for t in tags.split(",") if t.strip()]
-    tags_str = ", ".join(f'"{t}"' for t in (tags or []))
-    cats = (post.get("category_guess") or post.get("category") or "일반").replace('"', '\\"')
-
-    # description: body 첫 1-2문장에서 추출 (AI가 생성한 description 보존)
-    desc = _extract_description(body)
-
-    fm = (
-        f"---\n"
-        f'title: "{title}"\n'
-        f'description: "{desc}"\n'
-        f"draft: true\n"
-        f"tags: [{tags_str}]\n"
-        f'categories: ["{cats}"]\n'
-        f"featureimage: \"\"\n"
-        f"---\n\n"
-    )
-    return fm + body
+    return frontmatter_utils.build_frontmatter(post, body)
 
 
 # ── frontmatter 유틸 ──────────────────────────────────────────────────
 
 def _ensure_frontmatter_closer(draft_md: str) -> str:
-  """frontmatter closer가 없으면 보정."""
-  if not draft_md.startswith("---"):
-    return draft_md
-  end = draft_md.find("---", 3)
-  if end != -1:
-    return draft_md
-  # closer 없음: 첫 빈 줄 앞에 closer 삽입
-  rest = draft_md[3:].lstrip("\n")
-  lines = rest.split("\n")
-  for i, line in enumerate(lines):
-    if not line.strip():
-      fm = "\n".join(lines[:i])
-      body = "\n".join(lines[i:])
-      return "---\n" + fm + "\n---\n" + body
-  # 빈 줄 없으면 전체를 frontmatter로 간주
-  return "---\n" + rest + "\n---\n"
+  """backward-compat wrapper; use frontmatter_utils.ensure_frontmatter_closer."""
+  return frontmatter_utils.ensure_frontmatter_closer(draft_md)
 
 
 def _ensure_featureimage(draft_md: str) -> str:
   """frontmatter에 featureimage: "" 필드를 항상 포함시킴 (빈칸 → publisher가 채움)."""
-  draft_md = _ensure_frontmatter_closer(draft_md)
+  draft_md = frontmatter_utils.ensure_frontmatter_closer(draft_md)
   if not draft_md.startswith("---"):
     return "---\nfeatureimage: \"\"\n---\n\n" + draft_md
   end = draft_md.find("---", 3)
@@ -182,28 +140,13 @@ def _ensure_featureimage(draft_md: str) -> str:
 
 
 def _ensure_frontmatter(draft_md: str, post: dict) -> str:
-    """
-    draft_md에 frontmatter가 없으면 _build_frontmatter()로 생성.
+    """backward-compat wrapper; use frontmatter_utils.ensure_frontmatter.
+
+    draft_md에 frontmatter가 없으면 build_frontmatter()로 생성.
     ---가 있는 경우는 AI가 FM을 생성한 경우 → 그대로 보존 (fallback).
-    Phase 24: 단순화 — 더블 FM 병합 로직 제거, FM 생성은 _build_frontmatter()에 위임.
+    Phase 24: 단순화 — 더블 FM 병합 로직 제거, FM 생성은 build_frontmatter()에 위임.
     """
-    if not draft_md or not draft_md.strip():
-        return draft_md
-
-    # 이미 frontmatter가 있으면 (---로 열리고 닫힘) 보존
-    if draft_md.strip().startswith("---"):
-        end = draft_md.find("---", 3)
-        if end != -1 and "title:" in draft_md[3:end]:
-            return draft_md  # 정상 FM → 보존
-        # FM이 있지만 깨진 경우 → body로 간주하고 _build_frontmatter로 재생성
-        body = draft_md
-        if end != -1:
-            # ---...--- 블록 제거
-            body = draft_md[end + 3:].lstrip("\n")
-        return _build_frontmatter(post, body)
-
-    # FM 없음 → _build_frontmatter로 생성
-    return _build_frontmatter(post, draft_md)
+    return frontmatter_utils.ensure_frontmatter(draft_md, post)
 
 
 def _insert_body_image_marker(draft_md: str) -> str:
@@ -435,10 +378,10 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
         # 'none' → no marker
 
         # Phase 24: FM 조립 (build_frontmatter 내부에 featureimage: "" 포함)
-        draft_md = _build_frontmatter(post, draft_md)
+        draft_md = frontmatter_utils.build_frontmatter(post, draft_md)
 
         # 안전장치: AI가 여전히 FM을 출력한 경우 등 예외 처리
-        draft_md = _ensure_frontmatter(draft_md, post)
+        draft_md = frontmatter_utils.ensure_frontmatter(draft_md, post)
 
         slug = _build_slug(post["title"], seed_keyword)
         slug = f"{slug}-s{post.get('step', post['depth'] + 1)}"

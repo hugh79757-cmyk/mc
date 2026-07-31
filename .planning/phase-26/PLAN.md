@@ -1,163 +1,86 @@
+# PLAN.md — Phase 26: 코드베이스 리팩터링 (리팩토링을 통한 중복 제거 및 복잡도 감소)
+
+## 목표
+MC 코드베이스의 중복을 제거하고 복잡도를 낮추며, 기사 형식 품질과 유지보수성을 향상시키는 점진적인 리팩터링을 수행한다. 기존 기능은 완전히 보존하면서 코드 구조를 모듈화하고, 테스트 커버리지를 높이며, 향후 기능 확산을 용이하게 만든다.
+
+## 개요
+이 페이즈는 세 가지 주요 영역으로 구성된다:
+1. **Foundation** – 프론트매터, URL 처리, 상수 등을 유틸리티 모듈로 추출·통합
+2. **Component Simplification** – 카드 주입 로직을 역할 기반 클래스(LinkFinder, CardGenerator, HtmlRenderer)로 분리하고 퍼사드 패턴으로 기존 인터페이스 유지
+3. **Advanced Optimizations** – 이미지 제공자 베이스 클래스, 캐시 매니저, JSON-Schema 설정 검증, 마크다운 처리 파이프라인 리팩터링
+
+각 작업은 기존 테스트(251개)를 통과하는 것을 전제로 하며, 가능하면 추가 단위 테스트를 작성하여 회귀를 방지한다.
+
+## 작업 목록 (Wave 기준)
+
+### Wave 1 – Foundation
+| ID | 작업 | 설명 | 산출물 | 검증 방법 |
+|----|------|------|--------|-----------|
+| F1 | `frontmatter_utils.py` 생성 | `ensure_frontmatter(text, meta)` 단일 함수 구현 | `chain.py`, `chain_publisher_core.py`의 `_ensure_frontmatter`, `_ensure_frontmatter_closer` 대체 | 단위 테스트 (프론트매터 생성/검증) + 기존 테스트 통과 |
+| F2 | `url_utils.py` 생성 | 도메인 추출, 정규화, 트래킹 파라미터 제거 함수 제공 | 기존 광고/카드 로직에서 직접 문자열 조작 코드를 `url_utils` 함수 호출로 대체 | 단위 테스트 (URL 변환 케이스) + 기존 테스트 통과 |
+| F3 | `constants.py` 생성 | `AUTHORITY_DOMAINS`, `SKIP_DOMAINS`, 정규표현식 패턴 등 하드코딩 상수 중앙집중 | 각 파일에서 상수 import 대신 `constants`에서 가져오도록 수정 | import 구문 검사 + 기존 테스트 통과 |
+| F4 | Import 수정 | 위 세 모듈을 사용하도록 관련 파일(`chain_drafter.py`, `chain_publisher_core.py`, `chain_card_injector.py`, `image/` 등) 수정 | - | 린트/import 오류 없음 + 기존 테스트 통과 |
+| F5 | 기존 중복 함수 삭제 | `_ensure_frontmatter`, `_ensure_frontmatter_closer` 등 중복 구현 제거 | - | 코드 중복 검사 도구 (예: `duplicates`) 보고서 0 + 기존 테스트 통과 |
+
+### Wave 2 – Component Simplification (Card Injector)
+| ID | 작업 | 설명 | 산출물 | 검증 방법 |
+|----|------|------|--------|-----------|
+| C1 | `LinkFinder` 클래스 설계 | `find_links(text) -> List[Dict]` 인터페이스 구현 | `link_finder.py` (또는 `card_injector/link_finder.py`) | 단위 테스트 (다양한 HTML 입력에 대한 링크 추출 정확도) |
+| C2 | `CardGenerator` 클래스 설계 | 링크 딕셔너리 + 포스트 메타 → 카드 스펙 생성 | `card_generator.py` | 단위 테스트 (예상 출력과 비교) |
+| C3 | `HtmlRenderer` 클래스 설계 | 템플릿 문자열 기반 HTML 생성 (next/internal/official) | `html_renderer.py` | 단위 테스트 (템플릿 렌더링 결과) |
+| C4 | 퍼사드 유지 | 기존 `chain_card_injector.inject_*` 함수를 새 클래스를 활용하도록 리팩터링 (퍼사드) | `chain_card_injector.py` (리팩터링 버전) | 기능 테스트: 기존 출력과 동일 스냅샷 테스트 |
+| C5 | 포괄적 단위 테스트 추가 | 각 새 클래스에 대해 커버리지 90% 이상 목표 | `test_link_finder.py`, `test_card_generator.py`, `test_html_renderer.py` | coverage 보고서 |
+| C6 | 통합 테스트 | 샘플 체인(1~3단계) 실행하여 카드 삽입 결과가 변경되지 않음 확인 | - | 기존 스냅샷 테스트 또는 금 파일 비교 |
+| C7 | 사용하지 않는 데드 코드 삭제 | 리팩터링 후 사용되지 않는 헬퍼 함수 제거 | - | lint/unused-import 검사 |
+| C8 | 문서화 | 각 클래스의 책임과 사용법 설명 docstring 추가 | - | 코드 리뷰 |
+
+### Wave 3 – Advanced Optimizations
+| ID | 작업 | 설명 | 산출물 | 검증 방법 |
+|----|------|------|--------|-----------|
+| A1 | 이미지 제공자 베이스 클래스 | `image/base_provider.py`에 `fetch`, `validate` 인터페이스 정의 | `base_provider.py` | 기존 구현(`unsplash_provider.py`, `pexels_provider.py`)이 인터페이스를 구현하도록 수정 후 단위 테스트 |
+| A2 | 캐시 매니저 | `image/cache_manager.py`에 LRU/TTL 캐시 구현 (전역 싱글톤 또는 의존성 주입) | `cache_manager.py` | 캐시 히트/미스 테스트, 수명 만료 검증 |
+| A3 | 기존 이미지/프롬프트 모듈 리팩터링 | `search_providers.py`, `prompt_builder.py`에서 베이스 클래스 및 캐시 사용 | - | 기존 기능 동작 확인 (이미지 다운로드/프롬프트 생성) |
+| A4 | JSON-Schema 정의 | `config/schema.yaml`에 `prompts.yaml`, `keyword_mapping.yaml` 구조 기술 | `schema.yaml` | 스키마 파일 자체 검증 (yamllint) |
+| A5 | 설정 검증 훅 추가 | 설정 로드 시 jsonschema 로 검증, 오류 시 명확한 메시지 출력 | `config/loader.py` (또는 기존 로더 수정) | 잘못된 구성 파일로 실패 테스트, 정상 파일 통과 테스트 |
+| A6 | `MarkdownProcessor` 클래스 추출 | `chain_publisher_core.py`에서 누수 방지, 심볼 클리닝, 테이블 보호 로직을 클래스로 분리 | `markdown_processor.py` | 단위 테스트 (각 처리 단계) |
+| A7 | 프론트매터 처리 위임 | `MarkdownProcessor` 내에서의 프론트매터 처리는 `frontmatter_utils.ensure_frontmatter` 사용 | - | 기존 테스트 통과 |
+| A8 | Hugo 전용 함수 분리 | `_publish_hugo` 는 Hugo‑specific frontmatter 및 이미지 처리만 담당 | - | 변경 전후 Hugo 빌드 결과 동일 확인 |
+| A9 | 누수 방어 상수 통합 | `leak_defense.py`에 모듈레벨 상수 참조 (예: `constants.LEAK_PATTERNS`) 사용으로 일관화 | - | 중복 제거 검사 |
+| A10 | 성능 회귀 체크 | 리팩터링 전후 중요 경로(링크 찾기, 카드 생성, 마크다운 처리) 벤치마크 | - | 성능 저하 <5% 허용 (간단한 timeit 스크립트) |
+| A11 | 전체 테스트 스위트 실행 | 모든 단위/통합 테스트가 통과하도록 보장 | - | `pytest -q` 통과 (251/251) |
+| A12 | 문서 및 주석 업데이트 | 새 모듈/클래스에 적절한 docstring 및 인라인 주석 추가 | - | 코드 리뷰 |
+
+## 의존성
+- **선행 단계**: Phase 22 (품질 게이트), Phase 23 (자동 재작성 루프) – 직접적인 블로킹 없음
+- **후행 단계**: Phase 27 이후 – 리팩터링된 기반 위에 신규 기능 추가 시 이득
+
+## 리스크 및 완화 방안
+| 리스크 | 가능성 | 영향 | 완화 방안 |
+|--------|--------|------|-----------|
+| Import-time side effect (예: 모듈 로드 시 부수효과)로 import-only 재사용 깨짐 | 낮음 | 높음 | 최상위 코드를 `if __name__ == "__main__":` 로 보호하거나 함수 내로 이동 |
+| 카드 삽입 동작 변경으로 인한 스냅샷 불일치 | 중간 | 중간 | 속성 기반 테스트: 랜덤 HTML 입력에 대해 리팩터 전/후 출력 비교 (스냅샷) |
+| JSON-Schema가 너무 엄격해서 기존 유효한 YAML을 거부 | 낮음 | 중간 | 관대한 스키마부터 시작해 점진적으로 제약 추가, 기존 설정 파일 모두 검증 후 적용 |
+| 간접 레이어 추가로 인한 성능 저하 | 낮음 | 낮음 | 주요 경로 벤치마크 수행, 목표 ≤5% 변동; 필요시 인라인 최적화 |
+| URL 유틸리티 에러로 인한 깨진 링크 | 낮음 | 높음 | 포괄적인 단위 테스트 (트래킹 파라미터 제거, 스키마/프래그먼트 처리, 국제화 도메인 등) |
+
+## 성공 기준 (Acceptance Criteria)
+1. 모든 기존 테스트가 통과한다 (251/251).
+2. 신규 단위 테스트가 추가되어 주요 리팩터링 컴포넌트에 대한 커버리지가 90% 이상이다.
+3. 커밋 전 `git diff --check` 및 린트 오류가 없다.
+4. 수동 검증: 임의의 시드 키워드(예: `"알프스대영CC"`) 로 체인 #296 전 과정을 실행했을 때,
+   - 각 단계(1,2,3) 초안이 정상 생성되며 총 소요 시간이 30초 이내이다.
+   - 생성된 마크다운은 앞부분 노출, 플레이스홀더 잔존, 잘못된 CTA 등의 릭이 없다.
+   - Hugo 사이트(rotcha, informationhot, techpawz, issue-techpawz) 빌드가 성공하고 결과물이 기존과 시각적으로 동일하다.
+5. 구성 파일 검증이 작동하여 잘못된 YAML은 명확한 오류 메시지와 함께 실패한다.
+6. 캐시 및 이미지 제공자 교체가 기존 기능에 영향을 주지 않는다 (모킹을 사용한 단위 테스트 통과).
+
+## 다음 단계
+1. 디렉토리 `.planning/phase-26` 가 존재함을 확인 (이미 존재).
+2. 본 `PLAN.md` 가 작성되었으므로, 필요한 경우 `gsd-planner --phase 26` 로 초안을 다듬을 수 있음 (현재는 이미 계획을 바탕으로 작성됨).
+3. `gsd-execute-phase --phase 26` 를 실행하여 작업을 진행한다.
+4. 진행 중 주기적으로 `gsd-plan-checker --phase 26` 를 실행해 검증한다.
+5. 검증이 통과되면 해당 단계를 완료 표시하고 다음 단계로 넘어간다.
+6. 모든 작업이 완료되고 최종 검증이 통과되면 단계 완료 표시하고, 다음 미계획 단계(27)로 이동한다.
+
 ---
-phase: 26
-plan: 01
-type: executable
-wave: 1-3
-depends_on: [phase-22]
-files_modified:
-  - chain_drafter.py
-  - chain_card_injector.py
-  - chain_publisher_core.py
-  - image/__init__.py
-  - image/search_providers.py
-  - image/prompt_builder.py
-  - config/prompts.yaml
-  - leak_defense.py
-files_created:
-  - frontmatter_utils.py
-  - url_utils.py
-  - constants.py
-  - link_finder.py
-  - card_generator.py
-  - html_renderer.py
-  - image/base_provider.py
-  - image/cache_manager.py
-  - config/schema.yaml
-autonomous: false
-requirements:
-  - R-REF-01
-  - R-REF-02
-  - R-REF-03
-  - R-REF-04
-  - R-REF-05
----
-
-# PLAN.md — Phase 26: 코드베이스 리팩토링
-
-**Phase:** 26  
-**Owner:** 리팩토링 담당 에이전트  
-**Mode:** development  
-**Status:** 🔲 Planning  
-
-## Objective
-
-MC 코드베이스의 중복을 제거하고 복잡도를 낮추며, 기사 형식 품질과 유지보수성을 향상시키는 점진적인 리팩터링을 수행한다. 기존 기능은 완전히 보존하면서 코드 구조를 모듈화하고, 테스트 커버리지를 높이며, 향후 기능 확장을 용이하게 만든다.
-
-## Background
-
-현재 코드베이스는 다음과 같은 문제가 있다:
-- 중복된 프론트매터 처리 함수(`_ensure_frontmatter`, `_ensure_frontmatter_closer`)
-- 과도하게 복잡한 카드 주입 로직(`chain_card_injector.py` 695줄)
-- 산재된 상수 및 하드코딩된 리스트
-- 설정 파일의 중복 및 검증 부재
-These issues increase maintenance overhead and risk of regressions.
-
-## Scope
-
-이 단계에서는 다음 영역을 대상으로 리팩터링을 수행한다:
-1. **Foundation** – 공통 유틸리티(프론트매터, URL, 상수) 추출 및 통합
-2. **Component Simplification** – 카드 주입 시스템을 역할별 클래스로 분리 및 템플릿 기반 HTML 생성
-3. **Advanced Optimizations** – 파이프라인 아키텍처 개선 및 구성 검증 메커니즘 도입
-
-구현은 기존 기능을 변경하지 않는 비파괴적 방식으로 진행하며, 모든 기존 테스트(251개)가 통과해야 함.
-
-## Design
-
-### 1. Foundation
-- `frontmatter_utils.py`: `ensure_frontmatter(text, meta)` 단일 함수 제공
-- `url_utils.py`: URL 파싱, 도메인 추출, 정규화 함수 모음
-- `constants.py`: `AUTHORITY_DOMAINS`, `SKIP_DOMAINS`, regex 패턴 등 중앙집중
-
-### 2. Component Simplification (Card Injector)
-- `LinkFinder`: URL 발견, 순위 매기기, 필터링 전담
-- `CardGenerator`: 링크 데이터를 카드 사양(유형, 텍스트, 플래그)으로 변환
-- `HtmlRenderer`: 사양을 HTML 쇼트코드로 변환 (템플릿 문자열 사용)
-- 기존 `chain_card_injector.py`는 위 클래스들을 조합하는 얇은 facade로 유지
-
-### 3. Advanced Optimizations
-- `image/base_provider.py`: 이미지 공급자 공통 인터페이스
-- `image/cache_manager.py`: LRU 캐시 중앙화 (TTL, 공유)
-- `config/schema.yaml`: JSON-Schema 기반 YAML 검증 (프롬프트, 키워드 매핑 등)
-- `chain_publisher_core.py`: 마크다운 처리 파이프라인을 별도 클래스로 분리, frontmatter 처리 명확히 분리
-
-## Deliverables
-
-| Item | Description |
-|------|-------------|
-| **New utility modules** | `frontmatter_utils.py`, `url_utils.py`, `constants.py` |
-| **Card injector refactor** | `link_finder.py`, `card_generator.py`, `html_renderer.py`, refactored `chain_card_injector.py` |
-| **Image provider refactor** | `image/base_provider.py`, `image/cache_manager.py` |
-| **Configuration schema** | `config/schema.yaml` + 검증 로직 |
-| **Updated core modules** | `chain_drafter.py`, `chain_publisher_core.py` (util 사용) |
-| **Documentation** | 개요 및 마이그레이션 가이드 (README 스닛) |
-| **Test coverage** | 신규/수정 로직에 대한 단위 테스트 추가 (기존 테스트 unaffected) |
-
-## Work Plan (Wave‑Based)
-
-### Wave 1 – Foundation (Low Risk, High Impact)
-- [ ] Create `frontmatter_utils.py` with unified `ensure_frontmatter`
-- [ ] Replace all calls to `_ensure_frontmatter` / `_ensure_frontmatter_closer` in `chain_drafter.py`, `chain_publisher_core.py`
-- [ ] Create `url_utils.py` (parse domain, normalize, strip tracking params)
-- [ ] Replace ad‑hoc URL logic in `chain_card_injector.py` and elsewhere with utilities
-- [ ] Create `constants.py` and move `AUTHORITY_*`, `SKIP_*`, regex patterns
-- [ ] Update imports across codebase
-- [ ] Run full test suite to ensure no regression (target 251/251 pass)
-
-### Wave 2 – Component Simplification (Medium Risk)
-- [ ] Design and implement `LinkFinder` class (expose `find_links(text)` → list of dict)
-- [ ] Implement `CardGenerator` (input: link dict, context: post meta) → card spec
-- [ ] Implement `HtmlRenderer` (template strings for next/internal/official cards)
-- [ ] Refactor `chain_card_injector.inject_*` to use the three components
-- [ ] Keep backward‑compatible wrapper for existing callers (deprecation notice)
-- [ ] Add unit tests for each new class (≥90% coverage)
-- [ ] Run integration test with sample chains to verify card output identical
-
-### Wave 3 – Advanced Optimizations (Higher Risk, Transformative)
-- [ ] Extract image provider base class in `image/base_provider.py` (fetch, validate)
-- [ ] Move caching logic to `image/cache_manager.py` (LRU, TTL, shared dict)
-- [ ] Refactor `search_providers.py` and `prompt_builder.py` to use base + cache
-- [ ] Define JSON‑Schema in `config/schema.yaml` for `prompts.yaml`, `keyword_mapping.yaml`
-- [ ] Add validation hook at config load time (fail fast on malformed YAML)
-- [ ] Refactor `chain_publisher_core.py`:
-    * Create `MarkdownProcessor` class handling leak protection, symbol cleaning, table protection
-    * Separate frontmatter handling (call `frontmatter_utils.ensure_frontmatter`)
-    * Keep `_publish_hugo` focused on Hugo‑specific frontmatter/image handling
-- [ ] Update `leak_defense.py` if needed to import centralized constants
-- [ ] Run full test suite + spot‑check generated articles for visual fidelity
-
-## Definition of Done (DoD)
-
-- [ ] All new/updated modules have unit tests; overall test coverage ≥90% for touched files
-- [ ] Existing test suite passes completely: `python -m pytest -q` → 251/251
-- [ ] No functional regression: side‑by‑side comparison of article output (HTML) before/after refactor for a sample set of seeds shows identical content (ignoring whitespace)
-- [ ] Public APIs of existing modules unchanged (backward‑compatible)
-- [ ] New utility modules are import‑safe and have no side‑effects at import time
-- [ ] Configuration schema validates all existing YAML files without error
-- [ ] Documentation updated (inline docstrings + short migration guide)
-- [ ] No introduction of new lint‑flake8 / mypy errors; existing violations unchanged
-
-## Risks & Mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Import‑time side effects in `chain_publisher_core` breaking import‑only reuse | Low | High | Verify all top‑level code is guarded behind `if __name__ == "__main__":` or moved into functions |
-| Card injection behavior changes due to refactor | Medium | Medium | Property‑based testing: generate random HTML inputs, compare pre/post output via snapshot |
-| Config schema too strict rejecting valid YAML | Low | Medium | Start with permissive schema, add constraints iteratively; validate against all existing configs |
-| Performance regression from added indirection | Low | Low | Benchmark key paths (link finding, card generation) before/after; aim for ≤5% variance |
-| Missing edge‑case in URL utility causing broken links | Low | High | Write comprehensive unit tests for URL normalization (tracking params, fragments, scheme) |
-
-## References
-
-- Existing code: `chain_drafter.py`, `chain_card_injector.py`, `chain_publisher_core.py`, `image/` directory, `config/prompts.yaml`
-- Refactoring patterns: “Extract Class”, “Replace Conditional with Polymorphism”, “Introduce Parameter Object”, “Facade”
-- GSD workflow: `gsd-plan-phase`, `gsd-plan-checker`
-
-## Next Steps
-
-1. Create the directory `.planning/phase-26` (already done).
-2. Fill this `PLAN.md` (current file).
-3. Run `/gsd-plan-phase 26` to kick off the planning researcher (if needed).
-4. Execute the plan via `/gsd-execute-phase --phase 26`.
-5. Verify with `/gsd-plan-checker --phase 26`.
-6. Upon successful verification, mark phase as complete and proceed to next phase.
-
+*이 계획은 위 연구 결과를 바탕으로 작성되었으며, GSD 워크플로우(리서치 → 플랜 → 검증 → 완료)의 플랜 단계에 해당한다. 실행 시 위 워크플로우 지침을 따를 것.*

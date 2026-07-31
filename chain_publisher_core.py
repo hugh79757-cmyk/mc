@@ -19,6 +19,13 @@ from datetime import datetime
 from mc.cta import replace_ai_cta, detect_ai_cta
 from mc_paths import load_config, CHAIN_CONFIG_PATH
 
+from frontmatter_utils import ensure_frontmatter  # noqa: F401 — frontmatter 처리 단일 진실 공급원 (Phase 26)
+from url_utils import extract_domain  # noqa: F401 — URL 처리 단일 진실 공급원 (Phase 26)
+
+from constants import (  # noqa: F401 — 상수 단일 진실 공급원 (Phase 26)
+    AUTHORITY_DOMAINS, SKIP_DOMAINS, HTML_TAG_RE, R2_IMAGE_DOMAINS,
+)
+
 from image.r2_uploader import get_r2_config, upload_all_images, HUGO_R2_DOMAINS
 from chain_db import check_duplicate, log_publish
 from chain_models import (
@@ -32,10 +39,7 @@ import markdown_processor  # noqa: E402 — Phase 26 W4: MarkdownProcessor 파�
 logger = logging.getLogger(__name__)
 
 
-R2_IMAGE_DOMAINS = ("r2.dev", "img.")
-
-# HTML 태그 감지 정규식 — _extract_clean_body()와 _verify_before_deploy()에서 동일하게 사용
-HTML_TAG_RE = re.compile(r'<(?:div|span|meta|script|ins|link|p|a|table|blockquote|figure|del)[\s>/]')
+# R2_IMAGE_DOMAINS / HTML_TAG_RE 정의는 constants.py 로 이동 (단일 진실 공급원)
 
 
 def _extract_clean_body(raw: str) -> CleanedDraft:
@@ -1072,6 +1076,8 @@ def _sanitize_markdown_body(body: str) -> str:
         fix_fences → strip_leaks → clean_symbols 순서로 정제된 본문.
     """
     return markdown_processor.processor.process(body, leak_context="draft")
+
+
 # ── Phase 26 W4: 설정 JSON-Schema 검증 (03-03) ──────────────────────
 # config/schema.yaml (JSON-Schema draft-07) 로 설정 파일을 로드 시점에
 # 검증하는 훅. 기존 mc_paths.load_config 동작/호출자는 변경하지 않는다.

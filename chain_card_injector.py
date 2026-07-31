@@ -26,6 +26,11 @@ from datetime import datetime
 from mc_paths import load_config, CHAIN_CONFIG_PATH
 from mc.cta import get_cta, get_official_cta_text
 
+from url_utils import extract_domain, normalize_url, strip_tracking_params, decode_idn  # noqa: F401 — URL 처리 단일 진실 공급원 (Phase 26)
+
+from constants import (  # noqa: F401 — 상수 단일 진실 공급원 (Phase 26)
+    AUTHORITY_GOVERNMENT, AUTHORITY_PLATFORMS, SKIP_DOMAINS, SKIP_PATHS,
+)
 
 from link_finder import LinkFinder  # noqa: F401 — 링크 추출 단일 진실 공급원 (Phase 26 W2)
 
@@ -39,53 +44,20 @@ from search_retriever import NaverSearchClient
 
 
 # ── 공신력 도메인 화이트리스트 ──────────────────────────────
-
-AUTHORITY_GOVERNMENT = (".go.kr", ".or.kr", ".gov.kr")
-AUTHORITY_PLATFORMS = {
-    "place.naver.com": "네이버 플레이스",
-    "map.naver.com": "네이버 지도",
-    "map.kakao.com": "카카오맵",
-    "instagram.com": "인스타그램",
-    "facebook.com": "페이스북",
-}
-SKIP_DOMAINS = (
-    "naver.com", "blog.naver.com", "brunch.co.kr", "tistory.com",
-    "velog.io", "medium.com", "news.naver.com", "dispatch.co.kr",
-    "youtube.com", "wikipedia.org",
-)
-SKIP_PATHS = (
-    "/board/", "/faq", "/customer", "/bbs/", "/menu/",
-    "/cruiseinfo/", "/useinfo/", "/terms/", "/?type=",
-)
+# 정의는 constants.py 로 이동 (단일 진실 공급원). 여기서는 import 만 유지한다.
 
 
 def _extract_domain(url: str) -> str:
-    from urllib.parse import urlparse
-    try:
-        return urlparse(url).netloc.lower()
-    except Exception:
-        return ""
+    """backward-compat wrapper; use url_utils.extract_domain."""
+    return extract_domain(url)
 
 
 def _decode_idn(domain: str) -> str:
-    """punycode(xn--) 도메인을 유니코드로 디코딩. 실패 시 원본 반환."""
-    try:
-        parts = domain.rsplit(".", 1)
-        # xn-- 접두사가 있는 라벨만 디코딩
-        decoded_parts = []
-        for part in parts[0].split(".") if len(parts) > 1 else [parts[0]]:
-            if not part:
-                continue
-            if part.startswith("xn--"):
-                decoded_parts.append(part.encode("ascii").decode("idna"))
-            else:
-                decoded_parts.append(part)
-        result = ".".join(decoded_parts)
-        if len(parts) > 1:
-            result += "." + parts[1]
-        return result
-    except Exception:
-        return domain
+    """backward-compat wrapper; use url_utils.decode_idn.
+
+    punycode(xn--) 도메인을 유니코드로 디코딩. 실패 시 원본 반환.
+    """
+    return decode_idn(domain)
 
 
 def _keyword_tokens(keyword: str) -> list[str]:
@@ -187,9 +159,9 @@ class CardInjector:
         self.config = config or load_config()
         self.search_client = NaverSearchClient()
 
-    # ── 카드 생성/렌더링 위임 (Phase 26 W2) ──────────────────────
+    # ── 카드 생성/렌더링 위임 (Phase 26 W2) ─────────────────────
     # 카드 HTML 생산은 CardGenerator(스펙) + HtmlRenderer(HTML) 로 위임한다.
-    # 출력은 리팩토링 전과 바이트 단위로 동일 (test_card_integration.py 스냅샷 보장).
+    # 출력은 리팩터링 전과 바이트 단위로 동일 (test_card_integration.py 스냅샷 보장).
     # __new__ 로 생성된 인스턴스(테스트에서 __init__ 미경유)에서도 동작하도록 지연 생성.
 
     def _generator(self) -> "CardGenerator":
@@ -311,7 +283,7 @@ class CardInjector:
         """공식 안내 링크 카드 shortcode.
 
         Phase 26: CardGenerator.generate_official_card_spec + HtmlRenderer 에 위임.
-        출력은 리팩토링 전과 바이트 단위로 동일.
+        출력은 리팩터링 전과 바이트 단위로 동일.
         """
         if not link:
             return ""
@@ -366,7 +338,7 @@ class CardInjector:
         """Hugo shortcode card (ChainInjector).
 
         Phase 26: CardGenerator.generate_next_card_spec + HtmlRenderer 에 위임.
-        출력은 리팩토링 전과 바이트 단위로 동일.
+        출력은 리팩터링 전과 바이트 단위로 동일.
         """
         spec = self._generator().generate_next_card_spec(title, url, cta)
         return self._renderer().render(spec)
@@ -375,7 +347,7 @@ class CardInjector:
         """외부 링크 카드 HTML (Depth 2용). 공신력 우선순위 적용.
 
         Phase 26: CardGenerator.generate_external_card_spec + HtmlRenderer 에 위임.
-        출력은 리팩토링 전과 바이트 단위로 동일.
+        출력은 리팩터링 전과 바이트 단위로 동일.
 
         links: {"primary": {...}, "secondary": [...], "fallback": {...}}
         """
@@ -574,9 +546,9 @@ class CardInjector:
             body = draft_md
 
         if is_last:
-            # Depth 2: 외부 링크 카드 (공신력 우선순위)
+            # Depth 2: 외부 링크 카드 (공신력 우선순위) — seed_keyword(원본 주제) 기준 검색
             links = self.find_external_links(
-                title=post_title, keyword=post_keyword, seed=seed_keyword
+                title=post_title, keyword=seed_keyword, seed=seed_keyword
             )
             external_card = self.build_external_link_card(links, seed_keyword=seed_keyword)
             if external_card:
@@ -592,7 +564,7 @@ class CardInjector:
         # 그 외에는 다음 글 카드로 이탈 방지.
         if is_last:
             mid_links = self.find_external_links(
-                title=post_title, keyword=post_keyword, seed=seed_keyword
+                title=post_title, keyword=seed_keyword, seed=seed_keyword
             )
             mid_card = self.build_external_link_card(mid_links, seed_keyword=seed_keyword)
         else:

@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from url_utils import normalize_url  # noqa: F401 — URL 처리 단일 진실 공급원 (Phase 26)
 
 # Phase 26 W4: BaseImageProvider 인터페이스 + 공유 CacheManager 적응 (03-02)
 from .base_provider import BaseImageProvider

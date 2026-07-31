@@ -50,6 +50,20 @@ _HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
 _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
 
 
+# ── 공개 상수 (Phase 26: 상수 모듈 연동) ────────────────────────────────
+# 릭 패턴의 단일 진실 공급원은 config/leak_defense.yaml 이다 (reload_config()
+# 로 재로드). LEAK_PATTERNS / LEAK_REGEX 는 상수 모듈 소비자(테스트 등)와
+# `from leak_defense import LEAK_PATTERNS` 호환을 위한 공개 파생 값이며,
+# reload_config() 에서 함께 갱신된다.
+
+LEAK_PATTERNS: List[str] = (
+    _LEAK_CONFIG.get("prompt_leak", {}).get("patterns", [])
+    + _LEAK_CONFIG.get("cta_leak", {}).get("patterns", [])
+    + _LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", [])
+)
+LEAK_REGEX: List[re.Pattern] = _compile_patterns(LEAK_PATTERNS)
+
+
 # ── 핵심 함수 ────────────────────────────────────────────────────────
 
 def strip_leaks(text: str, context: str = "body") -> Tuple[str, Dict[str, Any]]:
@@ -290,6 +304,7 @@ def reload_config() -> None:
     global _LEAK_CONFIG, _PROMPT_LEAK_PATTERNS, _CTA_LEAK_PATTERNS
     global _FORBIDDEN_CTA_PATTERNS, _PLACEHOLDER_PATTERN
     global _HTML_TAGS, _JSON_LEAK_PATTERN
+    global LEAK_PATTERNS, LEAK_REGEX
 
     _LEAK_CONFIG = _load_leak_patterns()
     _PROMPT_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("prompt_leak", {}).get("patterns", []))
@@ -298,3 +313,9 @@ def reload_config() -> None:
     _PLACEHOLDER_PATTERN = re.compile(_LEAK_CONFIG.get("placeholder_leak", {}).get("pattern", r'\{\{(?!<|%)([^}]+)\}\}'))
     _HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
     _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
+    LEAK_PATTERNS = (
+        _LEAK_CONFIG.get("prompt_leak", {}).get("patterns", [])
+        + _LEAK_CONFIG.get("cta_leak", {}).get("patterns", [])
+        + _LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", [])
+    )
+    LEAK_REGEX = _compile_patterns(LEAK_PATTERNS)
