@@ -371,7 +371,7 @@ class CardInjector:
                 f'<a href="{url}" target="_blank" rel="noopener" '
                 f'style="display:inline-block;padding:0.5em 1.5em;background:rgba(255,255,255,0.2);color:#fff;'
                 f'border-radius:4px;text-decoration:none;font-weight:600;font-size:0.9em">'
-                f'바로가기 →</a>'
+                f'{primary.get("title", label)} 바로가기 →</a>'
                 f'</div>'
             )
 

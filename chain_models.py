@@ -155,6 +155,17 @@ class ImageMeta(BaseModel):
 def _extract_body_from_raw(raw: str) -> str:
     """raw에서 JSON 코드블록 및 raw JSON을 제거한 깨끗한 본문만 추출"""
 
+    # Phase 24: AI가 출력한 FM 블록(---로 열고 닫힘) 제거
+    # AI가 프롬프트 지시를 무시하고 FM을 출력한 경우 대비
+    _raw_cleaned = raw.lstrip()
+    if _raw_cleaned.startswith("---"):
+        _end = _raw_cleaned.find("---", 3)
+        if _end != -1:
+            _raw_cleaned = _raw_cleaned[_end + 3:].lstrip("\n")
+        else:
+            _raw_cleaned = _raw_cleaned[3:].lstrip("\n")
+    raw = _raw_cleaned
+
     cleaned = raw
 
     cleaned = re.sub(

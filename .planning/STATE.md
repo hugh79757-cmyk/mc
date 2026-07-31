@@ -1,6 +1,6 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-07-28 (Phase 30 complete)
+**Last updated:** 2026-07-30 (Phase 24 complete)
 
 ## Project Reference
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md
 | **15 — informationhot → issue.techpawz 슬롯 교체** | **✅ Complete** | **Wave 0~4: config/code/prompts 교체 + pub ID 통일 + 검증** |
 | **17 — CTA 시나리오 설계** | **✅ Complete** | **CTA-SCENARIO.md 작성, 대표님 검토 대기** |
 | **20 — 검색 상시화 + GROUNDING 확장** | **✅ Complete** | **--search global default + STOCK & AUTOMOTIVE GROUNDING block** |
-| **24~25 — 카테고리 10종 확장** | **✅ Complete** | **customer_service/gov_finance/shopping_brand/golf_course/medicine lateral 프롬프트 + step_sections** |
+| **24 — YAML Frontmatter Structural Fix** | **✅ Complete** | **FM 분리: AI는 body만 생성, FM은 코드 조립. _ensure_frontmatter 91→23라인 단순화, _build_frontmatter/_extract_description 신규, _extract_body_from_raw FM 제거, 378 tests ✅** |
 | **26 — 코드베이스 리팩토링** | **🔲 Planning** | **3-wave 계획 수립 완료, 미착수** |
 | **27 — 카테고리별 Draft 품질 검증** | **✅ Complete** | **12 derive + 36 draft, H2 36/36, 릭 36/36, 글자수 이슈 문서화** |
 | **28 — product 카테고리 추가** | **✅ Complete** | **product keyword category + lateral prompt + 315 tests** |
@@ -39,7 +39,7 @@ See: .planning/PROJECT.md
 
 ## Current Metrics
 
-- **pytest:** 362/362 ✅ (315 existing + 47 audit_format tests)
+- **pytest:** 378/378 ✅ (362 existing + 16 Phase 24 FM 분리 tests)
 - **카테고리:** 11종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/product/etc)
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`

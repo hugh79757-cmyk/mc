@@ -95,6 +95,56 @@ def _build_slug(title: str, keyword: str) -> str:
     return f"{base}-{date_suffix}"
 
 
+# ── Phase 24: FM 코드 조립 ─────────────────────────────────────────────
+
+def _extract_description(body: str, max_len: int = 150) -> str:
+    """body 첫 문단에서 description 추출, 150자 제한."""
+    body = body.strip()
+    if not body:
+        return ""
+    # 첫 번째 문단 (빈 줄 또는 H2 전까지)
+    para = body.split("\n\n")[0].strip()
+    # 첫 1-2 문장 (마침표/물음표/느낌표로 분리)
+    sentences = re.split(r'(?<=[.!?])\s+', para)
+    desc = sentences[0] if sentences else para
+    if len(desc) < 30 and len(sentences) > 1:
+        desc = " ".join(sentences[:2])
+    # 따옴표 이스케이프
+    desc = desc.replace('"', '\\"').replace("'", "\\'")
+    # 150자 제한
+    if len(desc) > max_len:
+        desc = desc[:max_len - 3] + "..."
+    return desc
+
+
+def _build_frontmatter(post: dict, body: str) -> str:
+    """post dict + body로 완전한 Hugo 마크다운 문자열 조립.
+
+    frontmatter를 코드에서 직접 생성하여 AI의 FM 누수 문제를 구조적으로 방지.
+    """
+    title = (post.get("title") or "").replace('"', '\\"')
+    tags = post.get("tags", [])
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
+    tags_str = ", ".join(f'"{t}"' for t in (tags or []))
+    cats = (post.get("category_guess") or post.get("category") or "일반").replace('"', '\\"')
+
+    # description: body 첫 1-2문장에서 추출 (AI가 생성한 description 보존)
+    desc = _extract_description(body)
+
+    fm = (
+        f"---\n"
+        f'title: "{title}"\n'
+        f'description: "{desc}"\n'
+        f"draft: true\n"
+        f"tags: [{tags_str}]\n"
+        f'categories: ["{cats}"]\n'
+        f"featureimage: \"\"\n"
+        f"---\n\n"
+    )
+    return fm + body
+
+
 # ── frontmatter 유틸 ──────────────────────────────────────────────────
 
 def _ensure_frontmatter_closer(draft_md: str) -> str:
@@ -132,55 +182,28 @@ def _ensure_featureimage(draft_md: str) -> str:
 
 
 def _ensure_frontmatter(draft_md: str, post: dict) -> str:
-  """
-  draft_md에 frontmatter가 없으면 title/tags/categories로 생성.
-  이미 frontmatter가 있으면 (---로 열리고 닫히면) 보존.
-  Phase 11 W2 _ensure_featureimage와 달리 title/description/tags/categories도 추가.
-  """
-  if not draft_md or not draft_md.strip():
-    return draft_md
+    """
+    draft_md에 frontmatter가 없으면 _build_frontmatter()로 생성.
+    ---가 있는 경우는 AI가 FM을 생성한 경우 → 그대로 보존 (fallback).
+    Phase 24: 단순화 — 더블 FM 병합 로직 제거, FM 생성은 _build_frontmatter()에 위임.
+    """
+    if not draft_md or not draft_md.strip():
+        return draft_md
 
-  # 이미 유효한 frontmatter가 있는지 확인 (열고 닫는 ---가 모두 존재)
-  if draft_md.strip().startswith("---"):
-    # 닫는 ---는 반드시 독립 라인이어야 함 (테이블 구분선/수평선과 구분)
-    _lines = draft_md.split("\n")
-    for _li in range(1, min(len(_lines), 20)):
-      if _lines[_li].strip() == "---":
-        return draft_md  # frontmatter 이미 있음 → 보존
-    # 닫는 --- 없음 → 기존 FM 필드 보존 + 닫는 --- 삽입
-    _fm_end = 0
-    for _li in range(1, min(len(_lines), 20)):
-      _stripped = _lines[_li].strip()
-      if not _stripped:
-        _fm_end = _li
-        break
-      if ":" in _stripped:
-        _fm_end = _li + 1
-      else:
-        _fm_end = _li
-        break
-    _fm_block = "\n".join(_lines[:_fm_end])
-    _body = "\n".join(_lines[_fm_end:]).lstrip("\n")
-    return _fm_block + "\n---\n\n" + _body
+    # 이미 frontmatter가 있으면 (---로 열리고 닫힘) 보존
+    if draft_md.strip().startswith("---"):
+        end = draft_md.find("---", 3)
+        if end != -1 and "title:" in draft_md[3:end]:
+            return draft_md  # 정상 FM → 보존
+        # FM이 있지만 깨진 경우 → body로 간주하고 _build_frontmatter로 재생성
+        body = draft_md
+        if end != -1:
+            # ---...--- 블록 제거
+            body = draft_md[end + 3:].lstrip("\n")
+        return _build_frontmatter(post, body)
 
-  # frontmatter 생성 (draft_md에 FM 없음)
-  title = (post.get("title") or "").replace('"', '\\"')
-  tags = post.get("tags", [])
-  if isinstance(tags, str):
-    tags = [t.strip() for t in tags.split(",") if t.strip()]
-  tags_str = ", ".join(f'"{t}"' for t in (tags or []))
-  cats = (post.get("category_guess") or post.get("category") or "일반").replace('"', '\\"')
-
-  fm = (
-    f"---\n"
-    f'title: "{title}"\n'
-    f"description: \"\"\n"
-    f"draft: true\n"
-    f"tags: [{tags_str}]\n"
-    f'categories: ["{cats}"]\n'
-    f"---\n\n"
-  )
-  return fm + draft_md
+    # FM 없음 → _build_frontmatter로 생성
+    return _build_frontmatter(post, draft_md)
 
 
 def _insert_body_image_marker(draft_md: str) -> str:
@@ -403,15 +426,18 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
             meta["image_keyword"] = default_keyword
             print(f"  [drafter] image_keyword 자동 보강(chart): '{default_keyword}'")
 
-        # Phase 7: placeholder insertion
-        draft_md = _ensure_featureimage(draft_md)
+        # Phase 24: FM은 코드에서 직접 조립 (AI가 생성하지 않음)
+        # body에 marker를 먼저 삽입한 후 FM을 앞에 추가
         if image_type == "photo":
             draft_md = _insert_body_image_marker(draft_md)
         elif image_type == "chart":
             draft_md = _insert_chart_marker(draft_md)
         # 'none' → no marker
 
-        # Phase 11 W4: frontmatter 보장 — title/tags/categories로 기존 FM 보존 또는 생성
+        # Phase 24: FM 조립 (build_frontmatter 내부에 featureimage: "" 포함)
+        draft_md = _build_frontmatter(post, draft_md)
+
+        # 안전장치: AI가 여전히 FM을 출력한 경우 등 예외 처리
         draft_md = _ensure_frontmatter(draft_md, post)
 
         slug = _build_slug(post["title"], seed_keyword)

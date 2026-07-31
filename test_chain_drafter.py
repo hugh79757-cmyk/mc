@@ -109,6 +109,32 @@ draft: true
         result = parse_ai_output(text)
         assert "그냥 본문만 있는 경우" in result.body
 
+    def test_extract_body_from_raw_strips_ai_fm(self):
+        """AI가 출력한 FM 블록(---)이 body에서 제거되어야 함."""
+        from chain_models import _extract_body_from_raw
+
+        # AI가 지시를 무시하고 FM을 출력한 경우
+        text = """---
+title: "AI Generated FM"
+description: "AI desc"
+tags: ["tag1"]
+categories: ["cat"]
+---
+
+## 실제 본문
+
+내용입니다.
+
+```json
+{"image_type": "photo", "image_keyword": "test"}
+```"""
+        result = _extract_body_from_raw(text)
+        # FM 블록 제거 후 순수 body만 남아야 함
+        assert "---" not in result
+        assert "## 실제 본문" in result
+        assert "내용입니다" in result
+        assert "image_type" not in result  # JSON 메타도 제거
+
 
 class TestAIOutputValidation:
     """AIOutput/AIOutputMeta 스키마 검증 — 계약 1 독립 검증."""
@@ -193,15 +219,7 @@ class TestDraftChain:
         ]
 
         mock_generate.return_value = {
-            "content": """---
-title: "Test Post"
-description: "Test description"
-tags: ["테스트", "기술"]
-categories: ["기술"]
-draft: true
----
-
-## 서론
+            "content": """## 서론
 
 서론입니다.
 
@@ -259,15 +277,7 @@ draft: true
         ]
 
         mock_generate.return_value = {
-            "content": """---
-title: "Test"
-description: "Desc"
-tags: ["태그"]
-categories: ["카테고리"]
-draft: true
----
-
-Content
+            "content": """Content
 <!--todo:image-->""",
             "model": "test-model",
         }
@@ -357,15 +367,7 @@ class TestDraftSinglePost:
         mock_load_config.return_value = sample_chain_config
 
         mock_generate.return_value = {
-            "content": """---
-title: "Single Post"
-description: "Desc"
-tags: ["태그"]
-categories: ["카테고리"]
-draft: true
----
-
-Content
+            "content": """Content
 
 ```json
 {"image_type": "photo", "image_keyword": "test", "image_reason": "test"}
@@ -379,8 +381,9 @@ Content
 
         draft_md, meta = draft_single_post(post, [post], "시드")
 
-        assert draft_md.startswith("---")
-        assert "draft: true" in draft_md
+        # Phase 24: draft_single_post는 body만 반환 (FM은 draft_chain에서 조립)
+        assert not draft_md.startswith("---")
+        assert "Content" in draft_md
         assert meta["image_type"] is not None
         assert meta["image_type"] == "photo"
 
@@ -722,6 +725,202 @@ featureimage: ""
 
         assert "tags: []" in result
         assert 'categories: ["일반"]' in result
+
+
+class TestBuildFrontmatter:
+    """_build_frontmatter() 테스트 — Phase 24 FM 코드 조립."""
+
+    def test_build_frontmatter_creates_valid_yaml(self):
+        """_build_frontmatter() 출력이 유효한 YAML 형식인지 검증."""
+        from chain_drafter import _build_frontmatter
+        import yaml
+
+        post = {
+            "title": "테스트 포스트",
+            "tags": ["테스트", "기술"],
+            "category_guess": "기술",
+        }
+        body = "## 서론\n\n본문 내용입니다.\n\n## 결론\n\n결론 내용입니다."
+
+        result = _build_frontmatter(post, body)
+
+        # frontmatter가 올바른 형식인지 확인
+        assert result.startswith("---\n")
+        end = result.find("---", 3)
+        assert end != -1  # 닫는 --- 존재
+        fm_text = result[4:end].strip()  # ---\n 과 --- 사이 내용
+        # YAML로 파싱 가능해야 함
+        parsed = yaml.safe_load(fm_text)
+        assert parsed["title"] == "테스트 포스트"
+        assert parsed["draft"] is True
+        assert "테스트" in parsed["tags"]
+        assert "기술" in parsed["tags"]
+        assert parsed["categories"] == ["기술"]
+        # 본문 유지
+        assert body in result
+
+    def test_build_frontmatter_includes_featureimage(self):
+        """featureimage: "" 필드가 포함되어야 함."""
+        from chain_drafter import _build_frontmatter
+
+        post = {"title": "Test", "tags": ["tag"], "category_guess": "일반"}
+        body = "## Content\n\nBody."
+        result = _build_frontmatter(post, body)
+        assert 'featureimage: ""' in result
+
+    def test_build_frontmatter_extracts_description(self):
+        """description이 body 첫 문장에서 추출되어야 함."""
+        from chain_drafter import _build_frontmatter
+
+        post = {"title": "Test", "tags": [], "category_guess": "일반"}
+        body = "이것은 첫 번째 문장입니다. 이것은 두 번째 문장입니다.\n\n## 본론\n\n본문."
+        result = _build_frontmatter(post, body)
+
+        assert 'description: "이것은 첫 번째 문장입니다' in result
+        # description이 너무 길지 않아야 함
+        assert len(result.split('description: "')[1].split('"')[0]) <= 150
+
+    def test_build_frontmatter_handles_special_chars(self):
+        """title/category에 따옴표가 있어도 이스케이프 처리."""
+        from chain_drafter import _build_frontmatter
+
+        post = {
+            "title": 'Test "Special" Title',
+            "tags": ["tag"],
+            "category_guess": '일반"카테고리',
+        }
+        body = "## Content\n\nBody."
+        result = _build_frontmatter(post, body)
+        # 따옴표가 이스케이프되어야 함
+        assert 'title: "Test \\"Special\\" Title"' in result
+        assert 'categories: ["일반\\"카테고리"]' in result
+
+    def test_build_frontmatter_tags_string(self):
+        """tags가 문자열로 전달되어도 리스트로 변환."""
+        from chain_drafter import _build_frontmatter
+
+        post = {
+            "title": "Test",
+            "tags": "태그1, 태그2, 태그3",
+            "category_guess": "일반",
+        }
+        body = "## Content\n\nBody."
+        result = _build_frontmatter(post, body)
+        assert 'tags: ["태그1", "태그2", "태그3"]' in result
+
+    def test_build_frontmatter_tags_empty_list(self):
+        """tags가 빈 리스트면 빈 tags로 생성."""
+        from chain_drafter import _build_frontmatter
+
+        post = {"title": "Test", "tags": [], "category_guess": "일반"}
+        body = "## Content\n\nBody."
+        result = _build_frontmatter(post, body)
+        assert "tags: []" in result
+
+    def test_build_frontmatter_title_escape(self):
+        """title의 큰따옴표 이스케이프 처리."""
+        from chain_drafter import _build_frontmatter
+
+        post = {
+            "title": 'Title with "quotes" inside',
+            "tags": ["tag"],
+            "category_guess": "일반",
+        }
+        body = "## Content\n\nBody."
+        result = _build_frontmatter(post, body)
+        assert 'title: "Title with \\"quotes\\" inside"' in result
+
+
+class TestExtractDescription:
+    """_extract_description() 테스트 — Phase 24."""
+
+    def test_extract_description_empty_body(self):
+        """빈 body → 빈 문자열 반환."""
+        from chain_drafter import _extract_description
+        assert _extract_description("") == ""
+        assert _extract_description("   ") == ""
+
+    def test_extract_description_first_sentence(self):
+        """첫 문장 추출 (30자 미만이면 두 문장 결합)."""
+        from chain_drafter import _extract_description
+        body = "첫 번째 문장입니다. 두 번째 문장입니다."
+        result = _extract_description(body)
+        # 첫 문장이 30자 미만이므로 두 문장 결합
+        assert "첫 번째 문장입니다" in result
+        assert "두 번째 문장입니다" in result
+
+    def test_extract_description_short_first_sentence(self):
+        """첫 문장이 30자 미만이면 두 문장 결합."""
+        from chain_drafter import _extract_description
+        body = "짧음. 두 번째 문장입니다. 세 번째 문장."
+        result = _extract_description(body)
+        # 두 문장이 합쳐져야 함
+        assert "짧음" in result
+        assert "두 번째 문장입니다" in result
+
+    def test_extract_description_max_len(self):
+        """150자 초과 시 자르기."""
+        from chain_drafter import _extract_description
+        # 151자 이상의 문장
+        long_sentence = "가" * 200 + "."
+        body = long_sentence + "\n\n본문"
+        result = _extract_description(body, max_len=150)
+        assert len(result) <= 153  # 150 + "..."
+
+    def test_extract_description_h2_only(self):
+        """H2만 있는 body → H2 텍스트 반환."""
+        from chain_drafter import _extract_description
+        body = "## 서론\n\n본문 내용."
+        result = _extract_description(body)
+        assert "## 서론" in result
+
+    def test_extract_description_quote_escape(self):
+        """description의 따옴표 이스케이프."""
+        from chain_drafter import _extract_description
+        body = "It's a \"great\" test. More content."
+        result = _extract_description(body)
+        assert '\\"' in result or "'" in result
+
+
+class TestEnsureFrontmatterPhase24:
+    """Phase 24 단순화된 _ensure_frontmatter() fallback 동작 검증."""
+
+    def test_ensure_frontmatter_fallback_on_ai_fm(self):
+        """AI가 FM을 출력했을 때 정상 FM은 보존."""
+        from chain_drafter import _ensure_frontmatter
+
+        ai_fm = """---
+title: "AI Title"
+description: "AI desc"
+tags: ["태그"]
+categories: ["카테고리"]
+featureimage: ""
+---
+
+## 본문
+
+내용입니다."""
+
+        post = {"title": "New Title", "tags": ["new"], "category_guess": "새카테고리"}
+        result = _ensure_frontmatter(ai_fm, post)
+        # 정상 FM이므로 보존
+        assert 'title: "AI Title"' in result
+        assert 'categories: ["카테고리"]' in result
+        assert "## 본문" in result
+
+    def test_ensure_frontmatter_handles_broken_fm(self):
+        """깨진 FM → _build_frontmatter()로 재생성."""
+        from chain_drafter import _ensure_frontmatter
+
+        broken_fm = """---
+title: "Broken"
+no_closing_yet
+본문 내용."""
+        post = {"title": "New Post", "tags": ["tag1"], "category_guess": "일반"}
+        result = _ensure_frontmatter(broken_fm, post)
+        # 깨진 FM 대신 새 FM 생성
+        assert 'title: "New Post"' in result
+        assert "본문 내용" in result
 
 
 class TestKeywordCategoriesH2E2E:
