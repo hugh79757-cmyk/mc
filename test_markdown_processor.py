@@ -92,6 +92,69 @@ class TestCleanSymbols:
         assert MarkdownProcessor().clean_symbols("가나|다라") == "가나\\|다라"
 
 
+# ── 단계 0: fix_tables (quick 20260801 — 깨진/잘린 표 보정) ─────────────
+
+class TestFixTables:
+    """AI 초안의 표 separator 누락/잘림 패턴 보정 검증.
+
+    Hugo goldmark 는 header 다음 separator(| --- |)가 없으면 <table> 이 아닌
+    <p> 로 렌더링한다. fix_tables 는 발행 전에 이 패턴을 보정한다.
+    """
+
+    def test_inserts_separator_after_header(self):
+        # 알프스대영CC 실제 사례: header 바로 아래 데이터 행
+        md = "| 구분 | 공지 제목 | 게시일 |\n| 그린피 | 7~8월 입장요금 | 2026-06-29 |\n"
+        out = MarkdownProcessor().fix_tables(md)
+        assert out == (
+            "| 구분 | 공지 제목 | 게시일 |\n"
+            "| --- | --- | --- |\n"
+            "| 그린피 | 7~8월 입장요금 | 2026-06-29 |\n"
+        )
+
+    def test_keeps_valid_table_untouched(self):
+        md = "| A | B |\n| --- | --- |\n| 1 | 2 |\n"
+        assert MarkdownProcessor().fix_tables(md) == md
+
+    def test_removes_truncated_empty_table(self):
+        # header 단독 + 빈 파이프(잘린 표): 데이터가 생성되지 않았으므로 제거
+        md = "## 비교표\n\n| 금융기관 | 상품명 | 특징 |\n|\n"
+        out = MarkdownProcessor().fix_tables(md)
+        assert out == "## 비교표\n\n"
+
+    def test_removes_stray_bare_pipe(self):
+        md = "본문입니다.\n|\n계속됩니다.\n"
+        out = MarkdownProcessor().fix_tables(md)
+        assert out == "본문입니다.\n계속됩니다.\n"
+
+    def test_protects_code_block_with_pipes(self):
+        md = "본문\n```\n| a | b |\n| 1 | 2 |\n```\n뒤 본문\n"
+        out = MarkdownProcessor().fix_tables(md)
+        assert out == md
+
+    def test_multiple_broken_tables_all_fixed(self):
+        md = (
+            "| x | y |\n| 1 | 2 |\n\n"
+            "| p | q |\n| 3 | 4 |\n"
+        )
+        out = MarkdownProcessor().fix_tables(md)
+        assert out == (
+            "| x | y |\n| --- | --- |\n| 1 | 2 |\n\n"
+            "| p | q |\n| --- | --- |\n| 3 | 4 |\n"
+        )
+
+    def test_runs_inside_clean_symbols(self):
+        # 발행 경로(_clean_markdown_symbols)에서도 자동 적용되어야 한다
+        md = "| a | b |\n| 1 | 2 |\n"
+        out = MarkdownProcessor().clean_symbols(md)
+        assert "| --- | --- |" in out
+
+    def test_sanitize_markdown_body_fixes_table(self):
+        # 전체 파이프라인 경로(_sanitize_markdown_body)에서도 적용
+        md = "---\ntitle: test\n---\n\n| a | b |\n| 1 | 2 |\n"
+        out = chain_publisher_core._sanitize_markdown_body(md)
+        assert "| --- | --- |" in out
+
+
 # ── 파이프라인: process ─────────────────────────────────────────────────
 
 class TestProcess:

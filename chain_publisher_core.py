@@ -1068,12 +1068,14 @@ def _sanitize_markdown_body(body: str) -> str:
     Phase 26 W4 (03-04) 신설. 심볼 클리닝(_clean_markdown_symbols)만으로는
     커버하지 못하는 펜스 자동 수정 + 프롬프트/CTA 릭 방어까지 포함한
     전체 정제 경로의 진입점. 기존 호출부는 변경하지 않는다.
+    (quick 20260801: clean_symbols 내부에서 fix_tables 표 보정이 선행된다 —
+    header 다음 separator 누락 시 삽입, header 단독 잘린 빈 표는 제거)
 
     Args:
         body: 정제할 마크다운 본문 (frontmatter 는 이미 분리된 상태 권장).
 
     Returns:
-        fix_fences → strip_leaks → clean_symbols 순서로 정제된 본문.
+        fix_fences → strip_leaks → clean_symbols(+fix_tables) 순서로 정제된 본문.
     """
     return markdown_processor.processor.process(body, leak_context="draft")
 
