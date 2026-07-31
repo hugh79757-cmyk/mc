@@ -26,6 +26,8 @@ from chain_models import (
     ImageGenerationError, Result, ErrorCategory,
 )
 
+import markdown_processor  # noqa: E402 — Phase 26 W4: MarkdownProcessor 파이프라인 위임 (03-04)
+
 
 logger = logging.getLogger(__name__)
 
@@ -1049,85 +1051,27 @@ def _clean_markdown_symbols(body: str) -> str:
     Clean markdown symbols that would leak as literal text in rendered HTML.
     Operates on body text only (frontmatter already extracted).
 
-    PROTECTED — never modified:
-    - <!--todo:image--> / <!--todo:chart--> markers
-    - Code blocks (``` fences)
-    - Inline code (backtick)
-    - Table separator lines (---|---|--- or |---|---|)
-    - Table data lines (lines starting with |)
-    - Math blocks ($$) and inline math ($)
-
-    Rules:
-    1. Escape loose pipes (|) outside protected contexts — replace with \\|.
-    2. Fix bold/italic spacing for CJK text (space around ** and *).
-    3. Remove orphaned markdown delimiters (unmatched ** pairs).
+    Phase 26 W4 (03-04): 알고리즘 단일 진실 공급원이
+    ``markdown_processor.MarkdownProcessor.clean_symbols`` 로 이동되어
+    본 함수는 위임(wrapper)만 수행한다. 기존 호출부/동작은 불변.
     """
-    lines = body.split('\n')
-    result = []
-    in_code_block = False
-    in_math_block = False
+    return markdown_processor.processor.clean_symbols(body)
 
-    for line in lines:
-        stripped = line.strip()
 
-        # PROTECTED: code blocks
-        if stripped.startswith('```'):
-            in_code_block = not in_code_block
-            result.append(line)
-            continue
-        if in_code_block:
-            result.append(line)
-            continue
+def _sanitize_markdown_body(body: str) -> str:
+    """발행 전 본문 1차 정제 파이프라인 (MarkdownProcessor.process 위임).
 
-        # PROTECTED: math blocks
-        if stripped.startswith('$$'):
-            in_math_block = not in_math_block
-            result.append(line)
-            continue
-        if in_math_block:
-            result.append(line)
-            continue
+    Phase 26 W4 (03-04) 신설. 심볼 클리닝(_clean_markdown_symbols)만으로는
+    커버하지 못하는 펜스 자동 수정 + 프롬프트/CTA 릭 방어까지 포함한
+    전체 정제 경로의 진입점. 기존 호출부는 변경하지 않는다.
 
-        # PROTECTED: image/comment markers
-        if '<!--todo:' in stripped:
-            result.append(line)
-            continue
+    Args:
+        body: 정제할 마크다운 본문 (frontmatter 는 이미 분리된 상태 권장).
 
-        # PROTECTED: table separator lines (---|---|--- or |---|---|)
-        # Must check BEFORE pipe-escape rule since these may lack leading |
-        if re.match(r'^[-|:\s]+$', stripped) and ('|' in stripped) and ('-' in stripped):
-            result.append(line)
-            continue
-
-        # PROTECTED: table data rows (starts with |)
-        if stripped.startswith('|'):
-            result.append(line)
-            continue
-
-        # PROTECTED: inline math ($...$)
-        stripped_no_math = re.sub(r'\$[^\$]+\$', '', stripped)
-        if not stripped_no_math.strip():
-            result.append(line)
-            continue
-
-        # Rule 1: Escape loose pipes in non-table context
-        line = line.replace('|', '\\|')
-
-        # Rule 2: NO CJK bold/italic spacing — AI prompt already enforces
-        # '볼드체 앞뒤에 반드시 공백' and CommonMark requires no spaces
-        # inside ** or * delimiters. Adding spaces inside breaks rendering.
-        pass
-
-        # Rule 3: Handle unmatched bold/italic delimiters
-        bold_count = line.count('**')
-        if bold_count % 2 != 0:
-            last_idx = line.rfind('**')
-            if last_idx >= 0:
-                line = line[:last_idx] + line[last_idx + 2:]
-
-        result.append(line)
-
-    return '\n'.join(result)
+    Returns:
+        fix_fences → strip_leaks → clean_symbols 순서로 정제된 본문.
+    """
+    return markdown_processor.processor.process(body, leak_context="draft")
 # ── Phase 26 W4: 설정 JSON-Schema 검증 (03-03) ──────────────────────
 # config/schema.yaml (JSON-Schema draft-07) 로 설정 파일을 로드 시점에
 # 검증하는 훅. 기존 mc_paths.load_config 동작/호출자는 변경하지 않는다.
