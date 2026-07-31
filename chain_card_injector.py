@@ -27,6 +27,9 @@ from mc_paths import load_config, CHAIN_CONFIG_PATH
 from mc.cta import get_cta, get_official_cta_text
 
 
+from link_finder import LinkFinder  # noqa: F401 — 링크 추출 단일 진실 공급원 (Phase 26 W2)
+
+
 logger = logging.getLogger(__name__)
 from chain_db import get_post
 from search_retriever import NaverSearchClient
