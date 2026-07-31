@@ -187,6 +187,23 @@ class CardInjector:
         self.config = config or load_config()
         self.search_client = NaverSearchClient()
 
+    # ── 카드 생성/렌더링 위임 (Phase 26 W2) ──────────────────────
+    # 카드 HTML 생산은 CardGenerator(스펙) + HtmlRenderer(HTML) 로 위임한다.
+    # 출력은 리팩토링 전과 바이트 단위로 동일 (test_card_integration.py 스냅샷 보장).
+    # __new__ 로 생성된 인스턴스(테스트에서 __init__ 미경유)에서도 동작하도록 지연 생성.
+
+    def _generator(self) -> "CardGenerator":
+        """CardGenerator 지연 생성 (__init__ 미거치 인스턴스 대응)."""
+        if not hasattr(self, "_card_generator"):
+            self._card_generator = CardGenerator()
+        return self._card_generator
+
+    def _renderer(self) -> "HtmlRenderer":
+        """HtmlRenderer 지연 생성 (__init__ 미거치 인스턴스 대응)."""
+        if not hasattr(self, "_html_renderer"):
+            self._html_renderer = HtmlRenderer()
+        return self._html_renderer
+
     # ── 공식 안내 링크 동적 검색 (Naver API) ────────────────────────
 
     OFFICIAL_QUERY_TEMPLATES = [
@@ -291,18 +308,15 @@ class CardInjector:
         return result.get("fallback")
 
     def build_official_card_html(self, link: dict) -> str:
-        """공식 안내 링크 카드 shortcode."""
+        """공식 안내 링크 카드 shortcode.
+
+        Phase 26: CardGenerator.generate_official_card_spec + HtmlRenderer 에 위임.
+        출력은 리팩토링 전과 바이트 단위로 동일.
+        """
         if not link:
             return ""
-        title = link.get("title", "공식 안내")
-        url = link.get("url", "https://www.gov.kr")
-        label = link.get("label", "공식 사이트")
-        return (
-            f'{{{{< chain-official-card '
-            f'title="{title}" '
-            f'url="{url}" '
-            f'label="{label}" >}}}}'
-        )
+        spec = self._generator().generate_official_card_spec(link)
+        return self._renderer().render(spec)
 
     # ── CTA 조회 ──────────────────────────────────────────────
 
@@ -349,72 +363,24 @@ class CardInjector:
     # ── 카드 HTML 생성 ────────────────────────────────────────
 
     def build_card_html(self, title: str, url: str, cta: str) -> str:
-        """Hugo shortcode card (ChainInjector)."""
-        return (
-            f'{{{{< chain-card '
-            f'title="{title}" '
-            f'url="{url}" '
-            f'cta="{cta}" >}}}}'
-        )
+        """Hugo shortcode card (ChainInjector).
+
+        Phase 26: CardGenerator.generate_next_card_spec + HtmlRenderer 에 위임.
+        출력은 리팩토링 전과 바이트 단위로 동일.
+        """
+        spec = self._generator().generate_next_card_spec(title, url, cta)
+        return self._renderer().render(spec)
 
     def build_external_link_card(self, links: dict, seed_keyword: str = "") -> str:
         """외부 링크 카드 HTML (Depth 2용). 공신력 우선순위 적용.
 
+        Phase 26: CardGenerator.generate_external_card_spec + HtmlRenderer 에 위임.
+        출력은 리팩토링 전과 바이트 단위로 동일.
+
         links: {"primary": {...}, "secondary": [...], "fallback": {...}}
         """
-        parts = []
-
-        # 1순위: 공식 사이트
-        primary = links.get("primary")
-        if primary:
-            url = primary["url"]
-            label = primary.get("label", "공식 사이트")
-            parts.append(
-                f'<div style="margin:1.5em 0;padding:1em;'
-                f'border-radius:8px;background:#DC2626;text-align:center">'
-                f'<p style="font-size:0.85em;color:rgba(255,255,255,0.85);margin:0 0 0.3em 0">관련 공식 사이트</p>'
-                f'<p style="font-size:1.05em;font-weight:bold;color:#fff;margin:0 0 0.5em 0">{label}</p>'
-                f'<a href="{url}" target="_blank" rel="noopener" '
-                f'style="display:inline-block;padding:0.5em 1.5em;background:rgba(255,255,255,0.2);color:#fff;'
-                f'border-radius:4px;text-decoration:none;font-weight:600;font-size:0.9em">'
-                f'{primary.get("title", label)} 바로가기 →</a>'
-                f'</div>'
-            )
-
-        # 2순위: 플랫폼 링크
-        secondary = links.get("secondary", [])
-        if secondary:
-            links_html = []
-            for s in secondary[:2]:
-                links_html.append(
-                    f'<a href="{s["url"]}" target="_blank" rel="noopener" '
-                    f'style="display:inline-block;margin:0.2em;padding:0.4em 1em;'
-                    f'background:#2563eb;color:#fff;border-radius:4px;text-decoration:none;font-size:0.85em">'
-                    f'{s.get("label", "더 보기")} →</a>'
-                )
-            parts.append(
-                f'<div style="margin:1em 0;text-align:center">'
-                + " ".join(links_html)
-                + "</div>"
-            )
-
-        # Fallback: 검색 결과가 없을 때
-        if not parts:
-            fallback = links.get("fallback", {})
-            url = fallback.get("url", "#")
-            label = fallback.get("label", f"네이버에서 '{seed_keyword}' 검색")
-            parts.append(
-                f'<div style="margin:1.5em 0;padding:1em;border:1px solid #e5e7eb;'
-                f'border-radius:8px;background:#fafafa;text-align:center">'
-                f'<p style="font-size:0.85em;color:#666;margin:0 0 0.3em 0">더 많은 정보</p>'
-                f'<a href="{url}" target="_blank" rel="noopener" '
-                f'style="display:inline-block;padding:0.5em 1.5em;background:#333;color:#fff;'
-                f'border-radius:4px;text-decoration:none;font-size:0.9em">'
-                f'{label} →</a>'
-                f'</div>'
-            )
-
-        return "\n\n".join(parts)
+        spec = self._generator().generate_external_card_spec(links, seed_keyword)
+        return self._renderer().render(spec)
 
     # ── 삽입 위치 정규화 ──────────────────────────────────────
 
