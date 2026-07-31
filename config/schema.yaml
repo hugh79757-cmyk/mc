@@ -1,0 +1,88 @@
+# config/schema.yaml — 설정 파일 JSON-Schema 정의 (Phase 26 W4 — 03-03)
+#
+# JSON-Schema draft-07 구조를 YAML 문법으로 기술.
+# chain_publisher_core.load_and_validate_config 가 이 파일을 로드해
+# prompts.yaml / chain_config.yaml 을 검증한다.
+#
+# 원칙 (PLAN.md 리스크: "JSON-Schema가 너무 엄격해서 기존 유효한 YAML을 거부"):
+#   - 관대(permissive)하게 시작 — 기존 실제 설정 파일이 반드시 통과해야 한다.
+#   - required 는 실제 코드가 의존하는 필드만 명시.
+#   - additionalProperties: true — 미래 키 확장을 허용.
+#   - T-26-25 (DoS): maxProperties 로 설정 크기 제한 (현실 값의 수십 배 여유).
+
+$schema: "http://json-schema.org/draft-07/schema#"
+title: "mc 설정 파일 스키마 (prompts.yaml / chain_config.yaml)"
+description: "Phase 26 W4 — config 로드 시 조기 오류 검출용 JSON-Schema"
+
+definitions:
+  char_range:
+    type: object
+    description: "사이트별 글자수 범위 (min/max/target)"
+    properties:
+      min: { type: integer, minimum: 0 }
+      max: { type: integer, minimum: 0 }
+      target: { type: integer, minimum: 0 }
+    required: [min, max, target]
+    additionalProperties: true
+
+  keyword_category:
+    type: object
+    description: "prompts.yaml keyword_categories 의 카테고리 하나"
+    properties:
+      patterns:
+        type: array
+        description: "키워드 분류 정규식 패턴 (빈 배열 허용 — etc)"
+        items: { type: string }
+      cta_phrases:
+        type: object
+        properties:
+          next_post: { type: string }
+          entry_funnel: { type: string }
+          fallback: { type: string }
+        required: [next_post, entry_funnel, fallback]
+        additionalProperties: true
+      char_count:
+        type: object
+        properties:
+          rotcha: { $ref: "#/definitions/char_range" }
+          issue_techpawz: { $ref: "#/definitions/char_range" }
+          techpawz: { $ref: "#/definitions/char_range" }
+        required: [rotcha, issue_techpawz, techpawz]
+        additionalProperties: true
+      step1_sections: { type: array, items: { type: string } }
+      step2_sections: { type: array, items: { type: string } }
+      step3_sections: { type: array, items: { type: string } }
+      priority: { type: integer, minimum: 0 }
+    required: [patterns, cta_phrases, char_count]
+    additionalProperties: true
+
+prompts:
+  type: object
+  description: "config/prompts.yaml 전체 구조"
+  properties:
+    derive_system: { type: string }
+    derive_user_depth: { type: string }
+    derive_user_swallow: { type: string }
+    draft_system: { type: string }
+    draft_user: { type: string }
+    keyword_categories:
+      type: object
+      description: "카테고리명 → keyword_category (etc 포함, 최대 100개)"
+      additionalProperties: { $ref: "#/definitions/keyword_category" }
+      maxProperties: 100
+  required: [derive_system, draft_system, draft_user, keyword_categories]
+  additionalProperties: true
+  maxProperties: 100
+
+chain_config:
+  type: object
+  description: "config/chain_config.yaml 중 keyword_mapping 섹션 구조"
+  properties:
+    keyword_mapping:
+      type: object
+      description: "카테고리명 → 체인 방향 (depth/lateral/swallow)"
+      additionalProperties: { enum: ["depth", "lateral", "swallow"] }
+      maxProperties: 100
+  required: [keyword_mapping]
+  additionalProperties: true
+  maxProperties: 200

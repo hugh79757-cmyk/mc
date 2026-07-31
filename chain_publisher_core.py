@@ -1128,3 +1128,61 @@ def _clean_markdown_symbols(body: str) -> str:
         result.append(line)
 
     return '\n'.join(result)
+# ── Phase 26 W4: 설정 JSON-Schema 검증 (03-03) ──────────────────────
+# config/schema.yaml (JSON-Schema draft-07) 로 설정 파일을 로드 시점에
+# 검증하는 훅. 기존 mc_paths.load_config 동작/호출자는 변경하지 않는다.
+
+class ConfigValidationError(ValueError):
+    """설정 파일이 config/schema.yaml 의 JSON-Schema 를 위반할 때 발생."""
+
+
+def validate_config(config: dict, config_name: str = "chain_config.yaml") -> list:
+    """config dict 를 config/schema.yaml 의 해당 서브스키마로 검증.
+
+    Args:
+        config: yaml 로 로드된 설정 dict.
+        config_name: "prompts.yaml" | "chain_config.yaml" — 적용할
+            서브스키마 선택 (그 외 이름은 chain_config 스키마 적용).
+
+    Returns:
+        오류 메시지 리스트 (비어 있으면 검증 통과).
+    """
+    import yaml as _yaml
+    import jsonschema
+    from mc_paths import CONFIG_DIR
+
+    schema_path = os.path.join(CONFIG_DIR, "schema.yaml")
+    with open(schema_path, encoding="utf-8") as _f:
+        schema = _yaml.safe_load(_f)
+
+    sub_key = "prompts" if config_name == "prompts.yaml" else "chain_config"
+    sub = schema.get(sub_key)
+    if sub is None:
+        return [f"schema.yaml 에 '{sub_key}' 서브스키마 없음"]
+
+    # jsonschema 4.26+ (referencing) 는 $ref 를 검증 문서 기준으로 해석한다.
+    # 서브스키마에 definitions 를 병합해 #/definitions/* 참조가 해석되도록 한다.
+    doc = dict(sub)
+    doc["definitions"] = schema.get("definitions", {})
+
+    validator = jsonschema.Draft7Validator(doc)
+    return [
+        f"{'/'.join(str(p) for p in e.path) or '<root>'}: {e.message}"
+        for e in sorted(validator.iter_errors(config), key=lambda e: [str(p) for p in e.path])
+    ]
+
+
+def load_and_validate_config(config_name: str = "chain_config.yaml") -> dict:
+    """mc_paths.load_config 로 로드한 뒤 schema.yaml 로 검증.
+
+    실패 시 ConfigValidationError 를 발생시킨다 (파일명 + 오류 목록 포함).
+    기존 mc_paths.load_config 의 동작/호출자는 변경하지 않는다.
+    """
+    config = load_config(config_name)
+    errors = validate_config(config, config_name)
+    if errors:
+        detail = "\n".join(f"  - {e}" for e in errors)
+        raise ConfigValidationError(
+            f"[config] {config_name} 스키마 검증 실패 ({len(errors)}건):\n{detail}"
+        )
+    return config
