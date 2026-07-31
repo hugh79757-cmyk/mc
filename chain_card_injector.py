@@ -29,6 +29,9 @@ from mc.cta import get_cta, get_official_cta_text
 
 from link_finder import LinkFinder  # noqa: F401 — 링크 추출 단일 진실 공급원 (Phase 26 W2)
 
+from card_generator import CardGenerator  # noqa: F401 — 카드 스펙 생성 단일 진실 공급원 (Phase 26 W2)
+from html_renderer import HtmlRenderer  # noqa: F401 — 카드 HTML 렌더링 단일 진실 공급원 (Phase 26 W2)
+
 
 logger = logging.getLogger(__name__)
 from chain_db import get_post
