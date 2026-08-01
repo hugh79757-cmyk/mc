@@ -56,13 +56,50 @@ class TestExternalLinks:
         assert not hasattr(injector, "_search_via_bs4")
 
     def test_score_official_government(self):
-        """공공 TLD(.or.kr 등)는 priority 1."""
+        """공공 TLD(.or.kr 등)도 다른 도메인과 동일하게 판정 (Phase 31).
+
+        nhis.or.kr + keyword='건강보험공단' → 도메인-키워드 불일치 + rank 0 신호만으로
+        score 20 → priority 0 (공식 임계값 55 미달). 공공기관 특별 가점 없음.
+        """
         from chain_card_injector import _score_official
         priority, score, label = _score_official(
             "https://www.nhis.or.kr/menu", keyword="건강보험공단", rank=0
         )
-        assert priority == 1
-        assert label == "공공기관"
+        # 공공기관 특별 취급 제거됨: 도메인-키워드 불일치로 score 부족
+        assert priority == 0
+        assert label != "공공기관"
+
+    def test_find_links_gov_and_nongov_treated_equally(self):
+        """정부/비정부 TLD 구분 없이 점수 기반으로만 primary 선택 (Phase 31)."""
+        from chain_card_injector import CardInjector, _score_official
+        injector = CardInjector.__new__(CardInjector)
+        
+        # gov: 키워드-도메인 불일치 + rank 0 → score 20 (임계값 미달)
+        gov_result = _score_official("https://www.gov.kr/poolheaven", keyword="풀헤븐", rank=0)
+        # nongov: 영문 키워드 + title "공식" 신호 → score 높음
+        nongov_result = _score_official(
+            "https://poolheaven.co.kr/reservation",
+            title="합천풀헤븐 공식 홈페이지",
+            keyword="poolheaven",
+            rank=0,
+        )
+        
+        # gov는 score 부족으로 priority 0, nongov는 priority 1
+        assert gov_result[0] == 0, f"gov priority ( expected 0): {gov_result}"
+        assert nongov_result[0] == 1, f"nongov priority (expected 1): {nongov_result}"
+        
+        # find_external_links에서 점수가 높은 것이 primary로 채택
+        from unittest.mock import patch
+        mock_links = [
+            {"url": "https://www.gov.kr/poolheaven", "label": gov_result[2], "priority": gov_result[0], "score": gov_result[1]},
+            {"url": "https://poolheaven.co.kr/reservation", "label": nongov_result[2], "priority": nongov_result[0], "score": nongov_result[1]},
+        ]
+        with patch.object(injector, '_search_via_api', return_value=mock_links):
+            result = injector.find_external_links(keyword="풀헤븐")
+        
+        # priority 1인 nongov가 primary로 채택
+        assert result["primary"] is not None
+        assert result["primary"]["url"] == "https://poolheaven.co.kr/reservation"
 
     def test_score_official_brand_signal(self):
         """브랜드 토큰 + 공식 표현 + 상위 순위 신호로 공식 판정."""

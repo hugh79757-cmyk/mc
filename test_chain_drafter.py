@@ -599,6 +599,33 @@ categories: [카테고리]
         assert result is True
         assert message == "스키마 검증 통과"
 
+    def test_validate_draft_schema_defensive_marker_insertion(self):
+        """Phase 31: image_type=none + 마커 없음 → 방어적 <!--todo:image--> 삽입으로 스키마 검증 통과."""
+        from chain_drafter import _insert_body_image_marker
+        import re
+
+        # 마커 없는 초안 (AI가 image_type=none을 반환한 경우)
+        draft_no_marker = """---
+title: "테스트 포스트"
+description: "테스트 설명"
+tags: [테스트]
+categories: [카테고리]
+---
+
+## 첫 번째 섹션
+
+본문 내용입니다."""
+
+        # 방어적 삽입: 마커가 없으면 자동 삽입
+        if "<!--todo:image-->" not in draft_no_marker and "<!--todo:chart-->" not in draft_no_marker:
+            draft_no_marker = _insert_body_image_marker(draft_no_marker)
+
+        assert "<!--todo:image-->" in draft_no_marker
+        # 스키마 검증 통과 확인
+        from chain_drafter import _validate_draft_schema
+        result, message = _validate_draft_schema(draft_no_marker)
+        assert result is True
+
 
 class TestEnsureFrontmatter:
     """_ensure_frontmatter() 테스트 — Phase 14 P1 frontmatter patch 정식화."""

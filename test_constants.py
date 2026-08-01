@@ -111,7 +111,7 @@ class TestCardInjectorIntegration:
         import chain_card_injector
         import constants
 
-        assert chain_card_injector.AUTHORITY_GOVERNMENT is constants.AUTHORITY_GOVERNMENT
+        # AUTHORITY_GOVERNMENT: chain_card_injector에서 더 이상 import하지 않음 (Phase 31 — 공공기관 분기 제거)
         assert chain_card_injector.AUTHORITY_PLATFORMS is constants.AUTHORITY_PLATFORMS
         assert chain_card_injector.SKIP_DOMAINS is constants.SKIP_DOMAINS
         assert chain_card_injector.SKIP_PATHS is constants.SKIP_PATHS

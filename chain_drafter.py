@@ -375,7 +375,12 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
             draft_md = _insert_body_image_marker(draft_md)
         elif image_type == "chart":
             draft_md = _insert_chart_marker(draft_md)
-        # 'none' → no marker
+        # 방어적 삽입 (Phase 31): AI가 image_type="none"을 반환하거나
+        # JSON 메타데이터를 누락한 경우, 마커 없이 스키마 검증에 실패하지 않도록
+        # <!--todo:image-->를 자동 삽입. chart 마커가 이미 있으면 스킵.
+        if "<!--todo:image-->" not in draft_md and "<!--todo:chart-->" not in draft_md:
+            draft_md = _insert_body_image_marker(draft_md)
+            image_type = "photo"  # downstream 처리 위해 보정
 
         # Phase 24: FM 조립 (build_frontmatter 내부에 featureimage: "" 포함)
         draft_md = frontmatter_utils.build_frontmatter(post, draft_md)

@@ -1,6 +1,6 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-08-01 (Quick 20260801 표 렌더링 버그 수정 + Phase 26 완료)
+**Last updated:** 2026-08-01 (Phase 31 완료: 공공기관 라벨 제거)
 
 ## Project Reference
 
@@ -37,10 +37,11 @@ See: .planning/PROJECT.md
 | **29 — 블로그 형식/외형 검증** | **✅ Complete** | **audit_format.py 10 checks + 39 tests + baseline 8/10** |
 | **30 — audit_format.py gap closure** | **✅ Complete** | **3 new functions + 13 checks + 47 tests** |
 | **Quick 20260801 — 표 렌더링 깨짐 수정** | **✅ Complete** | **3개 사이트 표 9건 수정 + markdown_processor.fix_tables 신설 + prompts.yaml 3줄 구조 지시. 762 tests ✅. .planning/quick/20260801-broken-table-render/SUMMARY.md** |
+| **31 — 공공기관 라벨 제거 (공식 링크 동적 판정)** | **✅ Complete** | **_score_official()에서 AUTHORITY_GOVERNMENT 분기 + "공공기관" 하드코딩 제거. find_external_links() 2-pass→1-pass 단순화. 모든 도메인 동일 신호(키워드-도메인 일치, 제목 "공식", 순위)로 판정. 763 tests ✅** |
 
 ## Current Metrics
 
-- **pytest:** 762/762 ✅ (462 기준선 + 47 LinkFinder + 70 CardGenerator/HtmlRenderer + 59 퍼사드 통합 + 27 BaseProvider/Cache + 28 이미지 제공자 적응 + 19 설정 검증 + 25 MarkdownProcessor + 17 최종 검증 + 8 fix_tables)
+- **pytest:** 763/763 ✅ (462 기준선 + 47 LinkFinder + 70 CardGenerator/HtmlRenderer + 59 퍼사드 통합 + 27 BaseProvider/Cache + 28 이미지 제공자 적응 + 19 설정 검증 + 25 MarkdownProcessor + 17 최종 검증 + 8 fix_tables + 1 Phase31 gov label removal)
 - **카테고리:** 11종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/product/etc)
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`

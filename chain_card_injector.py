@@ -29,7 +29,7 @@ from mc.cta import get_cta, get_official_cta_text
 from url_utils import extract_domain, normalize_url, strip_tracking_params, decode_idn  # noqa: F401 — URL 처리 단일 진실 공급원 (Phase 26)
 
 from constants import (  # noqa: F401 — 상수 단일 진실 공급원 (Phase 26)
-    AUTHORITY_GOVERNMENT, AUTHORITY_PLATFORMS, SKIP_DOMAINS, SKIP_PATHS,
+    AUTHORITY_PLATFORMS, SKIP_DOMAINS, SKIP_PATHS,
 )
 
 from link_finder import LinkFinder  # noqa: F401 — 링크 추출 단일 진실 공급원 (Phase 26 W2)
@@ -102,13 +102,8 @@ def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99
     score = 0
     label = "관련 사이트"
 
-    # 신호 1: 공공 TLD (강한 공식성)
-    if any(domain.endswith(d) for d in AUTHORITY_GOVERNMENT):
-        score += 60
-        label = "공공기관"
-    elif domain.endswith(".gov"):
-        score += 60
-        label = "공공기관"
+    # (신호 1 제거 — 공공 TLD 특별 취급 폐기, Phase 31)
+    # 모든 도메인은 동일하게 키워드-도메인 일치, 제목 "공식" 표현, 순위 등 신호로만 판정.
 
     # 신호 2: 제목에 공식 표현
     tl = (title or "").lower()
@@ -195,6 +190,9 @@ class CardInjector:
         1순위: Naver Search API
         최종: Naver 검색 URL fallback (스크래핑 절대 금지)
 
+        모든 도메인은 동일하게 검색 신호(키워드-도메인 일치, 제목 "공식" 표현, 순위)로만 판정.
+        정부 TLD 특별 취급 없음 (Phase 31).
+
         Returns:
             {
                 "primary": {"url": ..., "label": ..., "priority": 1},
@@ -209,7 +207,7 @@ class CardInjector:
         # Naver Search API only — 스크래핑 금지
         all_links = self._search_via_api(search_text)
 
-        # Sort by priority (lower = better), then by order of appearance
+        # Sort by priority (lower = better), then by score (higher = better)
         all_links.sort(key=lambda x: (x["priority"], -x.get("score", 0)))
 
         primary = None
