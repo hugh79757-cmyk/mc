@@ -387,6 +387,13 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
         if "<!--todo:image-->" not in draft_md and "<!--todo:chart-->" not in draft_md:
             draft_md = _insert_body_image_marker(draft_md)
             image_type = "photo"  # downstream 처리 위해 보정
+            # 방어적 image_keyword 보강: image_type을 photo로 보정했으므로
+            # image_keyword도 반드시 설정해야 스키마 검증 통과
+            if not meta.get("image_keyword") or not str(meta.get("image_keyword")).strip():
+                _fallback_kw = (seed_keyword or post.get("title", "")).strip()
+                if _fallback_kw:
+                    meta["image_keyword"] = _fallback_kw
+                    print(f"  [drafter] image_keyword 방어적 보강: '{_fallback_kw}'")
 
         # Phase 24: FM 조립 (build_frontmatter 내부에 featureimage: "" 포함)
         # Phase 32: FM 조립 전 본문 연도 검증
