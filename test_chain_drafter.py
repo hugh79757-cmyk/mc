@@ -895,11 +895,12 @@ class TestExtractDescription:
         assert len(result) <= 153  # 150 + "..."
 
     def test_extract_description_h2_only(self):
-        """H2만 있는 body → H2 텍스트 반환."""
+        """H2 헤딩은 건너뛰고 실제 문단을 description으로 사용."""
         from chain_drafter import _extract_description
-        body = "## 서론\n\n본문 내용."
+        body = "## 서론\n\n이 글의 본문 내용입니다."
         result = _extract_description(body)
-        assert "## 서론" in result
+        assert "본문 내용" in result
+        assert "##" not in result  # 마크다운 헤딩 기호는 제외
 
     def test_extract_description_quote_escape(self):
         """description의 따옴표 이스케이프."""

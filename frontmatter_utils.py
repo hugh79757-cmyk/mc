@@ -20,21 +20,27 @@ import re
 MAX_FRONTMATTER_INPUT_CHARS = 1_000_000  # 1MB
 
 
+def _is_texty(p: str) -> bool:
+    p = p.strip()
+    if not p or p.startswith(("![", "{{<", "{{%", "#", "|", "```")):
+        return False
+    if re.fullmatch(r'<[^>]+>.*?</[^>]+>', p) and len(re.sub(r'<[^>]+>', '', p).strip()) < 40:
+        return False
+    return len(re.sub(r'<[^>]+>', '', p).strip()) >= 6
+
+
 def extract_description(body: str, max_len: int = 150) -> str:
-    """body 첫 문단에서 description 추출, max_len 자 제한."""
-    body = body.strip()
-    if not body:
+    """body에서 이미지/숏코드/강조 라인을 건너뛴 첫 서술 문단으로 description 생성."""
+    paras = [p.strip() for p in body.strip().split("\n\n")]
+    para = next((p for p in paras if _is_texty(p)), "")
+    if not para:
         return ""
-    # 첫 번째 문단 (빈 줄 또는 H2 전까지)
-    para = body.split("\n\n")[0].strip()
-    # 첫 1-2 문장 (마침표/물음표/느낌표로 분리)
+    para = re.sub(r'<[^>]+>', '', para).strip()
     sentences = re.split(r'(?<=[.!?])\s+', para)
     desc = sentences[0] if sentences else para
     if len(desc) < 30 and len(sentences) > 1:
         desc = " ".join(sentences[:2])
-    # 따옴표 이스케이프
     desc = desc.replace('"', '\\"').replace("'", "\\'")
-    # max_len 자 제한
     if len(desc) > max_len:
         desc = desc[:max_len - 3] + "..."
     return desc

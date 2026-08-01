@@ -12,7 +12,7 @@ import re
 import json
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional, Literal
+from typing import Any, Optional, Literal, List, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -150,61 +150,50 @@ class ImageMeta(BaseModel):
         return True
 
 
-# ── 파싱 함수: AI 출력의 단일 진입점 ──────────────────────────────
+# ── 공통 헬퍼: JSON 블록 탐지 (중괄호 깊이 카운팅) ────────────────
 
-def _extract_body_from_raw(raw: str) -> str:
-    """raw에서 JSON 코드블록 및 raw JSON을 제거한 깨끗한 본문만 추출"""
+def _find_json_blocks(text: str, max_lookback: int = 2000) -> List[Tuple[int, int, dict]]:
+    """
+    text에서 중괄호 깊이 카운팅으로 JSON 블록을 탐지.
+    "image_type" 또는 "chart_type" 키를 포함하는 유효한 JSON 객체만 반환.
 
-    # Phase 24: AI가 출력한 FM 블록(---로 열고 닫힘) 제거
-    # AI가 프롬프트 지시를 무시하고 FM을 출력한 경우 대비
-    _raw_cleaned = raw.lstrip()
-    if _raw_cleaned.startswith("---"):
-        _end = _raw_cleaned.find("---", 3)
-        if _end != -1:
-            _raw_cleaned = _raw_cleaned[_end + 3:].lstrip("\n")
-        else:
-            _raw_cleaned = _raw_cleaned[3:].lstrip("\n")
-    raw = _raw_cleaned
-
-    cleaned = raw
-
-    cleaned = re.sub(
-        r'```json\s*\n?\{.*?\}\s*\n?```',
-        '', cleaned, flags=re.DOTALL
-    )
-    cleaned = re.sub(
-        r'```json\s*\n?\{.*?\}\s*$',
-        '', cleaned, flags=re.DOTALL
-    )
-    cleaned = re.sub(
-        r'```\s*\n?\{.*?\}\s*\n?```',
-        '', cleaned, flags=re.DOTALL
-    )
-
-    for p in range(len(cleaned) - 1, -1, -1):
-        if cleaned[p] == '}':
+    Returns:
+        List of (start_idx, end_idx, parsed_dict) — end_idx는 exclusive.
+        텍스트에서 등장하는 순서대로 정렬됨 (첫 번째 → 마지막).
+    """
+    blocks = []
+    i = 0
+    while i < len(text):
+        if text[i] == '{':
             depth = 0
-            for q in range(p, max(0, p - 500), -1):
-                if cleaned[q] == '}':
+            start = i
+            # 순방향으로 중괄호 매칭 (최대 max_lookback 문자까지)
+            for j in range(i, min(len(text), i + max_lookback)):
+                if text[j] == '{':
                     depth += 1
-                elif cleaned[q] == '{':
+                elif text[j] == '}':
                     depth -= 1
                     if depth == 0:
-                        candidate = cleaned[q:p + 1]
+                        candidate = text[start:j + 1]
                         if '"image_type"' in candidate or '"chart_type"' in candidate:
-                            cleaned = cleaned[:q]
+                            try:
+                                parsed = json.loads(candidate)
+                                if isinstance(parsed, dict):
+                                    blocks.append((start, j + 1, parsed))
+                            except (json.JSONDecodeError, TypeError):
+                                pass
                         break
-            break
+            i = j + 1
+        else:
+            i += 1
+    return blocks
 
-    cleaned = re.sub(r'<!--\s*(thumbnail|image)\s*:\s*.*?-->', '', cleaned)
-    cleaned = re.sub(r'<!--\s*todo:\s*(image|chart)\s*-->', '', cleaned)
-    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
 
-    return cleaned.strip()
-
+# ── 파싱 함수: AI 출력의 단일 진입점 ──────────────────────────────
 
 def _extract_meta_from_raw(raw: str) -> dict:
     """raw에서 JSON 메타데이터를 추출하여 dict로 반환"""
+    # 1. 코드펜스 패턴 (기존 유지 — 하위호환)
     patterns = [
         r'```json\s*\n(.*?)\n```',
         r'```json\s*\n(.*?)$',
@@ -221,27 +210,74 @@ def _extract_meta_from_raw(raw: str) -> dict:
             except (json.JSONDecodeError, TypeError):
                 continue
 
-    for p in range(len(raw) - 1, -1, -1):
-        if raw[p] == '}':
-            depth = 0
-            for q in range(p, max(0, p - 500), -1):
-                if raw[q] == '}':
-                    depth += 1
-                elif raw[q] == '{':
-                    depth -= 1
-                    if depth == 0:
-                        candidate = raw[q:p + 1]
-                        if '"image_type"' in candidate or '"chart_type"' in candidate:
-                            try:
-                                parsed = json.loads(candidate)
-                                if isinstance(parsed, dict):
-                                    return parsed
-                            except (json.JSONDecodeError, TypeError):
-                                pass
-                        break
-            break
+    # 2. 중괄호 깊이 카운팅으로 평문/들여쓰기/다중라인 JSON 탐지 (500→2000자 확대)
+    blocks = _find_json_blocks(raw, max_lookback=2000)
+    if blocks:
+        # 첫 번째 유효 메타만 사용 (나머지는 본문 잔류 → 2차 방어로 처리)
+        return blocks[0][2]
 
     return {}
+
+
+_FM_KEYS = ("title:", "draft:", "categories:", "tags:", "description:",
+            "featureimage:", "slug:", "date:", "cover:")
+
+
+def _strip_all_fm_blocks(text: str) -> str:
+    """본문 어디에 있든 FM 키를 포함한 ---...--- 블록을 모두 제거(hr은 보존)."""
+    lines = text.split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        if lines[i].strip() == "---":
+            j, block, found = i + 1, [], False
+            while j < len(lines):
+                if lines[j].strip() == "---":
+                    found = True
+                    break
+                block.append(lines[j])
+                j += 1
+            if found and any(any(k in b for k in _FM_KEYS) for b in block):
+                i = j + 1
+                continue
+        out.append(lines[i])
+        i += 1
+    return "\n".join(out).lstrip("\n")
+
+
+def _extract_body_from_raw(raw: str) -> str:
+    """raw에서 JSON 코드블록 및 raw JSON을 제거한 깨끗한 본문만 추출"""
+
+    # Phase 24: AI가 출력한 FM 블록(---로 열고 닫힘) 제거
+    # AI가 프롬프트 지시를 무시하고 FM을 출력한 경우 대비
+    cleaned = _strip_all_fm_blocks(raw)
+
+    # 1. 코드펜스 JSON 제거 (기존 유지 — 하위호환)
+    cleaned = re.sub(
+        r'```json\s*\n?\{.*?\}\s*\n?```',
+        '', cleaned, flags=re.DOTALL
+    )
+    cleaned = re.sub(
+        r'```json\s*\n?\{.*?\}\s*$',
+        '', cleaned, flags=re.DOTALL
+    )
+    cleaned = re.sub(
+        r'```\s*\n?\{.*?\}\s*\n?```',
+        '', cleaned, flags=re.DOTALL
+    )
+
+    # 2. 중괄호 깊이 카운팅으로 평문/들여쓰기/다중라인 JSON 블록 모두 제거
+    # 탐지된 블록 위치를 리스트에 모아 역순으로 삭제(인덱스 시프트 방지)
+    blocks = _find_json_blocks(cleaned, max_lookback=2000)
+    # 역순으로 삭제
+    for start, end, _ in sorted(blocks, key=lambda x: x[0], reverse=True):
+        cleaned = cleaned[:start] + cleaned[end:]
+
+    # 3. 플레이스홀더/개행 정리 (기존 유지)
+    cleaned = re.sub(r'<!--\s*(thumbnail|image)\s*:\s*.*?-->', '', cleaned)
+    cleaned = re.sub(r'<!--\s*todo:\s*(image|chart)\s*-->', '', cleaned)
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+
+    return cleaned.strip()
 
 
 def parse_ai_output(raw: str) -> AIOutput:
@@ -253,7 +289,7 @@ def parse_ai_output(raw: str) -> AIOutput:
     3. AIOutput을 반환 (body가 비어있으면 AIParseError)
 
     Raises:
-        AIParseError: 스키마 검증 실패 또는 본문이 비어있을 때
+        AIParseError: 본문이 비어있을 때 (스키마 검증 실패 시 폴백)
     """
     meta_dict = _extract_meta_from_raw(raw)
 
@@ -261,11 +297,9 @@ def parse_ai_output(raw: str) -> AIOutput:
     if meta_dict:
         try:
             meta = AIOutputMeta(**meta_dict)
-        except Exception as e:
-            raise AIParseError(
-                f"AI 메타데이터 스키마 검증 실패: {e}\n"
-                f"원본 JSON: {json.dumps(meta_dict, ensure_ascii=False, indent=2)}"
-            )
+        except Exception:
+            # 스키마 검증 실패 시 폴백: 기본 메타 사용, 본문은 원문 유지 (2차 방어에서 처리)
+            meta = AIOutputMeta()
     else:
         meta = AIOutputMeta()
 
