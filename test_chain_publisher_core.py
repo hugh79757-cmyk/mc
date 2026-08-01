@@ -1137,5 +1137,231 @@ class TestYearGuardIntegrationPublisher:
         assert "2026년 기준" in result
 
 
+class TestExtractCleanBodyJSONBlock:
+    """_extract_clean_body() 블록 단위 JSON 탐지 검증"""
+
+    def test_indented_json_block_skipped(self):
+        """들여쓰기 JSON 블록 스킵"""
+        from chain_publisher_core import _extract_clean_body
+
+        raw = '''---
+title: "Test"
+---
+본문입니다.
+
+  {
+    "image_type": "photo",
+    "image_keyword": "test"
+  }
+
+다음 문단입니다.
+'''
+        cleaned = _extract_clean_body(raw)
+        assert "image_type" not in cleaned.body
+        assert "image_keyword" not in cleaned.body
+        assert "다음 문단입니다" in cleaned.body
+
+    def test_multiple_json_blocks_all_skipped(self):
+        """다중 JSON 객체 잔류 → 모두 스킵"""
+        from chain_publisher_core import _extract_clean_body
+
+        raw = '''---
+title: "Test"
+---
+첫 번째 JSON:
+{
+  "image_type": "photo"
+}
+중간 텍스트
+두 번째 JSON:
+{
+  "chart_type": "bar",
+  "chart_data": {}
+}
+마지막 텍스트
+'''
+        cleaned = _extract_clean_body(raw)
+        assert "image_type" not in cleaned.body
+        assert "chart_type" not in cleaned.body
+        assert "첫 번째 JSON" in cleaned.body
+        assert "중간 텍스트" in cleaned.body
+        assert "마지막 텍스트" in cleaned.body
+
+    def test_partial_json_with_image_type_only(self):
+        """image_type 키만 있는 부분 JSON 스킵"""
+        from chain_publisher_core import _extract_clean_body
+
+        raw = '''---
+title: "Test"
+---
+본문
+{"image_type": "photo"}
+끝'''
+        cleaned = _extract_clean_body(raw)
+        assert "image_type" not in cleaned.body
+        assert "본문" in cleaned.body
+        assert "끝" in cleaned.body
+
+    def test_json_block_spanning_multiple_lines(self):
+        """여러 줄에 걸친 JSON 블록 스킵"""
+        from chain_publisher_core import _extract_clean_body
+
+        raw = '''---
+title: "Test"
+---
+시작
+{
+  "image_type": "chart",
+  "chart_type": "line",
+  "chart_data": {
+    "labels": ["A", "B"],
+    "values": [1, 2]
+  }
+}
+끝'''
+        cleaned = _extract_clean_body(raw)
+        assert "image_type" not in cleaned.body
+        assert "chart_type" not in cleaned.body
+        assert "chart_data" not in cleaned.body
+        assert "시작" in cleaned.body
+        assert "끝" in cleaned.body
+
+    def test_code_fence_json_still_skipped(self):
+        """기존 코드펜스 JSON 여전히 스킵 (회귀 방지)"""
+        from chain_publisher_core import _extract_clean_body
+
+        raw = '''---
+title: "Test"
+---
+본문
+```json
+{"image_type": "photo", "chart_type": "bar"}
+```
+끝'''
+        cleaned = _extract_clean_body(raw)
+        assert "image_type" not in cleaned.body
+        assert "chart_type" not in cleaned.body
+        assert "본문" in cleaned.body
+        assert "끝" in cleaned.body
+
+    def test_non_meta_json_preserved(self):
+        """메타 키 없는 JSON은 보존 (의도된 데이터)"""
+        from chain_publisher_core import _extract_clean_body
+
+        raw = '''---
+title: "Test"
+---
+데이터: {"name": "test", "value": 123}'''
+        cleaned = _extract_clean_body(raw)
+        assert "name" in cleaned.body
+        assert "value" in cleaned.body
+
+
+class TestPublishHugoWithJSONResidue:
+    """_publish_hugo() JSON 잔류 케이스 통과 검증 (mock 사용)"""
+
+    @pytest.mark.asyncio
+    async def test_publish_hugo_with_plain_json_in_ai_output(self, tmp_path, monkeypatch):
+        """AI 출력에 평문 JSON 포함 시에도 _verify_before_deploy 통과"""
+        from chain_publisher_core import PublisherCore, _verify_before_deploy
+
+        # Mock config
+        config = {
+            "sites": {
+                "rotcha": {
+                    "hugo_root": str(tmp_path / "hugo"),
+                    "cf_pages_project": "test-project",
+                    "blog_id": "test",
+                    "base_url": "https://test.com",
+                    "theme": "PaperMod",
+                    "publisher_type": "hugo",
+                    "permalink_pattern": "/posts/:slug/",
+                }
+            }
+        }
+
+        # Create hugo structure
+        hugo_root = Path(config["sites"]["rotcha"]["hugo_root"])
+        content_dir = hugo_root / "content" / "posts" / "test-slug"
+        content_dir.mkdir(parents=True)
+        public_dir = hugo_root / "public" / "posts" / "test-slug"
+        public_dir.mkdir(parents=True)
+
+        # Write index.md WITHOUT JSON residue (simulating successful cleaning)
+        index_md = content_dir / "index.md"
+        index_md.write_text("""---
+title: "Test"
+featureimage: "https://img.example.com/thumb.webp"
+draft: false
+slug: "test-slug"
+date: "2026-01-01T00:00:00+09:00"
+---
+
+## Content
+
+Body text without JSON.
+""", encoding="utf-8")
+
+        # Write clean HTML output
+        (public_dir / "index.html").write_text("""<html><body>
+<h1>Test</h1>
+<p>Body text without JSON.</p>
+<img src="https://img.example.com/img.jpg">
+</body></html>""", encoding="utf-8")
+
+        # Mock DB
+        import chain_db
+        with patch("chain_db.get_conn") as mock_get_conn:
+            mock_conn = MagicMock()
+            mock_get_conn.return_value = mock_conn
+            mock_conn.execute.return_value.fetchone.return_value = {
+                "id": 1,
+                "image_meta": json.dumps({
+                    "image_type": "photo",
+                    "image_keyword": "test",
+                    "thumbnail_path": None,
+                    "thumbnail_source": None,
+                    "content_image_path": "already_set",
+                    "chart_type": None,
+                    "chart_data": None,
+                    "image_reason": None,
+                }),
+            }
+
+            # Mock external calls
+            with patch("chain_publisher_core.get_r2_config", return_value=("images/rotcha", "https://img.rotcha.kr")):
+                with patch("chain_publisher_core.upload_all_images", return_value={}):
+                    with patch("chain_publisher_core.shutil.which", return_value="/opt/homebrew/bin/hugo"):
+                        with patch("subprocess.run") as mock_subprocess:
+                            mock_subprocess.return_value = MagicMock(returncode=0, stdout="", stderr="")
+                            with patch("chain_publisher_core._run_wrangler", return_value=(0, "OK", "")):
+                                core = PublisherCore(config)
+
+                                draft_md = """---
+title: "Test"
+description: "Desc"
+tags: ["태그"]
+draft: true
+---
+
+## Content
+
+Body text.
+
+{"image_type": "photo", "image_keyword": "test"}"""
+
+                                url, method, path = core._publish_hugo(
+                                    config["sites"]["rotcha"],
+                                    draft_md,
+                                    "test-slug",
+                                    "Test",
+                                    ["tag1"],
+                                )
+
+                                # Should succeed (URL not empty)
+                                assert url.startswith("https://test.com/posts/test-slug/")
+                                assert method == "hugo"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

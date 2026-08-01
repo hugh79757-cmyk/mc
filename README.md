@@ -55,6 +55,15 @@ scheduler/              cron + launchd 스케줄러
 | swallow (역방향) | 쇼핑/소비/브랜드 | 구매 → 절약 → 재테크 |
 | lateral (횡방향) | 여행/지역/맛집 | 정보 → 비교 → 비즈니스 |
 
+## 최근 변경 사항 (Phase 27)
+
+- **측면 방향 프롬프트 확장**: 10가지 세부 카테고리에 대한 측면 방향 프롬프트를 추가하여 체인 생성을 보다 다양화했습니다.
+- **파서 안정성 향상**: `chain_deriver.py`의 `_parse_derivation()` 함수에 BOM, zero-width 문자, 펜스 처리 로직을 추가해 입력이 비정상일 때도 견고하게 동작하도록 수정했습니다.
+- **D9 게이트 확장**: `chain_card_injector.py`의 D9 게이트에 HTML 외부 링크 카드 중복 제거 로직을 추가해 중복 삽입을 방지합니다.
+- **테스트**: 모든 기존 테스트가 통과했으며, 신규/수정된 로직에 대한 테스트가 `test_chain_drafter.py`에 추가되었습니다.
+- **프롬프트 템플릿 업데이트**: `config/prompts.yaml`에 새로운 측면 방향 프롬프트와 CTA 지침을 반영했습니다.
+- **문서 동기화**: `.planning/STATE.md`와 `.planning/triage/INDEX.md`를 최신 커밋 및 작업 상태로 갱신했습니다.
+
 ## Blogger OAuth2 설정
 
 1. Google Cloud Console → 프로젝트 생성

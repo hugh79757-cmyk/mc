@@ -40,6 +40,9 @@ from shared.publishers.hugo_writer import _write_hugo_post
 
 import chain_db as db
 from chain_deriver import derive_chain
+from chain_publisher_core import (
+    DeployValidationError, BodyExtractionError, ImageGenerationError
+)
 
 # Image package imports
 from image import generate_image as img_gen
@@ -470,7 +473,21 @@ def publish_chain(chain_id: int, mode: str = "auto",
                 site_cfg["cf_pages_project"] = cf_project_override
             config["sites"][blog_key] = site_cfg
 
-        url, method, file_path = core.publish_post(blog_key, draft_md, slug, title, labels, post_id=post["id"])
+        try:
+            url, method, file_path = core.publish_post(blog_key, draft_md, slug, title, labels, post_id=post["id"])
+        except DeployValidationError as e:
+            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 배포 검증 실패 — {e}")
+            url, method, file_path = "", "hugo", ""
+        except BodyExtractionError as e:
+            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 본문 추출 실패 — {e}")
+            url, method, file_path = "", "hugo", ""
+        except ImageGenerationError as e:
+            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 이미지 생성 실패 — {e}")
+            url, method, file_path = "", "hugo", ""
+        except Exception as e:
+            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 예기치 않은 오류 — {e}")
+            url, method, file_path = "", "hugo", ""
+
         if url:
             db.update_published_url(post["id"], url, method)
             if file_path:

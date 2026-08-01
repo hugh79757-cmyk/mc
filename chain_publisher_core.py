@@ -15,6 +15,7 @@ import logging
 import time
 from pathlib import Path
 from datetime import datetime
+from typing import List
 
 from mc.cta import replace_ai_cta, detect_ai_cta
 from mc_paths import load_config, CHAIN_CONFIG_PATH
@@ -77,34 +78,71 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
             frontmatter = "\n".join(fm_lines)
             body = "\n".join(lines[body_start:]).lstrip("\n")
 
+    # 헬퍼: 중괄호 깊이 카운팅으로 JSON 블록(메타 키 포함) 탐지
+    def _is_json_block_with_meta(lines: List[str], idx: int) -> bool:
+        """lines[idx:]부터 중괄호 깊이 카운팅으로 JSON 블록 완성 여부 및 메타 키 포함 여부 판단"""
+        depth = 0
+        block_lines = []
+        for j in range(idx, min(len(lines), idx + 100)):  # 최대 100줄 앞까지
+            l = lines[j]
+            block_lines.append(l)
+            for ch in l:
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+            if depth == 0 and block_lines:
+                block_text = "\n".join(block_lines)
+                if '"image_type"' in block_text or '"chart_type"' in block_text:
+                    try:
+                        json.loads(block_text)
+                        return True
+                    except (json.JSONDecodeError, TypeError):
+                        return False
+            elif depth < 0:
+                break
+        return False
+
     allowed_lines = []
     in_code_block = False
     skip_json_block = False
+    skip_raw_json_block = False
+    raw_json_depth = 0
 
-    for line in body.split("\n"):
+    lines = body.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         stripped = line.strip()
 
+        # 코드 펜스 JSON 블록 스킵 중
         if skip_json_block:
             if stripped.startswith("```"):
                 skip_json_block = False
+            i += 1
             continue
 
+        # 일반 코드 블록 토글
         if stripped.startswith("```"):
             lang = stripped[3:].strip()
             if lang.lower() == "json":
                 skip_json_block = True
+                i += 1
                 continue
             else:
                 in_code_block = not in_code_block
                 allowed_lines.append(line)
+                i += 1
                 continue
 
         if in_code_block:
             allowed_lines.append(line)
+            i += 1
             continue
 
         if not stripped:
             allowed_lines.append("")
+            i += 1
             continue
 
         is_heading = bool(re.match(r'^#{1,6}\s', stripped))
@@ -114,16 +152,40 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
         is_link = bool(re.match(r'\[.*?\]\(https?://', stripped))
         is_html_comment = stripped.startswith("<!--")
         is_html_tag = bool(HTML_TAG_RE.search(stripped))
-        is_raw_json = stripped.startswith("{") and ("image_type" in stripped or "chart_type" in stripped)
+
+        # 줄 단위 → 블록 단위 JSON 탐지로 강화
+        is_raw_json = _is_json_block_with_meta(lines, i)
 
         if is_html_comment or is_html_tag or is_raw_json:
+            # raw JSON 블록인 경우 블록 끝까지 스킵
+            if is_raw_json:
+                skip_raw_json_block = True
+                raw_json_depth = 0
+                # 현재 줄부터 중괄호 카운팅으로 블록 끝 찾기
+                for j in range(i, min(len(lines), i + 100)):
+                    l = lines[j]
+                    for ch in l:
+                        if ch == '{':
+                            raw_json_depth += 1
+                        elif ch == '}':
+                            raw_json_depth -= 1
+                    if raw_json_depth == 0:
+                        i = j + 1
+                        skip_raw_json_block = False
+                        break
+                else:
+                    i += 1
+                continue
+            i += 1
             continue
 
         if is_heading or is_list or is_table or is_image or is_link:
             allowed_lines.append(line)
+            i += 1
             continue
 
         allowed_lines.append(line)
+        i += 1
 
     clean_body = "\n".join(allowed_lines)
     clean_body = re.sub(r'\n{3,}', '\n\n', clean_body).strip()
@@ -634,7 +696,8 @@ class PublisherCore:
                 cleaned_body = _ensure_image_alt(cleaned_body, title)
                 # 프론트매터 보존: 본문만 정제(sanitize)하고 _fixed 에 조립된 FM 블록을 재결합.
                 # FM을 버리면 no-FM 파일이 되어 Blowfish/PaperMod 테마가 페이지를 빌드에서 제외함(404).
-                _fm_match = re.search(r'^---\n.*?\n---\n', _fixed, re.DOTALL)
+                # NOTE: _fixed 는 closing "---" 뒤에 개행 2개(\n\n)로 끝나므로, regex도 \n+로 허용
+                _fm_match = re.search(r'^---\n.*?\n---\n+', _fixed, re.DOTALL)
                 _fm_block = _fm_match.group(0) if _fm_match else ""
                 text = _fm_block + cleaned_body if _fm_block else cleaned.body
             except BodyExtractionError as e:
@@ -689,7 +752,14 @@ class PublisherCore:
             try:
                 _verify_before_deploy(hugo_path, slug, _image_meta)
             except DeployValidationError as e:
-                logger.error(f"배포 검증 실패: {e}")
+                error_msg = str(e)
+                if "index.md" in error_msg:
+                    stage = "index.md 검증"
+                elif "Hugo 산출물" in error_msg:
+                    stage = "HTML 산출물 검증"
+                else:
+                    stage = "검증"
+                logger.error(f"배포 검증 실패: {e} | slug={slug} | stage={stage}")
                 return ("", "hugo", "")
 
             # 6. Wrangler 배포

@@ -178,6 +178,29 @@ def _insert_chart_marker(draft_md: str) -> str:
     return draft_md
 
 
+def fix_ai_output_format(draft_md: str) -> str:
+    """AI가 실제 내용 대신 작성 계획을 설명하는 경우를 수정합니다.
+    
+    예를 들어, 다음과 같은 패턴을 수정합니다:
+      입력: 'H2 1: "## 실제 제목"\n\n[내용 설명]'
+      출력: '## 실제 제목\n\n[내용]'
+    """
+    import re
+    
+    # H2 패턴을 찾아서 실제 헤더로 변환
+    # 패턴: H2 숫자: "## 실제 헤더 텍스트"
+    pattern = r'H2 (\d+): "## (.+)"'
+    
+    def replace_func(match):
+        # 매치된 그룹 2는 실제 헤더 텍스트
+        return f"## {match.group(2)}"
+    
+    # 모든 H2 패턴을 실제 헤더로 대체
+    fixed_md = re.sub(pattern, replace_func, draft_md)
+    
+    return fixed_md
+
+
 def _validate_draft_frontmatter(draft_md: str) -> None:
     """Validate frontmatter to catch common YAML issues before publishing.
 
@@ -324,6 +347,9 @@ def draft_single_post(
         print(f"  [drafter] ⚠️ AI 출력 파싱 실패, 본문만 추출: {e}")
         meta = {"image_type": "none", "image_keyword": "", "image_reason": "", "chart_type": None, "chart_data": None}
         draft_md = raw_output
+
+    # AI가 작성 계획 대신 실제 내용을 생성하지 못한 경우 수정
+    draft_md = fix_ai_output_format(draft_md)
 
     draft_md, _ = strip_leaks(draft_md, context="draft")
 
