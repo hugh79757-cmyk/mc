@@ -1,6 +1,6 @@
 # Roadmap: mc (Manual Chain)
 
-**Last updated:** 2026-07-24
+**Last updated:** 2026-08-01
 
 ## 완료된 Phase
 
@@ -20,6 +20,7 @@
 | 12 | mc R2 업로더 분리 | ✅ Complete |
 | 13 | 콘텐츠 고도화 (markdown cleanup + contextual image) | ✅ Complete |
 | **14** | **CLI `mc <keyword>` + R2 이미지 수정** | **✅ Complete** |
+| **32** | **연도 오류 방지 시스템 (year_guard)** | **✅ Complete** |
 
 ## Phase 14 상세
 
