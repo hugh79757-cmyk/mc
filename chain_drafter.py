@@ -254,6 +254,7 @@ def draft_single_post(
     h2_guidelines = "\n".join(h2_lines)
 
     # ── 프롬프트 조립 ──
+    from datetime import datetime
     draft_user = prompts["draft_user"]
     user_prompt = draft_user.format(
         blog_name=blog_key,
@@ -267,6 +268,7 @@ def draft_single_post(
         prev_context=prev_ctx,
         next_context=next_ctx,
         h2_guidelines=h2_guidelines,
+        current_year=datetime.now().year,
     )
 
     # ── Search context injection (Phase 7) ──
