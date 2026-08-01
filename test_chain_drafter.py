@@ -379,7 +379,7 @@ class TestDraftSinglePost:
 
         post = {"id": 1, "step": 1, "title": "Test", "target_keyword": "키워드", "category_guess": "기술", "depth": 0}
 
-        draft_md, meta = draft_single_post(post, [post], "시드")
+        draft_md, meta, raw_output = draft_single_post(post, [post], "시드")
 
         # Phase 24: draft_single_post는 body만 반환 (FM은 draft_chain에서 조립)
         assert not draft_md.startswith("---")
@@ -978,7 +978,7 @@ class TestKeywordCategoriesH2E2E:
         from chain_drafter import draft_single_post
 
         # sample_chain_post의 step=1, seed="하이바이풀빌라" → classify_keyword→travel
-        draft_md, meta = draft_single_post(
+        draft_md, meta, raw_output = draft_single_post(
             sample_chain_post,
             [sample_chain_post],
             "하이바이풀빌라",

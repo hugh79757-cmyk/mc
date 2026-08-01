@@ -46,6 +46,10 @@ _PROMPT_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("prompt_leak", {}).ge
 _CTA_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("cta_leak", {}).get("patterns", []))
 _FORBIDDEN_CTA_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", []))
 _PLACEHOLDER_PATTERN = re.compile(_LEAK_CONFIG.get("placeholder_leak", {}).get("pattern", r'\{\{(?!<|%)([^}]+)\}\}'))
+
+_REASONING_LEAK_CONFIG = _LEAK_CONFIG.get("reasoning_leak", {})
+_REASONING_PATTERNS = _compile_patterns(_REASONING_LEAK_CONFIG.get("patterns", []))
+_REASONING_MIN_SIGNALS = _REASONING_LEAK_CONFIG.get("min_signals", 2)
 _HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
 _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
 
@@ -57,9 +61,10 @@ _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern",
 # reload_config() 에서 함께 갱신된다.
 
 LEAK_PATTERNS: List[str] = (
-    _LEAK_CONFIG.get("prompt_leak", {}).get("patterns", [])
+_LEAK_CONFIG.get("prompt_leak", {}).get("patterns", [])
     + _LEAK_CONFIG.get("cta_leak", {}).get("patterns", [])
     + _LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", [])
+    + _LEAK_CONFIG.get("reasoning_leak", {}).get("patterns", [])
 )
 LEAK_REGEX: List[re.Pattern] = _compile_patterns(LEAK_PATTERNS)
 
@@ -94,6 +99,11 @@ def strip_leaks(text: str, context: str = "body") -> Tuple[str, Dict[str, Any]]:
     if context in ("draft", "test"):
         cleaned, prompt_report = _remove_prompt_leaks(cleaned)
         report["prompt_leak"] = prompt_report
+
+    # 1.5 Reasoning leak 문단 단위 제거 (context: "body", "test"에서)
+    if context in ("body", "test"):
+        cleaned, reasoning_report = _remove_reasoning_leaks_paragraph(cleaned)
+        report["reasoning_leak"] = reasoning_report
 
     # 2. CTA leak 제거 (context: "body", "test"에서)
     if context in ("body", "test"):
@@ -160,11 +170,148 @@ def has_leaks(text: str, context: str = "test") -> bool:
 def _empty_report() -> Dict[str, Any]:
     return {
         "prompt_leak": {"removed": 0, "matches": []},
+        "reasoning_leak": {"removed": 0, "matches": []},
         "cta_leak": {"removed": 0, "matches": []},
         "placeholder_leak": {"removed": 0, "matches": []},
         "html_leak": {"removed": 0, "matches": []},
         "json_leak": {"removed": 0, "matches": []},
     }
+
+
+def _remove_reasoning_leaks_paragraph(text: str) -> Tuple[str, Dict[str, Any]]:
+    """
+    문단 단위 reasoning leak 제거.
+
+    동일 문단 내에 고특이도 reasoning leak 시그니처가 min_signals(기본 2)개
+    이상 동시 출현 시 그 문단 전체를 제거한다.
+    문단 경계는 빈 줄로 정의. 표/코드블록/리스트/헤더는 문단으로 간주하지 않음.
+    """
+    if _REASONING_MIN_SIGNALS <= 1:
+        return text, {"removed": 0, "matches": []}
+
+    lines = text.splitlines(keepends=True)
+    out = []
+    in_frontmatter = False
+    past_frontmatter = False
+    removed = 0
+    matches = []
+
+    # 문단 단위 처리를 위해 먼저 문단별로 분리
+    paragraphs = []
+    current_paragraph = []
+    in_frontmatter = False
+    past_frontmatter = False
+
+    in_code_block = False
+
+    for ln in lines:
+        stripped = ln.strip()
+
+        if stripped == "---":
+            if not in_frontmatter and not past_frontmatter:
+                in_frontmatter = True
+            elif in_frontmatter:
+                in_frontmatter = False
+                past_frontmatter = True
+            if current_paragraph:
+                paragraphs.append((current_paragraph, "frontmatter"))
+                current_paragraph = []
+            continue
+
+        # 빈 줄 = 문단 경계 (코드 블록 내부에서는 무시)
+        if not stripped and not in_code_block:
+            if current_paragraph:
+                paragraphs.append((current_paragraph, "content"))
+                current_paragraph = []
+            continue
+
+        # 코드 블록 토글
+        if stripped.startswith("```"):
+            if in_code_block:
+                # 코드 블록 종료 - 보호된 라인으로만 추가 (내용은 버림)
+                paragraphs.append(([ln], "protected"))
+                in_code_block = False
+                current_paragraph = []  # 코드 블록 내용은 버림
+                continue
+            else:
+                # 코드 블록 시작
+                if current_paragraph:
+                    paragraphs.append((current_paragraph, "content"))
+                    current_paragraph = []
+                paragraphs.append(([ln], "protected"))
+                in_code_block = True
+                continue
+
+        # 코드 블록 내부에서는 모든 라인을 현재 문단에 추가 (보호)
+        if in_code_block:
+            current_paragraph.append(ln)
+            continue
+
+        # 빈 줄 = 문단 경계 (코드 블록 외부에서만)
+        if not stripped:
+            if current_paragraph:
+                paragraphs.append((current_paragraph, "content"))
+                current_paragraph = []
+            continue
+
+        # 헤더/표/리스트는 별도 문단으로 처리 (보호)
+        stripped_ln = stripped
+        if (stripped_ln.startswith("#") or
+            stripped_ln.startswith("|") or
+            stripped_ln.startswith(("- ", "* ", "+ ", "-", "*", "+"))):
+            if current_paragraph:
+                paragraphs.append((current_paragraph, "content"))
+                current_paragraph = []
+            # 이러한 라인은 개별 문단으로 추가
+            paragraphs.append(([ln], "protected"))
+            continue
+
+        current_paragraph.append(ln)
+
+    # 마지막 문단 처리
+    if current_paragraph:
+        paragraphs.append((current_paragraph, "content"))
+
+    # 각 문단 검사 및 처리
+    for i, (para_lines, para_type) in enumerate(paragraphs):
+        print(f"  Para {i}: type={para_type}, lines={len(para_lines)}, text={''.join(para_lines)[:50]}")
+    out_lines = []
+    for para_lines, para_type in paragraphs:
+        if para_type in ("frontmatter", "protected"):
+            out_lines.extend(para_lines)
+            continue
+
+        # 문단 내 고특이도 시그니처 개수 세기
+        para_text = "".join(para_lines)
+        signal_count = 0
+        matched_patterns = []
+
+        for pattern in _REASONING_PATTERNS:
+            matches = list(pattern.finditer(para_text))
+            if matches:
+                signal_count += len(matches)
+                for m in matches:
+                    matched_patterns.append({
+                        "pattern": pattern.pattern,
+                        "match": m.group()[:50],
+                        "position": m.start()
+                    })
+
+        if signal_count >= _REASONING_MIN_SIGNALS:
+            # 2신호 이상 → 문단 전체 제거
+            removed += 1
+            matches.append({
+                "signals": signal_count,
+                "patterns": matched_patterns,
+                "action": "paragraph_removed",
+                "preview": para_text[:100]
+            })
+            logger.warning(f"[REASONING-LEAK] 문단 제거: {signal_count}개 시그니처 감지 - '{para_text[:80]}...'")
+        else:
+            # 보존
+            out_lines.extend(para_lines)
+
+    return "".join(out_lines), {"removed": removed, "matches": matches}
 
 
 def _remove_prompt_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
@@ -311,11 +458,15 @@ def reload_config() -> None:
     _CTA_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("cta_leak", {}).get("patterns", []))
     _FORBIDDEN_CTA_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", []))
     _PLACEHOLDER_PATTERN = re.compile(_LEAK_CONFIG.get("placeholder_leak", {}).get("pattern", r'\{\{(?!<|%)([^}]+)\}\}'))
-    _HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
-    _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
-    LEAK_PATTERNS = (
-        _LEAK_CONFIG.get("prompt_leak", {}).get("patterns", [])
-        + _LEAK_CONFIG.get("cta_leak", {}).get("patterns", [])
-        + _LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", [])
-    )
-    LEAK_REGEX = _compile_patterns(LEAK_PATTERNS)
+
+_REASONING_LEAK_CONFIG = _LEAK_CONFIG.get("reasoning_leak", {})
+_REASONING_PATTERNS = _compile_patterns(_REASONING_LEAK_CONFIG.get("patterns", []))
+_REASONING_MIN_SIGNALS = _REASONING_LEAK_CONFIG.get("min_signals", 2)
+_HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
+_JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
+LEAK_PATTERNS = (
+_LEAK_CONFIG.get("prompt_leak", {}).get("patterns", [])
++ _LEAK_CONFIG.get("cta_leak", {}).get("patterns", [])
++ _LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", [])
+)
+LEAK_REGEX = _compile_patterns(LEAK_PATTERNS)

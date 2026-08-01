@@ -36,7 +36,7 @@ from mc_paths import (
     get_chain_direction_role, resolve_chain_type, classify_keyword
 )
 from shared.ai_writer import generate
-from chain_db import get_chain, get_chain_posts, update_post_draft
+from chain_db import get_chain, get_chain_posts, update_post_draft, update_post_raw_output
 from search_retriever import NaverSearchClient, retrieve_context_for_post
 
 
@@ -180,13 +180,11 @@ def _insert_chart_marker(draft_md: str) -> str:
 
 def fix_ai_output_format(draft_md: str) -> str:
     """AI가 실제 내용 대신 작성 계획을 설명하는 경우를 수정합니다.
-    
+
     예를 들어, 다음과 같은 패턴을 수정합니다:
-      입력: 'H2 1: "## 실제 제목"\n\n[내용 설명]'
+      입력: 'H2 1: "## 실제 제목\n\n[내용 설명]'
       출력: '## 실제 제목\n\n[내용]'
     """
-    import re
-    
     # H2 패턴을 찾아서 실제 헤더로 변환
     # 패턴: H2 숫자: "## 실제 헤더 텍스트"
     pattern = r'H2 (\d+): "## (.+)"'
@@ -328,7 +326,7 @@ def draft_single_post(
     system_prompt = prompts["draft_system"]
 
     print(f"  [drafter] Step {post.get('step', '?')} ({blog_key}) 초안 생성 중...")
-    result = generate(system_prompt, user_prompt, tier="default", temperature=0.85)
+    result = generate(system_prompt, user_prompt, tier="default", temperature=0.7)
     raw_output = result["content"]
 
     # Parse JSON metadata + extract clean body via single entry point
@@ -356,7 +354,7 @@ def draft_single_post(
     char_count = len(draft_md)
     print(f" [drafter] Step {post.get('step', '?')} 완료 — {char_count:,}자 (model: {result['model']})")
 
-    return draft_md, meta
+    return draft_md, meta, raw_output
 
 
 # ── 체인 전체 초안 생성 ────────────────────────────────────────────
@@ -377,7 +375,7 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
     updated_posts = []
 
     for post in posts:
-        draft_md, meta = draft_single_post(post, posts, seed_keyword, use_context=use_context)
+        draft_md, meta, raw_output = draft_single_post(post, posts, seed_keyword, use_context=use_context)
 
         # Phase 8: image_type determination
         image_type = meta.get("image_type", "none")
@@ -456,6 +454,16 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
         file_path = drafts_dir / filename
         file_path.write_text(draft_md, encoding="utf-8")
         print(f"  [drafter] 파일 저장: {file_path}")
+
+        # Phase 34: raw_output 저장 (DB + 파일) - 원문 보존으로 재발 분석 가능
+        update_post_raw_output(post["id"], raw_output)
+        
+        # raw 파일 저장
+        raw_filename = f"step-{step}-{slug}.raw.md"
+        raw_file_path = drafts_dir / raw_filename
+        raw_file_path.write_text(raw_output, encoding="utf-8")
+        print(f"  [drafter] raw 파일 저장: {raw_file_path}")
+
 
         updated_posts.append({
             **post,

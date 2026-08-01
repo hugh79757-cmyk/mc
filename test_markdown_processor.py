@@ -179,7 +179,7 @@ class TestProcess:
     def test_sanitize_markdown_body_parity(self):
         md = "---\ntitle: test\n---\n\n```json\n{\"a\": 1}\n\n## 절대 금지\n\n본문|내용\n"
         assert chain_publisher_core._sanitize_markdown_body(md) == (
-            MarkdownProcessor().process(md, leak_context="draft")
+            MarkdownProcessor().process(md, leak_context="body")
         )
 
     def test_clean_markdown_symbols_still_works(self):

@@ -851,6 +851,13 @@ SEARCH_MIGRATIONS_SQL = [
 ]
 
 
+# Phase 34: raw_ai_output 컬럼 추가 (raw_output 관측 강화)
+
+RAW_AI_OUTPUT_MIGRATION_SQL = [
+    "ALTER TABLE chain_posts ADD COLUMN raw_ai_output TEXT",
+]
+
+
 # ── Phase 23: Keyword Queue ──
 
 KEYWORD_QUEUE_SCHEMA_SQL = """
@@ -996,6 +1003,37 @@ def update_post_context(post_id: int, context_md: str, search_sources: str = Non
     conn.execute(
         "UPDATE chain_posts SET context_md = ?, search_sources = ?, updated_at = ? WHERE id = ?",
         (context_md, search_sources, now, post_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+# Phase 34: raw_ai_output 컬럼 마이그레이션 실행
+
+def init_raw_ai_output_column():
+    """Add raw_ai_output column to chain_posts if missing."""
+    conn = get_conn()
+    cursor = conn.execute("PRAGMA table_info(chain_posts)")
+    cols = {row["name"] for row in cursor.fetchall()}
+    for sql in RAW_AI_OUTPUT_MIGRATION_SQL:
+        col_name = sql.split("ADD COLUMN ")[1].split(" ")[0]
+        if col_name not in cols:
+            try:
+                conn.execute(sql)
+                print(f"  [migrate] {col_name} 컬럼 추가 완료")
+            except sqlite3.OperationalError:
+                pass
+    conn.commit()
+    conn.close()
+
+
+def update_post_raw_output(post_id: int, raw_md: str):
+    """Save raw AI output (before any processing) to chain_posts.raw_ai_output."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_conn()
+    conn.execute(
+        "UPDATE chain_posts SET raw_ai_output = ?, updated_at = ? WHERE id = ?",
+        (raw_md, now, post_id),
     )
     conn.commit()
     conn.close()

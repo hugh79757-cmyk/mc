@@ -33,6 +33,23 @@ prompt_leak:
     - "\\*\\*\\[.*\\]\\*\\*"
   action: "remove_block"  # 헤더부터 다음 헤더까지 블록 제거
 
+reasoning_leak:
+  # deepseek-v4-flash 등이 프롬프트 지침을 "사고 과정"(planning/drafting 대화)으로
+  # 본문에 출력하는 경우 제거. 발행 safety net(context="body")에서만 적용.
+  # 고특이도 시그니처 2개 이상이 같은 문단 내 동시 출현 시 그 문단 전체 제거.
+  # 단독 저특이도("주의:", "표 N:", "~하자.", "것 같다")는 차단 트리거로 쓰지 않음.
+  min_signals: 2
+  patterns:
+    # 고특이도 시그니처 (2신호 동시 출현 시 문단 제거)
+    - "프롬프트에서는"
+    - "프롬프트는.*라고 했"
+    - "금지어:"
+    - "피하자"
+    - "만들지 말 것"
+    - "이미지 플레이스홀더"
+    - "제공된 참고 자료"
+  action: "remove_paragraph"  # 2신호 이상 시 문단 전체 제거
+
 cta_leak:
   # chain_publisher_core.py D8-GATE + audit + conftest 통합
   patterns:

@@ -1147,7 +1147,7 @@ def _sanitize_markdown_body(body: str) -> str:
     Returns:
         fix_fences → strip_leaks → clean_symbols(+fix_tables) 순서로 정제된 본문.
     """
-    return markdown_processor.processor.process(body, leak_context="draft")
+    return markdown_processor.processor.process(body, leak_context="body")
 
 
 # ── Phase 26 W4: 설정 JSON-Schema 검증 (03-03) ──────────────────────
