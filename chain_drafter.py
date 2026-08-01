@@ -19,6 +19,7 @@ from pathlib import Path
 from datetime import datetime
 
 from mc.leak_defense import strip_leaks
+from mc.year_guard import validate_and_fix_years
 
 import frontmatter_utils  # frontmatter 처리 단일 진실 공급원 (Phase 26)
 from url_utils import extract_domain  # noqa: F401 — URL 처리 단일 진실 공급원 (Phase 26)
@@ -285,6 +286,11 @@ def draft_single_post(
             )
             if ok:
                 context_md = ctx
+                # Phase 32: 입력단 연도 검증 — 소스 데이터의 과거연도+최신 조합 보정
+                ctx, _year_warnings = validate_and_fix_years(ctx, fix_mode=True)
+                if _year_warnings:
+                    for w in _year_warnings:
+                        print(f"  [drafter] ⚠️ 연도 경고: {w}")
                 from chain_db import update_post_context
                 update_post_context(post["id"], ctx)
                 user_prompt += "\n\n" + ctx
@@ -383,6 +389,11 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
             image_type = "photo"  # downstream 처리 위해 보정
 
         # Phase 24: FM 조립 (build_frontmatter 내부에 featureimage: "" 포함)
+        # Phase 32: FM 조립 전 본문 연도 검증
+        draft_md, _year_warnings = validate_and_fix_years(draft_md, fix_mode=True)
+        if _year_warnings:
+            for w in _year_warnings:
+                print(f"  [drafter] ⚠️ 연도 경고: {w}")
         draft_md = frontmatter_utils.build_frontmatter(post, draft_md)
 
         # 안전장치: AI가 여전히 FM을 출력한 경우 등 예외 처리

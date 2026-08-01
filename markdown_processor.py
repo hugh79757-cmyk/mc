@@ -6,13 +6,14 @@ Phase 26 W4 (03-04) 에 신설. 기존에 각 모듈에 분산되어 있던 정�
 - 펜스 자동 수정      : ``chain_card_injector.CardInjector.fix_unclosed_fences`` 위임
 - 릭 방어            : ``mc.leak_defense.strip_leaks`` 위임 (패턴 단일 진실 공급원은
   ``constants.LEAK_PATTERNS`` / ``constants.LEAK_REGEX`` — mc/leak_defense.py 문서 참조)
+- 연도 검증          : ``mc.year_guard.validate_and_fix_years`` 위임 (Phase 32)
 - 심볼 클리닝        : ``chain_publisher_core._clean_markdown_symbols`` 와 동일 알고리즘
 - 표 자동 보정        : ``fix_tables`` — header 다음 separator 누락 시 삽입,
   header 단독 잘린 빈 표는 제거 (quick 20260801, Hugo goldmark ``<table>`` 렌더링 보장)
 
 모든 정제는 **기존 함수/모듈을 수정하지 않고** (additive) 이 클래스로 위임한다.
-기존 호출부는 그대로 동작하며, ``process()`` 는 위 4단계를
-fix_fences → strip_leaks → clean_symbols 순서로 적용한 결과를 반환한다.
+기존 호출부는 그대로 동작하며, ``process()`` 는 위 5단계를
+fix_fences → strip_leaks → year_guard → clean_symbols 순서로 적용한 결과를 반환한다.
 (``clean_symbols`` 진입 시 ``fix_tables`` 전처리가 먼저 적용된다.)
 """
 
@@ -20,6 +21,7 @@ import re
 from typing import List
 
 from mc.leak_defense import strip_leaks as _strip_leaks  # noqa: F401 — 릭 방어 위임 (단일 진실 공급원)
+from mc.year_guard import validate_and_fix_years as _validate_and_fix_years  # noqa: F401 — 연도 검증 위임 (Phase 32)
 
 
 class MarkdownProcessor:
@@ -252,7 +254,7 @@ class MarkdownProcessor:
 
         return '\n'.join(result)
 
-    # ── 파이프라인: fix_fences → strip_leaks → clean_symbols ─────────────
+    # ── 파이프라인: fix_fences → strip_leaks → year_guard → clean_symbols ──
     def process(self, markdown_text: str, leak_context: str = "draft") -> str:
         """발행 전 1차 정제 파이프라인 전체 실행.
 
@@ -261,11 +263,13 @@ class MarkdownProcessor:
             leak_context: strip_leaks 의 context ("draft" 기본).
 
         Returns:
-            펜스 수정 + 릭 제거 + 심볼 클리닝이 적용된 텍스트.
+            펜스 수정 + 릭 제거 + 연도 검증 + 심볼 클리닝이 적용된 텍스트.
             (clean_symbols 내부에서 fix_tables 표 보정이 먼저 적용됨)
         """
         text = self.fix_fences(markdown_text)
         text = self.strip_leaks(text, context=leak_context)
+        # Phase 32: 연도 검증 — 과거연도+최신 조합 자동 치환
+        text, _year_warnings = _validate_and_fix_years(text, fix_mode=True)
         return self.clean_symbols(text)
 
 

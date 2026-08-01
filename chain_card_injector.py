@@ -35,6 +35,7 @@ from constants import (  # noqa: F401 — 상수 단일 진실 공급원 (Phase 
 from link_finder import LinkFinder  # noqa: F401 — 링크 추출 단일 진실 공급원 (Phase 26 W2)
 
 from card_generator import CardGenerator  # noqa: F401 — 카드 스펙 생성 단일 진실 공급원 (Phase 26 W2)
+from mc.year_guard import validate_and_fix_years
 from html_renderer import HtmlRenderer  # noqa: F401 — 카드 HTML 렌더링 단일 진실 공급원 (Phase 26 W2)
 
 
@@ -571,7 +572,10 @@ class CardInjector:
         if mid_card:
             body = self.inject_mid_card(body, mid_card)
 
-        return fm + "\n\n" + body if fm else body
+        # Phase 32: 카드 주입 후 최종 draft_md 연도 검증
+        result = fm + "\n\n" + body if fm else body
+        result, _year_warnings = validate_and_fix_years(result, fix_mode=True)
+        return result
 
     # ── Hugo/Blogger 업데이트 (PublisherCore 위임) ─────────────────
 
