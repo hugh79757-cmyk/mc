@@ -1005,3 +1005,33 @@ class TestKeywordCategoriesH2E2E:
         # Verify generate() was called with valid args
         assert len(draft_md) > 0
         assert meta is not None
+
+
+class TestYearGuardIntegration:
+    """chain_drafter 연도 검증 통합 테스트 (Phase 32)."""
+
+    def test_import_year_guard(self):
+        """chain_drafter에서 year_guard 임포트 확인."""
+        from mc.year_guard import validate_and_fix_years
+
+        # 함수 존재 확인
+        assert callable(validate_and_fix_years)
+
+    def test_year_fix_in_draft_md(self):
+        """초안 본문의 과거연도+최신 조합이 치환되는지 확인."""
+        from mc.year_guard import validate_and_fix_years
+
+        # AI가 생성한 초안 시뮬레이션
+        draft_md = "2025 최신 트렌드를 분석합니다. 2025년 기준 가격은..."
+        fixed, warns = validate_and_fix_years(draft_md, fix_mode=True)
+        assert "2026 최신 트렌드" in fixed
+        assert "2026년 기준 가격" in fixed
+
+    def test_factual_date_preserved_in_draft(self):
+        """초안 내 사실 날짜(축제)가 보존되는지 확인."""
+        from mc.year_guard import validate_and_fix_years
+
+        draft_md = "2025년 축제 개최일은 8월입니다. 2025 최신 정보입니다."
+        fixed, _ = validate_and_fix_years(draft_md, fix_mode=True)
+        assert "2025년 축제 개최일" in fixed  # 보호
+        assert "2026 최신 정보" in fixed  # 치환

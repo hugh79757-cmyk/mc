@@ -19,15 +19,15 @@ from typing import Optional
 # ── 정규식 패턴 ──────────────────────────────────────────────────────
 
 # 패턴 1: 과거 연도 + '최신/기준/현재' → 현재 연도로 치환
-# 예: "2025 최신 정보" → "2026 최신 정보"
+# 예: "2025 최신 정보" → "2026 최신 정보", "2024년 기준" → "2026년 기준"
 PATTERN_YEAR_WITH_CONTEXT = re.compile(
-    r'(20\d{2})\s*(최신|기준|현재)'
+    r'(20\d{2})년?\s*(최신|기준|현재)'
 )
 
 # 패턴 2: '최신/기준/현재' + 과거 연도 → 현재 연도로 치환
 # 예: "최신 2025년 정보" → "최신 2026년 정보"
 PATTERN_CONTEXT_WITH_YEAR = re.compile(
-    r'(최신|기준|현재)\s*(20\d{2})\s*년?'
+    r'(최신|기준|현재)\s*(20\d{2})년?'
 )
 
 # 패턴 3: standalone 과거 연도 (최신/기준/현재 없음) → 플래그만 (치환 안 함)
@@ -37,6 +37,13 @@ PATTERN_STANDALONE_YEAR = re.compile(r'(20\d{2})\s*년?')
 
 # ── 사실 날짜 보호 패턴 ──────────────────────────────────────────────
 
+# 이벤트/기간 키워드 — standalone 매칭에서 사실 날짜 여부 판정용
+FACTUAL_KEYWORDS = (
+    '축제|개최|행사|기간|일정|운영|개장|폐장'  # 이벤트
+    '|부터|까지|이후|전까지|중'                   # 기간 표현
+)
+
+# 전체 패턴 — 매칭 주변에서 사실 날짜 여부 판정용 (년 포함)
 FACTUAL_DATE_PATTERNS = [
     r'20\d{2}년?\s*(축제|개최|행사|기간|일정|운영|개장|폐장)',   # 이벤트 날짜
     r'20\d{2}년?\s*(부터|까지|이후|전까지|중)',                   # 기간 표현
@@ -48,16 +55,30 @@ FACTUAL_DATE_PATTERNS = [
 def _is_factual_date(text: str, match_start: int, match_end: int) -> bool:
     """매칭된 연도가 사실 날짜 컨텍스트에 있는지 확인.
 
-    매칭 범위 주변(±40자)에서 사실 날짜 패턴이 매칭되면 True.
+    매칭 뒤쪽 컨텍스트(±15자)에서 사실 날짜 패턴이 매칭되면 True.
+    앞쪽 컨텍스트는 확인하지 않는다 — 다른 문장의 사실 날짜에 의해
+    오검출되는 것을 방지한다.
     """
-    # 매칭 주변 컨텍스트 확보 (±40자)
-    ctx_start = max(0, match_start - 40)
-    ctx_end = min(len(text), match_end + 40)
-    context = text[ctx_start:ctx_end]
+    ctx_end = min(len(text), match_end + 15)
+    context = text[match_end:ctx_end]
 
     for pattern in FACTUAL_DATE_PATTERNS:
         if re.search(pattern, context):
             return True
+    return False
+
+
+def _is_factual_standalone(text: str, match_start: int, match_end: int) -> bool:
+    """standalone 매칭에서 뒤쪽이 사실 날짜 키워드로 이어지는지 확인.
+
+    standalone 패턴("2025년") 매칭 후 뒤쪽에 축제/기간 등 키워드가
+    오면 사실 날짜로 보호한다.
+    """
+    ctx_end = min(len(text), match_end + 15)
+    context = text[match_end:ctx_end]
+
+    if re.search(FACTUAL_KEYWORDS, context):
+        return True
     return False
 
 
@@ -105,17 +126,17 @@ def validate_and_fix_years(
     warnings: list[str] = []
     result = text
 
-    # ── 1차: 패턴 1 — "2025 최신" / "2024 기준" / "2023 현재" ──────
-    for m in PATTERN_YEAR_WITH_CONTEXT.finditer(result):
+    # ── 1차: 패턴 1 — "2025 최신" / "2024년 기준" / "2023 현재" ──────
+    # 매칭을 먼저 모두 수집한 후 역순으로 치환 (인덱스 보존)
+    matches1 = list(PATTERN_YEAR_WITH_CONTEXT.finditer(result))
+    for m in reversed(matches1):
         year = int(m.group(1))
         context_word = m.group(2)
-        # 사실 날짜 보호
         if _is_factual_date(result, m.start(), m.end()):
             continue
         if year != current_year:
             if fix_mode:
-                # 공백 보존: 매칭 전체에서 연도만 교체
-                full_match = m.group(0)  # 예: "2025 최신" 또는 "2025최신"
+                full_match = m.group(0)
                 replaced = full_match.replace(str(year), str(current_year), 1)
                 result = result[:m.start()] + replaced + result[m.end():]
                 warnings.append(f"치환: {year} {context_word} → {current_year} {context_word}")
@@ -123,16 +144,15 @@ def validate_and_fix_years(
                 warnings.append(f"경고: {year} {context_word} — 과거 연도+최신 조합")
 
     # ── 2차: 패턴 2 — "최신 2025년" / "기준 2024년" ──────────────────
-    # 패턴 1로 치환된 결과에서 다시 검색
-    for m in PATTERN_CONTEXT_WITH_YEAR.finditer(result):
+    matches2 = list(PATTERN_CONTEXT_WITH_YEAR.finditer(result))
+    for m in reversed(matches2):
         year = int(m.group(2))
         context_word = m.group(1)
         if _is_factual_date(result, m.start(), m.end()):
             continue
         if year != current_year:
             if fix_mode:
-                # 공백 보존: 매칭 전체에서 연도만 교체
-                full_match = m.group(0)  # 예: "최신 2025년" 또는 "최신2025년"
+                full_match = m.group(0)
                 replaced = full_match.replace(str(year), str(current_year), 1)
                 result = result[:m.start()] + replaced + result[m.end():]
                 warnings.append(f"치환: {context_word} {year}년 → {context_word} {current_year}년")
@@ -140,11 +160,10 @@ def validate_and_fix_years(
                 warnings.append(f"경고: {context_word} {year}년 — 과거 연도+최신 조합")
 
     # ── 3차: 패턴 3 — standalone 과거 연도 (플래그만) ────────────────
-    # 치환된 결과에서 standalone 연도 검출
     for m in PATTERN_STANDALONE_YEAR.finditer(result):
         year = int(m.group(1))
         if year != current_year and year not in allowed_years:
-            if _is_factual_date(result, m.start(), m.end()):
+            if _is_factual_standalone(result, m.start(), m.end()):
                 continue
             warnings.append(f"주의: {year}년 — 허용 목록에 없는 과거 연도 (standalone)")
 

@@ -1107,5 +1107,35 @@ class TestSmokeTest(unittest.TestCase):
         self.assertFalse(results[1]["og_image_ok"])
 
 
+class TestYearGuardIntegrationPublisher:
+    """chain_publisher_core 연도 검증 통합 테스트 (Phase 32)."""
+
+    def test_sanitize_markdown_body_includes_year_guard(self):
+        """_sanitize_markdown_body가 year_guard를 거치는지 확인."""
+        from chain_publisher_core import _sanitize_markdown_body
+
+        body = "2025 최신 정보입니다. 본문 내용."
+        result = _sanitize_markdown_body(body)
+        assert "2026 최신 정보" in result
+
+    def test_sanitize_preserves_factual_date(self):
+        """_sanitize_markdown_body가 사실 날짜를 보존하는지 확인."""
+        from chain_publisher_core import _sanitize_markdown_body
+
+        body = "2025년 축제 개최. 2025 최신 정보."
+        result = _sanitize_markdown_body(body)
+        assert "2025년 축제" in result
+        assert "2026 최신" in result
+
+    def test_markdown_processor_year_guard_step(self):
+        """MarkdownProcessor.process()가 year_guard를 적용하는지 확인."""
+        from markdown_processor import processor
+
+        body = "2025 최신 트렌드와 2024년 기준 분석"
+        result = processor.process(body, leak_context="draft")
+        assert "2026 최신" in result
+        assert "2026년 기준" in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
