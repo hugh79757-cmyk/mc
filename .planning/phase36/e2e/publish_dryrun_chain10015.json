@@ -1,0 +1,49 @@
+{
+  "chain_id": 10015,
+  "threshold": 0.2,
+  "posts": [
+    {
+      "step": 1,
+      "target_keyword": "스파라쿠아",
+      "gate_ratio": 0.0,
+      "gate_blocked": false,
+      "body_removed": 0,
+      "fm_removed": 0,
+      "body_leaks_after": false,
+      "fm_leaks_after": false,
+      "protected_leaks_after": 0,
+      "protected_samples": [],
+      "cleaned_md_len": 3231,
+      "verdict": "CLEAN"
+    },
+    {
+      "step": 2,
+      "target_keyword": "스파라쿠아 비교 및 가격",
+      "gate_ratio": 0.0,
+      "gate_blocked": false,
+      "body_removed": 0,
+      "fm_removed": 0,
+      "body_leaks_after": false,
+      "fm_leaks_after": false,
+      "protected_leaks_after": 0,
+      "protected_samples": [],
+      "cleaned_md_len": 3582,
+      "verdict": "CLEAN"
+    },
+    {
+      "step": 3,
+      "target_keyword": "스파라쿠아 구매 꿀팁",
+      "gate_ratio": 0.0357,
+      "gate_blocked": false,
+      "body_removed": 0,
+      "fm_removed": 0,
+      "body_leaks_after": false,
+      "fm_leaks_after": false,
+      "protected_leaks_after": 0,
+      "protected_samples": [],
+      "cleaned_md_len": 4121,
+      "verdict": "CLEAN"
+    }
+  ],
+  "all_clean": true
+}

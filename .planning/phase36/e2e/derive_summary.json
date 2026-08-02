@@ -1,0 +1,50 @@
+[
+  {
+    "run": 1,
+    "seed": "스파라쿠아",
+    "category": "etc",
+    "chain_type": "depth",
+    "model": "deepseek-v4-flash",
+    "elapsed_s": 41.6,
+    "char_count": 2839,
+    "finish_reason": null,
+    "bug001_truncated": false,
+    "json_balanced": false,
+    "bug002_parsed_posts": 3,
+    "bug002_parse_error": null,
+    "bug002_posts_ok": true,
+    "timestamp": "2026-08-02T12:40:02.889199"
+  },
+  {
+    "run": 2,
+    "seed": "스파라쿠아",
+    "category": "etc",
+    "chain_type": "depth",
+    "model": "deepseek-v4-flash",
+    "elapsed_s": 82.0,
+    "char_count": 2475,
+    "finish_reason": null,
+    "bug001_truncated": false,
+    "json_balanced": true,
+    "bug002_parsed_posts": 3,
+    "bug002_parse_error": null,
+    "bug002_posts_ok": true,
+    "timestamp": "2026-08-02T12:41:24.960643"
+  },
+  {
+    "run": 3,
+    "seed": "스파라쿠아",
+    "category": "etc",
+    "chain_type": "depth",
+    "model": "deepseek-v4-flash",
+    "elapsed_s": 23.5,
+    "char_count": 2863,
+    "finish_reason": null,
+    "bug001_truncated": false,
+    "json_balanced": true,
+    "bug002_parsed_posts": 3,
+    "bug002_parse_error": null,
+    "bug002_posts_ok": true,
+    "timestamp": "2026-08-02T12:41:48.518479"
+  }
+]
