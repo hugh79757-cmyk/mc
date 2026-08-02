@@ -36,7 +36,7 @@ class TestKeywordQueue(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Mock chain_config.yaml to use test database
-        cls.config_patcher = patch("mc_paths.load_config")
+        cls.config_patcher = patch("chain_db.load_config")
         mock_load = cls.config_patcher.start()
 
         def mock_load_config(config_name="chain_config.yaml"):
@@ -203,7 +203,7 @@ class TestQueueModule(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.config_patcher = patch("mc_paths.load_config")
+        cls.config_patcher = patch("chain_db.load_config")
         mock_load = cls.config_patcher.start()
 
         def mock_load_config(config_name="chain_config.yaml"):
@@ -308,7 +308,7 @@ class TestAutoCommand(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.config_patcher = patch("mc_paths.load_config")
+        cls.config_patcher = patch("chain_db.load_config")
         mock_load = cls.config_patcher.start()
 
         def mock_load_config(config_name="chain_config.yaml"):
@@ -539,7 +539,7 @@ class TestStatusCommand(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.config_patcher = patch("mc_paths.load_config")
+        cls.config_patcher = patch("chain_db.load_config")
         mock_load = cls.config_patcher.start()
 
         def mock_load_config(config_name="chain_config.yaml"):
@@ -663,7 +663,7 @@ class TestQueueCLI(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.config_patcher = patch("mc_paths.load_config")
+        cls.config_patcher = patch("chain_db.load_config")
         mock_load = cls.config_patcher.start()
 
         def mock_load_config(config_name="chain_config.yaml"):
