@@ -1,6 +1,6 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-08-01 (Phase 32 완료: 연도 오류 방지 시스템)
+**Last updated:** 2026-08-02 (Phase 35 착수: 실발행 재검증 + use_context 실측 + 카테고리 + 중간 CTA)
 
 ## Project Reference
 
@@ -39,10 +39,13 @@ See: .planning/PROJECT.md
 | **Quick 20260801 — 표 렌더링 깨짐 수정** | **✅ Complete** | **3개 사이트 표 9건 수정 + markdown_processor.fix_tables 신설 + prompts.yaml 3줄 구조 지시. 762 tests ✅. .planning/quick/20260801-broken-table-render/SUMMARY.md** |
 | **31 — 공공기관 라벨 제거 (공식 링크 동적 판정)** | **✅ Complete** | **_score_official()에서 AUTHORITY_GOVERNMENT 분기 + "공공기관" 하드코딩 제거. find_external_links() 2-pass→1-pass 단순화. 모든 도메인 동일 신호(키워드-도메인 일치, 제목 "공식", 순위)로 판정. 763 tests ✅** |
 | **32 — 연도 오류 방지 시스템** | **✅ Complete** | **year_guard.py 유틸리티 + 3겹 방어 (입력단/생성단/출력단). 패턴 3종 + 사실날짜 보호. 22 단위 + 6 통합 = 28건 신규. 792 tests ✅** |
+| **33 — JSON 메타데이터 잔류 근본 수정** | **✅ Complete (2026-08-02 승인)** | **parse_ai_output() 중괄호 깊이 카운팅 파싱 분리 + _extract_clean_body 블록 단위 2차 방어 + 배포 검증 실패 상세 로깅. 커밋 59ed4dd. 851 tests ✅** |
+| **34 — AI 사고과정/프롬프트 릭 3겹 방어** | **✅ Complete (2026-08-02 승인)** | **C: raw_output 보존(DB+파일) + A: 프롬프트 메타대화 금지 + temperature 0.7 + B: 문단단위 leak_defense. 커밋 78a5e79. 851 tests ✅** |
+| **35 — 실발행 재검증 + use_context 실측 + 카테고리 + 중간 CTA** | **🔄 In Progress** | **P0: #378/#405 실발행 재검증, P1: use_context 실측·카테고리, P2: 중간 CTA + 통합 테스트. 4 Waves. 시작 2026-08-02** |
 
 ## Current Metrics
 
-- **pytest:** 792/792 ✅ (764 기준선 + 28 Phase32 year_guard)
+- **pytest:** 851/851 ✅ (792 기준선 + Phase33 JSON파싱 + Phase34 3겹방어 15건 등)
 - **카테고리:** 11종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/product/etc)
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`
