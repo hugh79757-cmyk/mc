@@ -289,8 +289,43 @@ def _remove_reasoning_leaks_paragraph(text: str) -> Tuple[str, Dict[str, Any]]:
         if para_type == "blank":
             out_lines.extend(para_lines)
             continue
-        if para_type in ("frontmatter", "protected"):
+        if para_type == "frontmatter":
             out_lines.extend(para_lines)
+            continue
+        if para_type == "protected":
+            # BUG-005 (Phase 36 T4): protected(리스트/표/헤더) 문단 내부에서도
+            # 계획텍스트 지시 문구 2차 스캔 — plan_text_gate 패턴(계획텍스트 특유
+            # 표현)으로 리스트/표/헤더 모양의 계획텍스트 라인을 제거한다.
+            # ultra 패턴은 protected 내부에서는 보호(구조 보존 우선) — 기존 설계 유지.
+            # 코드블록 마커(```)와 정상 리스트(제품 스펙/장단점/비교)는 보존.
+            _kept = []
+            _dropped = []
+            for _pl in para_lines:
+                if _pl.strip().startswith("```"):
+                    # 코드블록 경계는 보존 (내용은 어차피 버려짐)
+                    _kept.append(_pl)
+                    continue
+                if any(_p.search(_pl) for _p in _PLAN_TEXT_GATE_PATTERNS):
+                    _dropped.append(_pl)
+                else:
+                    _kept.append(_pl)
+            if _dropped:
+                removed += 1
+                _matched_pats = sorted({
+                    p.pattern for p in _PLAN_TEXT_GATE_PATTERNS
+                    if any(p.search(x) for x in _dropped)
+                })
+                matches.append({
+                    "signals": len(_dropped),
+                    "patterns": [{"pattern": p} for p in _matched_pats][:5],
+                    "action": "protected_line_removed",
+                    "preview": _dropped[0][:100],
+                })
+                logger.warning(
+                    f"[REASONING-LEAK] protected 계획텍스트 라인 제거: {len(_dropped)}건 - "
+                    f"'{_dropped[0][:80]}...'"
+                )
+            out_lines.extend(_kept)
             continue
 
         # 문단 내 시그니처 검사
@@ -584,18 +619,27 @@ def reload_config() -> None:
     global _FORBIDDEN_CTA_PATTERNS, _PLACEHOLDER_PATTERN
     global _HTML_TAGS, _JSON_LEAK_PATTERN
     global LEAK_PATTERNS, LEAK_REGEX
+    global _PLAN_TEXT_GATE_PATTERNS
 
     _LEAK_CONFIG = _load_leak_patterns()
     _PROMPT_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("prompt_leak", {}).get("patterns", []))
     _CTA_LEAK_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("cta_leak", {}).get("patterns", []))
     _FORBIDDEN_CTA_PATTERNS = _compile_patterns(_LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", []))
     _PLACEHOLDER_PATTERN = re.compile(_LEAK_CONFIG.get("placeholder_leak", {}).get("pattern", r'\{\{(?!<|%)([^}]+)\}\}'))
+    _PLAN_TEXT_GATE_PATTERNS = _compile_patterns(
+        _LEAK_CONFIG.get("plan_text_gate", {}).get("patterns", [])
+    )
 
 _REASONING_LEAK_CONFIG = _LEAK_CONFIG.get("reasoning_leak", {})
 _REASONING_PATTERNS = _compile_patterns(_REASONING_LEAK_CONFIG.get("patterns", []))
 _REASONING_MIN_SIGNALS = _REASONING_LEAK_CONFIG.get("min_signals", 2)
 _ULTRA_REASONING_PATTERNS = _compile_patterns(
     _REASONING_LEAK_CONFIG.get("ultra_high_signals", {}).get("patterns", [])
+)
+# BUG-006: 파손 초안 비율 게이트 전용 패턴 (plan_text_gate 섹션).
+# reasoning_leak 문단 제거 동작에는 포함되지 않는 별도 세트.
+_PLAN_TEXT_GATE_PATTERNS = _compile_patterns(
+    _LEAK_CONFIG.get("plan_text_gate", {}).get("patterns", [])
 )
 _HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
 _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
@@ -605,3 +649,14 @@ _LEAK_CONFIG.get("prompt_leak", {}).get("patterns", [])
 + _LEAK_CONFIG.get("cta_leak", {}).get("forbidden_cta", [])
 )
 LEAK_REGEX = _compile_patterns(LEAK_PATTERNS)
+
+
+def get_plan_text_patterns() -> List[re.Pattern]:
+    """BUG-006 파손 초안 비율 게이트용 계획텍스트 지시 문구 패턴.
+
+    reasoning_leak.ultra_high_signals (실측 보정된 초고특이도 계획 문구 — 10006의
+    영어 사고/계획 문장과 10007의 한국어 계획 문장 포착) 와 plan_text_gate
+    (지시 문구 게이트 전용 한국어 작성/계획 표현) 을 결합해 반환한다.
+    reasoning_leak 문단 제거 동작에는 영향을 주지 않는 별도 세트다.
+    """
+    return list(_ULTRA_REASONING_PATTERNS) + list(_PLAN_TEXT_GATE_PATTERNS)

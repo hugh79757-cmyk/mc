@@ -305,7 +305,7 @@ def draft_single_post(
 
             chain_cfg = _load_chain_cfg()
             ok, ctx = retrieve_context_for_post(
-                seed_keyword, angle_key, client, cfg=chain_cfg,
+                seed_keyword, angle_key, client, cfg=chain_cfg, retries=1,
             )
             if ok:
                 context_md = ctx
@@ -314,14 +314,22 @@ def draft_single_post(
                 if _year_warnings:
                     for w in _year_warnings:
                         print(f"  [drafter] ⚠️ 연도 경고: {w}")
-                from chain_db import update_post_context
-                update_post_context(post["id"], ctx)
+                # BUG-003: DB 저장은 프롬프트 주입과 격리 — post dict에 id가 없어도
+                # (측정 하니스/외부 호출자) 컨텍스트 주입이 중단되지 않는다.
+                # id 부재 시 DB 저장만 스킵하고 주입은 계속 진행한다.
+                try:
+                    post_id = post.get("id")
+                    if post_id is not None:
+                        from chain_db import update_post_context
+                        update_post_context(post_id, ctx)
+                except Exception as e:
+                    print(f"  [drafter] ⚠️ 컨텍스트 DB 저장 실패 (주입은 계속): {type(e).__name__}: {e}")
                 user_prompt += "\n\n" + ctx
                 print(f"  [drafter] Step {post.get('step', '?')} 검색 컨텍스트 {len(ctx)}자 추가됨")
             else:
                 print(f"  [drafter] ⚠️ 검색 결과 없음: {ctx}")
         except Exception as e:
-            print(f"  [drafter] ⚠️ 검색 컨텍스트 스킵: {e}")
+            print(f"  [drafter] ⚠️ 검색 컨텍스트 스킵: {type(e).__name__}: {e}")
 
     system_prompt = prompts["draft_system"]
 

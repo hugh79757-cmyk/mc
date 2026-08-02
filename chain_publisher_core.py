@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import List
 
 from mc.cta import replace_ai_cta, detect_ai_cta
-from mc.leak_defense import strip_leaks, strip_frontmatter_meta_leaks  # Phase 35: 발행 safety net + frontmatter 메타 릭 방어
+from mc.leak_defense import strip_leaks, strip_frontmatter_meta_leaks, get_plan_text_patterns  # Phase 35: 발행 safety net + frontmatter 메타 릭 방어; Phase 36: 파손 초안 게이트
 from mc_paths import load_config, CHAIN_CONFIG_PATH
 
 from frontmatter_utils import ensure_frontmatter  # noqa: F401 — frontmatter 처리 단일 진실 공급원 (Phase 26)
@@ -195,6 +195,62 @@ def _extract_clean_body(raw: str) -> CleanedDraft:
         raise BodyExtractionError("본문에서 유효한 마크다운 요소를 찾을 수 없습니다")
 
     return CleanedDraft(frontmatter=frontmatter, body=clean_body)
+
+
+# BUG-006 (Phase 36 T3): 파손 초안(계획텍스트 대부분) 발행 선차단 비율 게이트.
+# draft_md 본문 라인 중 계획텍스트 특유 지시 문구 매칭 라인 비율이 이 값을
+# 초과하면 발행 중단. 실측: 10006 52.2%, 10007 34.8%, 정상 초안 0% (conftest 샘플).
+PLAN_TEXT_RATIO_THRESHOLD = 0.20
+
+
+def check_plan_text_ratio(
+    draft_md: str, threshold: float = PLAN_TEXT_RATIO_THRESHOLD
+) -> dict:
+    """draft_md 계획텍스트(지시 문구) 밀도 검사 (BUG-006).
+
+    frontmatter를 제외한 본문의 비어있지 않은 라인 중, 계획텍스트 특유 지시
+    문구(get_plan_text_patterns: reasoning_leak.ultra_high_signals + plan_text_gate)
+    에 매칭하는 라인 수 / 전체 라인 수 비율을 계산한다.
+
+    Args:
+        draft_md: 발행할 원본 초안 마크다운.
+        threshold: 차단 임계 비율 (기본 PLAN_TEXT_RATIO_THRESHOLD).
+
+    Returns:
+        {
+            "ratio": float,          # 매칭 라인 비율 (0.0~1.0)
+            "matching_lines": int,   # 매칭된 라인 수
+            "total_lines": int,      # 검사 대상(비어있지 않은) 본문 라인 수
+            "blocked": bool,         # ratio > threshold
+            "matches": list[str],    # 매칭 라인 샘플 (최대 10개)
+        }
+    """
+    _patterns = get_plan_text_patterns()
+    _body_lines = []
+    _in_fm = False
+    for _raw_line in (draft_md or "").splitlines():
+        _stripped = _raw_line.strip()
+        if _stripped == "---":
+            _in_fm = not _in_fm
+            continue
+        if _in_fm:
+            continue
+        if _stripped:
+            _body_lines.append(_raw_line)
+
+    _total = len(_body_lines)
+    _matching = [
+        ln for ln in _body_lines
+        if any(_pat.search(ln) for _pat in _patterns)
+    ]
+    _ratio = (len(_matching) / _total) if _total else 0.0
+    return {
+        "ratio": round(_ratio, 4),
+        "matching_lines": len(_matching),
+        "total_lines": _total,
+        "blocked": _ratio > threshold,
+        "matches": _matching[:10],
+    }
 
 
 def _write_stage_log(stage: str, slug: str, stdout: str, stderr: str) -> None:
@@ -423,6 +479,24 @@ class PublisherCore:
         labels: list = None, post_id: int = None,
     ) -> tuple:
         """Hugo 사이트에 발행: R2 이미지 업로드 + 파일 복사 + hugo build + wrangler deploy"""
+        # BUG-006 (Phase 36 T3): 파손 초안 발행 선차단 게이트 — draft_md 원문을
+        # 정제 파이프라인 이전 최초 지점에서 검사. 계획텍스트 비율이 임계치를
+        # 초과하면 이미지 생성/DB 쓰기/Hugo 빌드/배포로 진행되기 전에 차단한다.
+        _plan_report = check_plan_text_ratio(draft_md)
+        if _plan_report["blocked"]:
+            logger.error(
+                f"[PLAN-TEXT-GATE] 계획텍스트 비율 {_plan_report['ratio']*100:.1f}% "
+                f"(임계치 {PLAN_TEXT_RATIO_THRESHOLD*100:.0f}%) 초과로 발행 차단: {slug} "
+                f"(matching={_plan_report['matching_lines']}/{_plan_report['total_lines']})"
+            )
+            for _plan_line in _plan_report["matches"][:3]:
+                logger.error(f"  ⚠ 계획텍스트: {_plan_line[:80]}")
+            raise DeployValidationError(
+                f"파손 초안 차단 (계획텍스트 {_plan_report['ratio']*100:.1f}% > "
+                f"임계치 {PLAN_TEXT_RATIO_THRESHOLD*100:.0f}%): {slug} "
+                f"(matching={_plan_report['matching_lines']}/{_plan_report['total_lines']})"
+            )
+
         # 1. 임시 디렉토리에 draft 저장
         with tempfile.TemporaryDirectory() as post_temp_dir:
             post_temp_dir = Path(post_temp_dir)

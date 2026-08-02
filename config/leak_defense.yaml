@@ -107,6 +107,21 @@ reasoning_leak:
     action: "remove_paragraph"  # 1신호 단독 시 문단 제거
   action: "remove_paragraph"  # 2신호 이상 시 문단 전체 제거
 
+plan_text_gate:
+  # BUG-006: 파손 초안(draft_md가 계획텍스트 대부분) 발행 선차단 비율 게이트용 패턴.
+  # reasoning_leak.ultra_high_signals(실측 보정)만으로는 chain 10007(22.5%)이
+  # 임계치 20%에 근접해 마진이 얇아, 지시 문구 게이트 전용으로 한국어 계획/작성
+  # 표현을 보강한다. T4(reasoning_leak 문단 제거)에는 사용하지 않는 별도 세트
+  # (오탐 회귀 방지 — 이 섹션을 reasoning_leak 동작에 끌어쓰지 말 것).
+  patterns:
+    - "다루어야 합니다"
+    - "작성해야 합니다"
+    - "작성해보겠습니다"
+    - "섹션은"
+    - "플레이스홀더"
+    - "참고 자료"
+    - "이제 글을 작성"
+
 cta_leak:
   # chain_publisher_core.py D8-GATE + audit + conftest 통합
   patterns:

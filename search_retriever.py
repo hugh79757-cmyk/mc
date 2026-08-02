@@ -120,11 +120,15 @@ def retrieve_context_for_post(
     client: NaverSearchClient,
     max_sources: int = 5,
     cfg: dict = None,
+    retries: int = 1,
+    backoff: float = 1.0,
 ) -> tuple:
     """
     Search Naver for sources relevant to a post's angle.
 
     angle: 'basic' | 'advanced' | 'expert'
+    retries: 일시적 실패(rate limit/연결) 시 endpoint별 추가 재시도 횟수
+    backoff: 재시도 간 기본 지연(초). 지수 백오프(backoff * 2^attempt)
     Returns: (ok: bool, context_md_or_err: str)
 
     Context Markdown format:
@@ -159,8 +163,15 @@ def retrieve_context_for_post(
 
     for ep in endpoints:
         ok, data = client.search(corrected_keyword, endpoint=ep, display=max_per)
+        # BUG-003: 일시적 실패(rate limit/keep-alive)는 endpoint별로 짧은 백오프 후 재시도.
+        # 성공 시 추가 호출 없음 (API 호출 최소화).
+        for attempt in range(retries):
+            if ok:
+                break
+            time.sleep(backoff * (2 ** attempt))
+            ok, data = client.search(corrected_keyword, endpoint=ep, display=max_per)
         if not ok:
-            logger.debug("[search] %s failed: %s", ep, data)
+            logger.debug("[search] %s failed after %d retries: %s", ep, retries, data)
             continue
 
         try:

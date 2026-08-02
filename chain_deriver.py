@@ -160,11 +160,20 @@ def _parse_derivation(content: str) -> list:
             return None, e
 
     def _extract_list(data) -> list:
-        if isinstance(data, list):
+        # BUG-002: 파싱 결과 요소가 dict인지 검증 — 문자열 배열(key_points 등)을
+        # post 배열로 오인해 post.get() AttributeError가 나는 것을 방지.
+        def _is_posts_list(lst) -> bool:
+            if not isinstance(lst, list):
+                return False
+            if not lst:  # 빈 리스트는 유효
+                return True
+            return all(isinstance(x, dict) for x in lst)
+
+        if _is_posts_list(data):
             return data
         if isinstance(data, dict):
             for key in ("chain", "posts", "articles", "items"):
-                if key in data and isinstance(data[key], list):
+                if key in data and _is_posts_list(data[key]):
                     return data[key]
         return []
 

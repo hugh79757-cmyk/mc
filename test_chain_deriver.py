@@ -342,6 +342,29 @@ class TestParseDerivationRobustness:
         """JSON이 전혀 없는 텍스트."""
         assert self._parse("이것은 일반 텍스트입니다.") == []
 
+    def test_string_array_not_mistaken_as_posts(self):
+        """BUG-002: 문자열 배열(key_points)이 post 배열로 오인되지 않아야 함."""
+        raw = '{"title": "함안연꽃테마파크", "key_points": ["첫 번째", "두 번째", "세 번째"]}'
+        assert self._parse(raw) == []
+
+    def test_truncated_response_with_string_array_fallback(self):
+        """BUG-002: 잘린 응답에서 key_points 문자열 배열을 fallback이 오인하지 않아야 함."""
+        # BUG-001 재현 응답(742자 절단) 형태 — JSON 전체 파싱 실패, key_points 배열 존재
+        raw = (
+            '여기 결과입니다.\n{"title": "함안연꽃테마파크", "key_points": '
+            '["첫 번째 포인트", "두 번째 포인트", "image_prompt": "Overhead panoramic view'
+        )
+        assert self._parse(raw) == []
+
+    def test_empty_array_ok(self):
+        """빈 배열은 유효 (오인 아님)."""
+        assert self._parse("[]") == []
+
+    def test_posts_key_with_string_values_rejected(self):
+        """BUG-002: posts 키 아래 문자열 리스트도 post 배열로 오인되면 안 됨."""
+        raw = json.dumps({"posts": ["not a dict", "also not a dict"]})
+        assert self._parse(raw) == []
+
 
 class TestDeriveLateralCategoryDispatch:
     """category별 lateral 프롬프트 분기 검증."""

@@ -476,5 +476,102 @@ class TestFrontmatterMetaLeaks:
             assert 'description: ""' in cleaned, f"chain {cid} description 빈 값 미확인"
 
 
+class TestReasoningLeakProtectedScan:
+    """BUG-005 (Phase 36 T4): protected(리스트/표/헤더) 문단 내부 계획텍스트 2차 스캔"""
+
+    def test_protected_리스트_계획텍스트_라인_제거(self):
+        """리스트 항목 모양의 계획텍스트 라인 제거 (10007 실제 라인 56/61/68 재현)"""
+        text = """정상 소개 문단입니다.
+
+- 이 섹션에서는 실제 이용 후기와 평점을 다루어야 합니다. 하지만 참고 자료에는 구체적인 후기가 없습니다.
+- 여기서 "가격 비교"와 "구매처"를 다루어야 합니다. 하지만 참고 자료에는 가격 정보가 없습니다.
+- 이 섹션에서는 최종 추천과 선택 기준을 제시합니다. "서울에서 가장 가까운 온천"이라는 참고 자료 정보를 활용할 수 있습니다.
+
+정상 결론 문단입니다."""
+        cleaned, report = strip_leaks(text, context="body")
+        # protected 계획텍스트 라인 3건 제거
+        assert report["reasoning_leak"]["removed"] == 3
+        assert "다루어야 합니다" not in cleaned
+        assert "참고 자료" not in cleaned
+        assert "최종 추천과 선택 기준을 제시합니다" not in cleaned
+        # 정상 문단 보존
+        assert "정상 소개 문단입니다" in cleaned
+        assert "정상 결론 문단입니다" in cleaned
+
+    def test_protected_리스트_정상_보존(self):
+        """정상 리스트(제품 스펙/장단점)는 보존 — 오탐 0건"""
+        text = """정상 문단입니다.
+
+- 가격: 100,000원
+- 장점: 배터리가 오래 간다
+- 단점: 무겁다
+- 추천 대상: 장거리 출퇴근자
+
+정상 결론입니다."""
+        cleaned, report = strip_leaks(text, context="body")
+        assert report["reasoning_leak"]["removed"] == 0
+        for marker in ["- 가격: 100,000원", "- 장점: 배터리가 오래 간다", "- 단점: 무겁다", "- 추천 대상: 장거리 출퇴근자"]:
+            assert marker in cleaned
+
+    def test_protected_표_계획텍스트_제거_정상표_보존(self):
+        """표 안 계획텍스트 라인 제거, 정상 표 라인 보존"""
+        text = """정상 문단입니다.
+
+| 항목 | 내용 |
+|------|------|
+| 비교 | 이 섹션에서는 가격을 다루어야 합니다 |
+| 정상 | 데이터 |
+
+정상 결론입니다."""
+        cleaned, report = strip_leaks(text, context="body")
+        assert report["reasoning_leak"]["removed"] == 1
+        assert "이 섹션에서는 가격을 다루어야 합니다" not in cleaned
+        assert "| 정상 | 데이터 |" in cleaned
+        assert "| 항목 | 내용 |" in cleaned
+
+    def test_protected_헤더_계획텍스트_제거_정상헤더_보존(self):
+        """헤더 모양 계획텍스트 제거, 정상 헤더 보존"""
+        text = """정상 문단입니다.
+
+## 이 섹션에서는 작성해야 합니다
+
+## 정상 헤더
+
+정상 결론입니다."""
+        cleaned, report = strip_leaks(text, context="body")
+        assert report["reasoning_leak"]["removed"] == 1
+        assert "이 섹션에서는 작성해야 합니다" not in cleaned
+        assert "## 정상 헤더" in cleaned
+
+    def test_protected_코드블록_보존(self):
+        """코드블록 내부는 protected 스캔 대상 아님 (패턴이 있어도 removed 증가 없음)"""
+        text = """정상 문단입니다.
+
+```
+print("다루어야 합니다")
+```
+
+정상 결론입니다."""
+        cleaned, report = strip_leaks(text, context="body")
+        # 코드블록 내부 계획텍스트 문구는 스캔 대상이 아니므로 removed == 0
+        assert report["reasoning_leak"]["removed"] == 0
+        # 코드블록 마커는 보존 (내부 내용은 기존 설계상 버려짐)
+        assert "```" in cleaned
+
+    def test_protected_10006_10007_실측(self):
+        """실측: 10007 draft_md protected 계획텍스트 3건 제거, 10006 정상 리스트 보존"""
+        import json
+        with open(".planning/phase35/b1_posts_10006_10007.json", encoding="utf-8") as f:
+            data = json.load(f)
+        draft = data["10007"].get("draft_md", "")
+        cleaned, report = strip_leaks(draft, context="body")
+        # protected 계획텍스트 라인(다루어야 합니다)이 최소 2건 제거됨
+        assert report["reasoning_leak"]["removed"] >= 2
+        assert "다루어야 합니다" not in cleaned
+        # 정상 리스트/본문 마커 보존
+        for marker in ["# ", "용인로만바스"]:
+            assert marker in cleaned
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

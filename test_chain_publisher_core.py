@@ -1363,5 +1363,100 @@ Body text.
                                 assert method == "hugo"
 
 
+class TestPlanTextGate:
+    """BUG-006 (Phase 36 T3): 파손 초안 발행 선차단 비율 게이트 테스트."""
+
+    NORMAL_DRAFT = """---
+title: "정상 초안"
+description: "정상적인 설명입니다."
+---
+안녕하세요, 이 글은 정상적인 블로그 포스트입니다.
+오늘은 주제에 대해 자세히 알아보겠습니다.
+
+## 첫 번째 섹션
+이 섹션에서는 주제의 기본 개념을 설명합니다.
+구체적인 사례와 함께 살펴보겠습니다.
+
+## 두 번째 섹션
+다음으로 심화 내용을 다룹니다.
+관련 수치와 통계를 정리했습니다.
+"""
+
+    PLAN_HEAVY_DRAFT = """---
+title: "파손 초안"
+description: "설명"
+---
+작성자는 제가 제공한 블로그 콘텐츠를 바탕으로 글을 작성해야 합니다.
+각도는 최종 구매 확정입니다. 이 글은 3단계 체인의 3번째 글입니다.
+H2 가이드라인:
+각 H2 섹션은 최소 5문장. 플레이스홀더:
+참고 자료를 바탕으로 사실적인 내용을 작성해야 합니다.
+이제 글의 구조를 잡아보겠습니다.
+각 섹션:
+이제 글을 작성해보겠습니다.
+예상 구조:
+이제 각 섹션을 작성합니다.
+금지 표현: 권장드립니다는 금지입니다.
+이제 초안 작성:
+"""
+
+    def test_normal_draft_not_blocked(self):
+        """정상 초안은 비율 0%로 통과."""
+        from chain_publisher_core import check_plan_text_ratio
+
+        r = check_plan_text_ratio(self.NORMAL_DRAFT)
+        assert r["blocked"] is False
+        assert r["ratio"] == 0.0
+
+    def test_plan_heavy_draft_blocked(self):
+        """계획텍스트 다수 초안은 임계치 초과로 차단."""
+        from chain_publisher_core import check_plan_text_ratio
+
+        r = check_plan_text_ratio(self.PLAN_HEAVY_DRAFT)
+        assert r["blocked"] is True
+        assert r["ratio"] > 0.20
+        assert len(r["matches"]) > 0
+
+    def test_empty_draft_not_blocked(self):
+        """빈 초안은 비율 0으로 차단 안 됨 (빈 값 방어)."""
+        from chain_publisher_core import check_plan_text_ratio
+
+        r = check_plan_text_ratio("")
+        assert r["blocked"] is False
+        assert r["total_lines"] == 0
+
+    def test_frontmatter_excluded_from_ratio(self):
+        """frontmatter 라인은 검사 대상에서 제외됨."""
+        from chain_publisher_core import check_plan_text_ratio
+
+        # frontmatter에 지시 문구가 있어도 본문만 검사
+        draft = "---\ntitle: \"플레이스홀더 참고 자료\"\n---\n정상적인 본문입니다.\n"
+        r = check_plan_text_ratio(draft)
+        assert r["total_lines"] == 1
+        assert r["blocked"] is False
+
+    def test_10006_draft_blocked(self):
+        """실측 10006 파손 초안 차단 (과목 6 게이트 실증)."""
+        import json as _json
+        from chain_publisher_core import check_plan_text_ratio
+
+        data = _json.loads(
+            Path(".planning/phase35/b1_posts_10006_10007.json").read_text(encoding="utf-8")
+        )
+        r = check_plan_text_ratio(data["10006"]["draft_md"])
+        assert r["blocked"] is True
+
+    def test_10007_draft_blocked(self):
+        """실측 10007 파손 초안 차단 (과목 6 게이트 실증)."""
+        import json as _json
+        from chain_publisher_core import check_plan_text_ratio
+
+        data = _json.loads(
+            Path(".planning/phase35/b1_posts_10006_10007.json").read_text(encoding="utf-8")
+        )
+        r = check_plan_text_ratio(data["10007"]["draft_md"])
+        assert r["blocked"] is True
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
