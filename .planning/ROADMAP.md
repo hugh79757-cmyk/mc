@@ -149,3 +149,51 @@
 
 **Plans:**
 - [ ] 30-01-PLAN.md — 3개 함수 추가 + 테스트 + CLI 통합
+
+---
+
+# 새 마일스톤: 정보가 3-블로그 체인 복제 (M2)
+
+**등록:** 2026-08-02
+**근거:** mc 복제 방식 타당성 조사 (읽기 전용) 결과 — 정보가.kr / kuta.informationhot.kr / 5.informationhot.kr 3개 사이트에 mc 체인(depth 0/1/2)을 독립 레포로 복제해 3-체인 발행을 가능하게 함.
+**종료 상태 (DoD):** 복제 레포 생성 + 필수 분리(DB/shared/R2) + 정보가 3사이트 Hugo 셋업 + chain_config 교체 + dry-run 발행 검증. 실발행은 검증 통과 후 대표 승인 시 별도 진행.
+**대표 확정 결정 (2026-08-02):**
+- shared 의존성: **vendoring 복사** (ai_writer.py + env_loader.py + models.yaml, mc_paths.py PATH_5000 제거)
+- 카드 색상: **체인 카드만 파랑** (#2563eb 계열 shortcode 신규, html_renderer.py external 카드 구조 유지)
+- R2 prefix/도메인 네이밍은 셋업 중 결정 (미확정 해소)
+
+## Phase 37: 복제 레포 생성 + 필수 분리
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| git clone + 새 원격 교체 | ○ | 기존 origin(mc.git)과 분리, 새 GitHub 레포 |
+| `.env` 재생성 | ○ | git 미추적 → 수동 복사 (R2/KREA 키) |
+| **DB 분리** | ○ | chain_config.yaml `db_path` → 복제 레포 내 (5000/data/mc_chains.db 공유 해제) |
+| **shared vendoring** | ○ | ai_writer.py + env_loader.py + __init__.py + config/models.yaml 복사, PATH_5000 제거 |
+| R2 매핑 키 추가 | ○ | informationhot / 5.informationhot 엔트리 (kuta는 기존 존재) |
+
+## Phase 38: 정보가 3사이트 Hugo 인프라 셋업
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| shortcode 3종 (파랑) | ○ | chain-card / chain-official-card / dual-cta — #2563eb 계열로 신규 생성 (현재 3사이트 전부 부재) |
+| 5.informationhot-hugo baseURL | ○ | `https://example.org/` 플레이스홀더 → `https://5.informationhot.kr` |
+| ads.txt 추가 | ○ | kuta / 5 사이트 부재 |
+| CF Pages 배포 확인 | ○ | 프로젝트 3개 존재 확인됨 (informationhot-hugo/kuta-hugo/5-informationhot) |
+
+## Phase 39: chain_config 교체 + 카드 색상 분기
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| sites 정의 교체 | ○ | informationhot / kuta / 5_informationhot Hugo 3개로 |
+| chain_blogs / chain_blog_mapping | ○ | depth 0/1/2 → 정보가 3개 순서 |
+| 기존 사이트 정의 정리 | ○ | rotcha/issue.techpawz/techpawz/2_techpawz/65_informationhot 처리 결정 |
+| 카드 색상 파랑 적용 | ○ | shortcode 파랑 + 테스트 |
+
+## Phase 40: dry-run 발행 검증
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| e2e dry-run 3종 통과 | ○ | e2e_derive_dryrun / e2e_draft_only / e2e_publish_dryrun |
+| pytest green 유지 | ○ | 기존 851건 + 신규 테스트 |
+| DoD 체크리스트 | ○ | 실발행은 미포함 (별도 승인 게이트) |

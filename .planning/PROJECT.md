@@ -12,7 +12,7 @@ One random keyword → 3 interconnected blog posts on 3 different domains, each 
 
 ### Validated
 
-(None yet — ship to validate)
+(없음 — 실발행 후 검증 필요. 기존 Phase 1~36 기능은 ROADMAP/STATE에 ✅ 기록)
 
 ### Active
 
@@ -31,6 +31,11 @@ One random keyword → 3 interconnected blog posts on 3 different domains, each 
 - **CARD-01**: chain_card_injector adds cross-reference bridge cards pointing to adjacent depth-stage posts
 - **CLI-01**: chain_publisher.py CLI accepts `--seed "keyword"` and orchestrates the full pipeline
 - **CLI-02**: CLI includes operator review checkpoints after derive and draft stages
+- **M2 Active (Phase 37-40) — 정보가 3-블로그 체인 복제**:
+  - **CLONE-01~05**: 복제 레포 생성 + `.env` 재생성 + DB 분리 + shared vendoring + R2 매핑 키 추가
+  - **INFRA-01~04**: 정보가 3사이트 shortcode 3종(파랑) + baseURL 수정 + ads.txt + CF Pages 매핑
+  - **CFG-M2-01~05**: chain_config sites/chain_blogs/chain_blog_mapping 교체 + 카드 색상 파랑
+  - **VERIFY-M2-01~03**: e2e dry-run 3종 + pytest green + DoD 체크리스트
 
 ### Out of Scope
 
@@ -50,7 +55,15 @@ The project is built on the user's existing Hugo ecosystem with 3 blogs:
 - **informationhot.kr** — applied/practical depth role (R2: hotissue-images)
 - **techpawz.com** — advanced/analytical depth role (R2: techpawz-images)
 
-Images use **Pollinations.ai Flux** for generation + **Unsplash/Pexels** for search. Cloudflare R2 for storage. `mc <keyword>` CLI for single-command pipeline.
+Images use **Unsplash/Pexels** for search + **Cloudflare R2** for storage. `mc <keyword>` CLI for single-command pipeline.
+
+**M2 (2026-08-02) — 정보가 3-블로그 체인 복제:** 기존 mc를 복제해 `informationhot.kr / kuta.informationhot.kr / 5.informationhot.kr` 3-블로그 체인을 **독립 레포**로 운영. 조사(읽기 전용) 결과 필수 분리 지점 확정:
+- **DB**: `config/chain_config.yaml:204` `db_path`가 5000 레포 공유 절대경로 → 복제 레포 내 경로로 분리 (미분리 시 크로스 발행)
+- **shared**: `mc_paths.py:27` PATH_5000 하드코딩 → vendoring (ai_writer.py + env_loader.py + models.yaml) 후 제거
+- **R2**: `image/r2_uploader.py` HUGO_R2_DOMAINS — kuta 키만 존재, informationhot/5 키 부재 → 추가 필요
+- **git**: origin 단일 (hugh79757-cmyk/mc.git) → 복제 레포 별도 원격
+- **인프라 실측**: CF Pages 3개 존재 + HTTPS 3/3 200 + AdSense 6677 일치. 미비: shortcode 3종 전부 부재, 5.informationhot-hugo baseURL `example.org` 플레이스홀더, ads.txt(kuta/5) 부재
+- **대표 결정**: shared=vendoring, 카드 색상=체인 카드만 파랑(#2563eb)
 
 The writing prompt is the user's existing SEO-optimized Hugo blog prompt with strict frontmatter rules, content structure, and formatting rules.
 
@@ -77,10 +90,13 @@ The writing prompt is the user's existing SEO-optimized Hugo blog prompt with st
 | `_ensure_frontmatter()` in chain_drafter.py (Phase 14 P1) | draft_md에 FM 없으면 생성, 있으면 보존. cli/mc.py patch 완전 제거 | ✅ Phase 14 P1 |
 | published_md 컬럼 분리 (Phase 14 R2) | card injection이 R2 URL을 덮어쓰지 않도록 원본 draft_md 보존 + R2 교체 결과 분리 | ✅ Phase 14 R2 |
 | techpawz R2 버킷 분기 (Phase 14 R2) | img.techpawz.com → techpawz-images, rotcha/infohot → hotissue-images | ✅ Phase 14 R2 |
+| 정보가 3-블로그 체인 독립 레포 복제 (M2, 2026-08-02) | 3-체인 형식을 정보가 계열에서도 운영. 조사에서 DB/shared/R2 분리 지점 확정 | — Pending (Phase 37~40) |
+| shared 의존성 vendoring (M2) | ai_writer.py + env_loader.py + models.yaml 복사, PATH_5000 제거 — 독립 레포 취지 | — Pending |
+| 정보가 카드 색상 = 체인 카드만 파랑 (M2) | shortcode #2563eb 신규, html_renderer.py external 카드 구조 유지 | — Pending |
 
 ---
 
-*Last updated: 2026-07-23 — Phase 14 + R2 이미지 수정 완료*
+*Last updated: 2026-08-02 — M2 (정보가 3-블로그 체인 복제) 마일스톤 등록*
 
 ## Evolution
 

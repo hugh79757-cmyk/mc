@@ -1,13 +1,13 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-08-02 (Phase 35 착수: 실발행 재검증 + use_context 실측 + 카테고리 + 중간 CTA)
+**Last updated:** 2026-08-02 (M2 마일스톤 등록: 정보가 3-블로그 체인 복제, Phase 37-40)
 
 ## Project Reference
 
 See: .planning/PROJECT.md
 
 **Core value:** One random keyword → 3 interconnected blog posts on 3 different domains, each going deeper than the last, with images and cross-links — fully automated.
-**Current focus:** product(전자기기/상품) 카테고리 추가 완료 (Phase 28). 11종 체계 가동 중.
+**Current focus:** **M2 — 정보가 3-블로그 체인 복제** (Phase 37 착수 대기). 기존 기능(Phase 1~36)은 유지, 신규 독립 레포 셋업.
 
 ## Phase Status
 
@@ -42,6 +42,7 @@ See: .planning/PROJECT.md
 | **33 — JSON 메타데이터 잔류 근본 수정** | **✅ Complete (2026-08-02 승인)** | **parse_ai_output() 중괄호 깊이 카운팅 파싱 분리 + _extract_clean_body 블록 단위 2차 방어 + 배포 검증 실패 상세 로깅. 커밋 59ed4dd. 851 tests ✅** |
 | **34 — AI 사고과정/프롬프트 릭 3겹 방어** | **✅ Complete (2026-08-02 승인)** | **C: raw_output 보존(DB+파일) + A: 프롬프트 메타대화 금지 + temperature 0.7 + B: 문단단위 leak_defense. 커밋 78a5e79. 851 tests ✅** |
 | **35 — 실발행 재검증 + use_context 실측 + 카테고리 + 중간 CTA** | **🔄 In Progress** | **P0: #378/#405 실발행 재검증, P1: use_context 실측·카테고리, P2: 중간 CTA + 통합 테스트. 4 Waves. 시작 2026-08-02** |
+| **M2 — 정보가 3-블로그 체인 복제** | **📋 등록됨 (Phase 37-40)** | **조사 완료(읽기 전용): DB/shared/R2 분리 지점 + 정보가 인프라 실측 + chain_config 교체 범위 확정. 대표 결정: shared=vendoring, 카드=체인만 파랑. Phase 37 착수 대기** |
 
 ## Current Metrics
 
@@ -51,6 +52,16 @@ See: .planning/PROJECT.md
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`
 - **파서 안정성:** BOM/제로폭/코드펜스/텍스트 전후 대응 + 테스트 12건
 
+## M2 (정보가 복제) 실측 요약
+
+- **CF Pages 프로젝트 3개 존재 + 커스텀 도메인 바인딩 + HTTPS 3/3 200** ✅
+  - informationhot-hugo → informationhot.kr (`Information HOT`)
+  - kuta-hugo → kuta.informationhot.kr (`KUTALOG`)
+  - 5-informationhot → 5.informationhot.kr (`TEAM65`)
+- **AdSense**: 3사이트 모두 ca-pub-6677996696534146 (정보가 계열) 일치 ✅
+- **미비 (셋업 필요)**: shortcode 3종 전부 부재 / 5.informationhot-hugo baseURL `example.org` 플레이스홀더 / ads.txt(kuta·5) 부재 / R2 매핑 키(informationhot·5) 부재
+- **필수 분리 지점**: chain_config.yaml `db_path`(5000 공유) / mc_paths.py PATH_5000 / r2_uploader HUGO_R2_DOMAINS / git origin / `.env` 재생성
+
 ## Active Context
 
 - GitHub repo: https://github.com/hugh79757-cmyk/mc
@@ -58,19 +69,21 @@ See: .planning/PROJECT.md
 - Runtime: opencode
 - 5000 path: /Users/twinssn/Projects/5000
 - Hugo paths: /Users/twinssn/Projects/{rotcha-blog, issue-techpawz-hugo, techpawz-hugo}
-- Chain DB: /Users/twinssn/Projects/5000/data/mc_chains.db
+- **M2 대상 Hugo paths: /Users/twinssn/Projects/{informationhot-hugo, kuta-hugo, 5.informationhot-hugo}**
+- Chain DB: /Users/twinssn/Projects/5000/data/mc_chains.db (M2에서 복제 레포 DB로 분리 예정)
 - Shared themes: /Users/twinssn/Projects/shared-themes
 - Branch: `feat/keyword-category-template`
 
 ## Next Action
 
-1. **운영 계속** — 카테고리 11종 체계 가동 중. 새 키워드 → `mc "키워드"` 실행
-2. **Post #488 정리** — 테스트/플레이스홀더 포스트 삭제 시 10/10 checks 통과
-3. **(P2) classify_priority 수정** — real_estate priority를 90으로 낮춰 도시명+부동산 키워드 정확 분류
-4. **(P2) _parse_derivation 강화** — ``json\n[...]`` 패턴 지원 추가
-5. **(P3) char_count config 조정** — step1: 2500~3500, step2/3: 2500~3500으로 범위 상향
-6. **(P3) depth 방향 프롬프트 확인** — stock/real_estate의 lateral 프롬프트 사용이 의도된 것인지 확인
-7. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
-8. **Automotive 검색 개선** — search_retriever에 automotive-specific search template 필요
-9. **(P3) pyproject include 정리** — 신규 루트 모듈(frontmatter_utils/url_utils/constants/link_finder/card_generator/html_renderer/markdown_processor)이 packages include 목록에 없음 (01-01~03-05 SUMMARY Residual Risk 동일 지적)
+1. **M2 Phase 37 착수** — 복제 레포 생성 + 필수 분리 (DB/.env/shared vendoring/R2 매핑) — `/gsd:plan-phase 37`
+2. **운영 계속** — 카테고리 11종 체계 가동 중. 새 키워드 → `mc "키워드"` 실행
+3. **Post #488 정리** — 테스트/플레이스홀더 포스트 삭제 시 10/10 checks 통과
+4. **(P2) classify_priority 수정** — real_estate priority를 90으로 낮춰 도시명+부동산 키워드 정확 분류
+5. **(P2) _parse_derivation 강화** — ``json\n[...]`` 패턴 지원 추가
+6. **(P3) char_count config 조정** — step1: 2500~3500, step2/3: 2500~3500으로 범위 상향
+7. **(P3) depth 방향 프롬프트 확인** — stock/real_estate의 lateral 프롬프트 사용이 의도된 것인지 확인
+8. **(a) 40건 고아 이미지** — 재발행 전까지 이미지 없음
+9. **Automotive 검색 개선** — search_retriever에 automotive-specific search template 필요
+10. **(P3) pyproject include 정리** — 신규 루트 모듈(frontmatter_utils/url_utils/constants/link_finder/card_generator/html_renderer/markdown_processor)이 packages include 목록에 없음 (01-01~03-05 SUMMARY Residual Risk 동일 지적)
 

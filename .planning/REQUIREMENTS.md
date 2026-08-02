@@ -80,6 +80,62 @@
 | Image alt-text generation | Static alt text sufficient for v1 |
 | Social media auto-posting | Out of scope for core chain pipeline |
 
+---
+
+## M2 — 정보가 3-블로그 체인 복제 (Phase 37-40)
+
+**등록:** 2026-08-02 — mc 복제 방식 타당성 조사 결과 반영.
+**종료 상태:** 복제 레포 + 필수 분리 + 정보가 3사이트 셋업 + chain_config 교체 + dry-run 검증. 실발행은 별도 승인.
+
+### 복제/분리 (Phase 37)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CLONE-01: 복제 레포 git 생성 + 기존 mc origin과 원격 분리 | 37 | ○ Pending |
+| CLONE-02: 복제 레포 `.env` 재생성 (R2/KREA 키, git 미추적) | 37 | ○ Pending |
+| CLONE-03: DB 분리 — chain_config `db_path`를 복제 레포 내 경로로 교체 (5000 공유 해제) | 37 | ○ Pending |
+| CLONE-04: shared vendoring — ai_writer.py + env_loader.py + models.yaml 복사, mc_paths.py PATH_5000 제거 | 37 | ○ Pending |
+| CLONE-05: R2 매핑 키 추가 — informationhot / 5.informationhot (kuta는 기존 존재) | 37 | ○ Pending |
+
+### 정보가 3사이트 인프라 (Phase 38)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| INFRA-01: 정보가 3사이트에 shortcode 3종 (chain-card / chain-official-card / dual-cta) 파랑(#2563eb) 신규 생성 | 38 | ○ Pending |
+| INFRA-02: 5.informationhot-hugo baseURL 플레이스홀더(example.org) → 5.informationhot.kr 수정 | 38 | ○ Pending |
+| INFRA-03: kuta / 5 사이트 static/ads.txt 추가 | 38 | ○ Pending |
+| INFRA-04: CF Pages 프로젝트 3개 매핑 확인 (informationhot-hugo / kuta-hugo / 5-informationhot) | 38 | ○ Pending |
+
+### chain_config 교체 (Phase 39)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CFG-M2-01: sites에 정보가 3개 Hugo 사이트 정의 (hugo_root/cf_pages_project/permalink/content_dir/card_cta) | 39 | ○ Pending |
+| CFG-M2-02: chain_blogs → {0: informationhot, 1: kuta, 2: 5_informationhot} | 39 | ○ Pending |
+| CFG-M2-03: chain_blog_mapping.default depth/swallow/lateral 리스트 교체 | 39 | ○ Pending |
+| CFG-M2-04: 기존 사이트 정의(rotcha/issue.techpawz/techpawz/2_techpawz/65_informationhot) 처리 결정 및 반영 | 39 | ○ Pending |
+| CFG-M2-05: 카드 색상 파랑 적용 검증 (shortcode) | 39 | ○ Pending |
+
+### 검증 (Phase 40)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| VERIFY-M2-01: e2e dry-run 3종 통과 (derive/draft/publish dry-run) | 40 | ○ Pending |
+| VERIFY-M2-02: pytest green 유지 (기존 851건 + 신규) | 40 | ○ Pending |
+| VERIFY-M2-03: DoD 체크리스트 — 실발행은 별도 승인 게이트로 이월 | 40 | ○ Pending |
+
+## M2 Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| 정보가 3사이트 실발행 | 검증 통과 후 대표 승인 게이트 (다음 마일스톤) |
+| 5000 레포와의 발행 충돌 정합 | 5000이 정보가 사이트 관리 중 — 통합은 별도 논의 (미확정 이월) |
+| external 카드 파랑 전면 통일 | html_renderer.py 수정 필요 — 체인 카드만 파랑 확정 |
+| 정보가 사이트 기존 콘텐츠 slug 정합 | 536/2036/34건 기존 글 — 충돌 정책 미확정 이월 |
+
+---
+
 ## Traceability
 
 **Total:** 42 requirements (23 v1 + 11 v2/v3 + 8 Phase 14) — 41 validated, 1 deprecated, 0 unmapped
+**M2:** 13 requirements (CLONE 5 + INFRA 4 + CFG 5 + VERIFY 3) — 0 mapped yet, 0 unmapped ✓
