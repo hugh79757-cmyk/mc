@@ -234,12 +234,12 @@ def draft_single_post(
     posts: list[dict],
     seed_keyword: str,
     use_context: bool = True,
-) -> tuple[str, dict]:
+) -> tuple[str, dict, str]:
     """
     post       : chain_posts 행 dict
     posts      : 같은 chain의 전체 post list (컨텍스트 빌드용)
     seed_keyword : 원본 시드 키워드
-    Returns    : (Hugo 마크다운 초안 전문, meta dict)
+    Returns    : (Hugo 마크다운 초안 전문, meta dict, raw AI 원문 출력)
                  meta: {image_type, image_keyword, image_reason, chart_type, chart_data}
     """
     prompts = _load_prompts()

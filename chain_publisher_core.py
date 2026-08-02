@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import List
 
 from mc.cta import replace_ai_cta, detect_ai_cta
+from mc.leak_defense import strip_leaks, strip_frontmatter_meta_leaks  # Phase 35: 발행 safety net + frontmatter 메타 릭 방어
 from mc_paths import load_config, CHAIN_CONFIG_PATH
 
 from frontmatter_utils import ensure_frontmatter  # noqa: F401 — frontmatter 처리 단일 진실 공급원 (Phase 26)
@@ -690,8 +691,16 @@ class PublisherCore:
 
             try:
                 cleaned = _extract_clean_body(text)
+                # Phase 35: 발행 safety net — reasoning leak 문단 제거 (T4).
+                # _clean_markdown_symbols(파이프 이스케이프)보다 먼저 적용해
+                # 릭 문단을 본문에서 제거한다 (Phase 35 방향 B 발행 안전망).
+                cleaned_body, _rl_report = strip_leaks(cleaned.body, context="body")
+                if _rl_report["reasoning_leak"]["removed"] > 0:
+                    logger.warning(
+                        f"[T4-GATE] reasoning leak 문단 {_rl_report['reasoning_leak']['removed']}건 제거: {slug}"
+                    )
                 # Phase 13 R2: clean markdown symbols before FM reassembly
-                cleaned_body = _clean_markdown_symbols(cleaned.body)
+                cleaned_body = _clean_markdown_symbols(cleaned_body)
                 # Phase 22: SEO - 이미지 alt 텍스트 자동 추가
                 cleaned_body = _ensure_image_alt(cleaned_body, title)
                 # 프론트매터 보존: 본문만 정제(sanitize)하고 _fixed 에 조립된 FM 블록을 재결합.
@@ -700,6 +709,25 @@ class PublisherCore:
                 _fm_match = re.search(r'^---\n.*?\n---\n+', _fixed, re.DOTALL)
                 _fm_block = _fm_match.group(0) if _fm_match else ""
                 text = _fm_block + cleaned_body if _fm_block else cleaned.body
+
+                # Phase 35: frontmatter 메타 필드(description/title) 릭 방어 —
+                # 초고특이도 패턴(계열 1/2/3)을 메타 값에 한정 검사.
+                # description: 매칭 시그니처 제거(정화), title: 발행 차단.
+                text, _fm_meta_report = strip_frontmatter_meta_leaks(text)
+                if _fm_meta_report["blocked"]:
+                    _blocked_fields = ",".join(_fm_meta_report["blocked_fields"])
+                    logger.error(
+                        f"[FM-META-GATE] frontmatter 메타 릭 감지로 발행 차단: {slug} "
+                        f"(fields={_blocked_fields}) matches={_fm_meta_report['matches'][:3]}"
+                    )
+                    raise DeployValidationError(
+                        f"frontmatter 메타 릭 차단: {slug} — {_blocked_fields} "
+                        f"({_fm_meta_report['matches'][0]['match'][:40]}...)"
+                    )
+                if _fm_meta_report["removed"] > 0:
+                    logger.warning(
+                        f"[FM-META-GATE] frontmatter description 릭 정화 {_fm_meta_report['removed']}건: {slug}"
+                    )
             except BodyExtractionError as e:
                 logger.error(f"본문 추출 실패: {e}")
                 return ("", "hugo", "")

@@ -1,0 +1,85 @@
+[posts] 2건: step [2, 3]
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=none)
+ [drafter] Step 2 완료 — 9,080자 (model: deepseek-v4-flash)
+[run] step2 use_context=False #1 draft=9080자 계열=13 고특이도2신호=0 단독planning=11 클린=N | raw: 계열=13 2신호=0 단독=11
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 2 완료 — 3,504자 (model: deepseek-v4-flash)
+[run] step2 use_context=False #2 draft=3504자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 2 완료 — 3,772자 (model: deepseek-v4-flash)
+[run] step2 use_context=False #3 draft=3772자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 2 완료 — 2,501자 (model: deepseek-v4-flash)
+[run] step2 use_context=False #4 draft=2501자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=none)
+ [drafter] Step 2 완료 — 9,314자 (model: deepseek-v4-flash)
+[run] step2 use_context=False #5 draft=9314자 계열=3 고특이도2신호=0 단독planning=4 클린=N | raw: 계열=3 2신호=0 단독=4
+  [drafter] ⚠️ 검색 컨텍스트 스킵: 'id'
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=chart)
+ [drafter] Step 2 완료 — 4,022자 (model: deepseek-v4-flash)
+[run] step2 use_context=True #1 draft=4022자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] ⚠️ 검색 컨텍스트 스킵: 'id'
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 2 완료 — 2,379자 (model: deepseek-v4-flash)
+[run] step2 use_context=True #2 draft=2379자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] ⚠️ 검색 컨텍스트 스킵: 'id'
+  [drafter] Step 2 (issue.techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=none)
+ [drafter] Step 2 완료 — 16,644자 (model: deepseek-v4-flash)
+[run] step2 use_context=True #3 draft=16644자 계열=2 고특이도2신호=0 단독planning=1 클린=N | raw: 계열=2 2신호=0 단독=1
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 3 완료 — 2,044자 (model: deepseek-v4-flash)
+[run] step3 use_context=False #1 draft=2044자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 3 완료 — 3,439자 (model: deepseek-v4-flash)
+[run] step3 use_context=False #2 draft=3439자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 3 완료 — 10,775자 (model: deepseek-v4-flash)
+[run] step3 use_context=False #3 draft=10775자 계열=2 고특이도2신호=0 단독planning=3 클린=N | raw: 계열=2 2신호=0 단독=4
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 3 완료 — 2,589자 (model: deepseek-v4-flash)
+[run] step3 use_context=False #4 draft=2589자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=none)
+ [drafter] Step 3 완료 — 9,566자 (model: deepseek-v4-flash)
+[run] step3 use_context=False #5 draft=9566자 계열=3 고특이도2신호=0 단독planning=9 클린=N | raw: 계열=3 2신호=0 단독=9
+  [drafter] ⚠️ 검색 컨텍스트 스킵: 'id'
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=none)
+ [drafter] Step 3 완료 — 9,296자 (model: deepseek-v4-flash)
+[run] step3 use_context=True #1 draft=9296자 계열=3 고특이도2신호=0 단독planning=6 클린=N | raw: 계열=3 2신호=0 단독=6
+  [drafter] ⚠️ 검색 컨텍스트 스킵: 'id'
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=none)
+ [drafter] Step 3 완료 — 575자 (model: deepseek-v4-flash)
+[run] step3 use_context=True #2 draft=575자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+  [drafter] ⚠️ 검색 컨텍스트 스킵: 'id'
+  [drafter] Step 3 (techpawz) 초안 생성 중...
+  [drafter] AI 출력 파싱 완료 (image_type=photo)
+ [drafter] Step 3 완료 — 3,184자 (model: deepseek-v4-flash)
+[run] step3 use_context=True #3 draft=3184자 계열=- 고특이도2신호=0 단독planning=0 클린=Y | raw: 계열=- 2신호=0 단독=0
+
+[저장] /tmp/b2_before_results.json
+
+=== 계열별 발현률 (draft 기준) ===
+step2 (n=8):
+  계열1: 1/8 (12%)
+  계열2: 1/8 (12%)
+  계열3: 2/8 (25%)
+  릭: 3/8 (38%) 클린: 5/8
+step3 (n=8):
+  계열1: 0/8 (0%)
+  계열2: 1/8 (12%)
+  계열3: 2/8 (25%)
+  릭: 3/8 (38%) 클린: 5/8

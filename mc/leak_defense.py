@@ -50,6 +50,9 @@ _PLACEHOLDER_PATTERN = re.compile(_LEAK_CONFIG.get("placeholder_leak", {}).get("
 _REASONING_LEAK_CONFIG = _LEAK_CONFIG.get("reasoning_leak", {})
 _REASONING_PATTERNS = _compile_patterns(_REASONING_LEAK_CONFIG.get("patterns", []))
 _REASONING_MIN_SIGNALS = _REASONING_LEAK_CONFIG.get("min_signals", 2)
+_ULTRA_REASONING_PATTERNS = _compile_patterns(
+    _REASONING_LEAK_CONFIG.get("ultra_high_signals", {}).get("patterns", [])
+)
 _HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
 _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
 
@@ -182,11 +185,14 @@ def _remove_reasoning_leaks_paragraph(text: str) -> Tuple[str, Dict[str, Any]]:
     """
     문단 단위 reasoning leak 제거.
 
-    동일 문단 내에 고특이도 reasoning leak 시그니처가 min_signals(기본 2)개
-    이상 동시 출현 시 그 문단 전체를 제거한다.
+    2단계 방식 (Phase 35 방향 B):
+    1) 초고특이도 시그니처(ultra_high_signals): 문단 내 1개 이상 매칭 시
+       그 문단 전체를 즉시 제거 (단독 차단).
+    2) 저특이도 시그니처(patterns): 동일 문단 내에 min_signals(기본 2)개
+       이상 동시 출현 시 그 문단 전체를 제거.
     문단 경계는 빈 줄로 정의. 표/코드블록/리스트/헤더는 문단으로 간주하지 않음.
     """
-    if _REASONING_MIN_SIGNALS <= 1:
+    if _REASONING_MIN_SIGNALS <= 1 and not _ULTRA_REASONING_PATTERNS:
         return text, {"removed": 0, "matches": []}
 
     lines = text.splitlines(keepends=True)
@@ -219,10 +225,12 @@ def _remove_reasoning_leaks_paragraph(text: str) -> Tuple[str, Dict[str, Any]]:
             continue
 
         # 빈 줄 = 문단 경계 (코드 블록 내부에서는 무시)
+        # separator("blank")로 저장 — 재조립 시 문단 구분 복원 (Phase 35: 빈 줄 소실 버그 수정)
         if not stripped and not in_code_block:
             if current_paragraph:
                 paragraphs.append((current_paragraph, "content"))
                 current_paragraph = []
+            paragraphs.append((["\n"], "blank"))
             continue
 
         # 코드 블록 토글
@@ -277,12 +285,40 @@ def _remove_reasoning_leaks_paragraph(text: str) -> Tuple[str, Dict[str, Any]]:
         print(f"  Para {i}: type={para_type}, lines={len(para_lines)}, text={''.join(para_lines)[:50]}")
     out_lines = []
     for para_lines, para_type in paragraphs:
+        # 빈 줄 separator 복원 (Phase 35: 빈 줄 소실 버그 수정)
+        if para_type == "blank":
+            out_lines.extend(para_lines)
+            continue
         if para_type in ("frontmatter", "protected"):
             out_lines.extend(para_lines)
             continue
 
-        # 문단 내 고특이도 시그니처 개수 세기
+        # 문단 내 시그니처 검사
         para_text = "".join(para_lines)
+
+        # 1) 초고특이도 시그니처: 1개 이상 매칭 시 문단 즉시 제거 (단독 차단)
+        ultra_matched = []
+        for pattern in _ULTRA_REASONING_PATTERNS:
+            ultra_ms = list(pattern.finditer(para_text))
+            if ultra_ms:
+                for m in ultra_ms:
+                    ultra_matched.append({
+                        "pattern": pattern.pattern,
+                        "match": m.group()[:50],
+                        "position": m.start()
+                    })
+        if ultra_matched:
+            removed += 1
+            matches.append({
+                "signals": len(ultra_matched),
+                "patterns": ultra_matched,
+                "action": "paragraph_removed_ultra",
+                "preview": para_text[:100]
+            })
+            logger.warning(f"[REASONING-LEAK] 초고특이도 문단 제거: {len(ultra_matched)}개 시그니처 감지 - '{para_text[:80]}...'")
+            continue
+
+        # 2) 저특이도 시그니처: min_signals(기본 2)개 이상 동시 출현 시 문단 제거
         signal_count = 0
         matched_patterns = []
 
@@ -312,6 +348,102 @@ def _remove_reasoning_leaks_paragraph(text: str) -> Tuple[str, Dict[str, Any]]:
             out_lines.extend(para_lines)
 
     return "".join(out_lines), {"removed": removed, "matches": matches}
+
+
+# ── frontmatter 메타 필드 릭 방어 (Phase 35 방향 B: 잔존 위험 2 대응) ──
+
+_FRONTMATTER_BLOCK_RE = re.compile(r'^---\n(.*?)\n---', re.DOTALL)
+_FRONTMATTER_FIELD_RE = re.compile(r'^(description|title)\s*:\s*(.*)$', re.MULTILINE)
+
+
+def strip_frontmatter_meta_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
+    """
+    frontmatter 메타 필드(description/title)의 초고특이도 릭 방어.
+
+    발행 경로(context="body")의 frontmatter에서 description/title 값에
+    한정해 ultra_high_signals 패턴(계열 1/2/3)을 검사한다. 본문 보호
+    로직(_remove_reasoning_leaks_paragraph)과 충돌하지 않도록 메타 필드
+    전용 경로로 처리한다.
+
+    - description: 초고특이도 시그니처 매칭 시 description 을 빈 값("")으로
+      정화 (계획 텍스트 잔재 노출 방지 — 매칭 구간 부분 제거는 "해야 합니다."
+      류 잔여물을 남길 수 있어 사용하지 않음).
+    - title: 매칭 시 정화하지 않고 report["blocked"]=True 를 반환
+      (발행 직전 검증 훅에서 발행 차단 + 경고 용도).
+
+    Args:
+        text: frontmatter(--- ... ---)를 포함한 마크다운 텍스트.
+
+    Returns:
+        (정화된 text, report)
+        report: {
+            "removed": int,            # 정화된 description 건수
+            "blocked": bool,           # title 릭 감지 시 True
+            "blocked_fields": [...],   # 차단 대상 필드명 목록
+            "matches": [...],          # 매칭 상세
+        }
+    """
+    report = {
+        "removed": 0,
+        "blocked": False,
+        "blocked_fields": [],
+        "matches": [],
+    }
+    if not _ULTRA_REASONING_PATTERNS:
+        return text, report
+
+    fm_match = _FRONTMATTER_BLOCK_RE.search(text)
+    if not fm_match:
+        return text, report
+
+    fm_block = fm_match.group(1)
+    out_lines = []
+    for line in fm_block.split("\n"):
+        field_match = _FRONTMATTER_FIELD_RE.match(line)
+        if not field_match:
+            out_lines.append(line)
+            continue
+        field, raw_value = field_match.group(1), field_match.group(2)
+
+        # 값에서 quote 제거 후 검사
+        unquoted = raw_value.strip()
+        if unquoted.startswith('"') and unquoted.endswith('"'):
+            unquoted = unquoted[1:-1]
+
+        # 초고특이도 패턴 스캔 (값 한정)
+        matched_ranges = []
+        for pattern in _ULTRA_REASONING_PATTERNS:
+            for m in pattern.finditer(unquoted):
+                matched_ranges.append((m.start(), m.end(), m.group()))
+                report["matches"].append({
+                    "field": field,
+                    "pattern": pattern.pattern,
+                    "match": m.group()[:60],
+                })
+
+        if not matched_ranges:
+            out_lines.append(line)
+            continue
+
+        if field == "title":
+            # title 릭 → 정화 불가 (제목 변경은 발행물 무결성 침해) → 발행 차단
+            report["blocked"] = True
+            report["blocked_fields"].append(field)
+            out_lines.append(line)
+            continue
+
+        # description 정화: 빈 값으로 처리 (계획 텍스트 잔재 노출 방지)
+        report["removed"] += 1
+        logger.warning(
+            f"[FM-META] frontmatter description 릭 정화 → 빈 값: '{unquoted[:60]}...'"
+        )
+        out_lines.append(f'{field}: ""')
+
+    new_fm_block = "\n".join(out_lines)
+    cleaned_text = (
+        text[:fm_match.start(1)] + new_fm_block + text[fm_match.end(1):]
+    )
+    return cleaned_text, report
 
 
 def _remove_prompt_leaks(text: str) -> Tuple[str, Dict[str, Any]]:
@@ -462,6 +594,9 @@ def reload_config() -> None:
 _REASONING_LEAK_CONFIG = _LEAK_CONFIG.get("reasoning_leak", {})
 _REASONING_PATTERNS = _compile_patterns(_REASONING_LEAK_CONFIG.get("patterns", []))
 _REASONING_MIN_SIGNALS = _REASONING_LEAK_CONFIG.get("min_signals", 2)
+_ULTRA_REASONING_PATTERNS = _compile_patterns(
+    _REASONING_LEAK_CONFIG.get("ultra_high_signals", {}).get("patterns", [])
+)
 _HTML_TAGS = _LEAK_CONFIG.get("html_tag_leak", {}).get("tags", [])
 _JSON_LEAK_PATTERN = re.compile(_LEAK_CONFIG.get("json_leak", {}).get("pattern", r'(?<!`)\n\s*\{\s*"(?:image_type|chart_type|image_keyword)"'))
 LEAK_PATTERNS = (
