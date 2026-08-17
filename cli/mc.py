@@ -21,6 +21,7 @@ mc — Manual Chain CLI (Phase 14)
 import argparse
 import logging
 import os
+import signal
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +38,25 @@ if str(_PROJECT_ROOT) not in sys.path:
 # ─────────────────────────────────────────────────────────────────
 _LOG_DIR = _PROJECT_ROOT / "logs"
 _LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+_HARD_TIMEOUT_SECONDS = int(os.environ.get("MC_HARD_TIMEOUT_SECONDS", "420"))
+
+
+def _hard_timeout_handler(signum, frame):
+    print(f"[mc] HARD TIMEOUT after {_HARD_TIMEOUT_SECONDS}s; terminating safely", file=sys.stderr, flush=True)
+    raise SystemExit(124)
+
+
+def _install_hard_timeout() -> None:
+    if _HARD_TIMEOUT_SECONDS <= 0 or not hasattr(signal, "SIGALRM"):
+        return
+    signal.signal(signal.SIGALRM, _hard_timeout_handler)
+    signal.alarm(_HARD_TIMEOUT_SECONDS)
+
+
+def _cancel_hard_timeout() -> None:
+    if hasattr(signal, "SIGALRM"):
+        signal.alarm(0)
 
 
 def _cleanup_stale_pid_files() -> int:
@@ -755,6 +775,7 @@ def _cmd_status(args, logger: logging.Logger) -> int:
 # ─────────────────────────────────────────────────────────────────
 
 def main() -> int:
+    print("[mc] CLI entrypoint reached", file=sys.stdout, flush=True)
     parser = argparse.ArgumentParser(
         prog="mc",
         description="mc — Manual Chain CLI: one command to derive, draft, image, and publish a blog chain",
@@ -916,4 +937,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    _install_hard_timeout()
+    try:
+        sys.exit(main())
+    finally:
+        _cancel_hard_timeout()
