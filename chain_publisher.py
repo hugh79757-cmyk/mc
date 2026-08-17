@@ -407,7 +407,7 @@ def _get_blog_for_step(chain_id: int, step: int, config: dict,
 def publish_chain(chain_id: int, mode: str = "auto",
                   blog_overrides: dict = None,
                   theme_override: str = None,
-                  cf_project_override: str = None) -> None:
+                  cf_project_override: str = None) -> bool:
     """
     역순(Step 3→2→1) 발행.
     mode: "auto" | "interactive" | "manual"
@@ -420,7 +420,7 @@ def publish_chain(chain_id: int, mode: str = "auto",
               f"(의도 체인=#{_intended.get(chain_id)}, "
               f"slug 중복으로 덮어쓰기 방지). 발행을 건너뜁니다.")
         print(f"[mc] 제거하려면 _NON_INTENDED_CHAINS에서 {chain_id}를 삭제하세요.")
-        return
+        return False
     from chain_publisher_core import PublisherCore
 
     config = load_config()
@@ -446,6 +446,7 @@ def publish_chain(chain_id: int, mode: str = "auto",
     print(f"{'='*60}")
 
     db.update_chain_status(chain_id, "generating")
+    failed_steps = []
 
     for i, post in enumerate(posts):
         step = post.get("step", 1)
@@ -457,6 +458,7 @@ def publish_chain(chain_id: int, mode: str = "auto",
 
         if not draft_md:
             print(f"  [publish] Step {step}: no draft, skipping")
+            failed_steps.append(step)
             continue
 
         print(f"\n  [publish] Step {step} → {blog_key} ({mode})")
@@ -496,10 +498,17 @@ def publish_chain(chain_id: int, mode: str = "auto",
         else:
             db.update_post_status(post["id"], "failed",
                                   error_log=f"publish failed to {blog_key}")
+            failed_steps.append(step)
             print(f"  [publish] Step {step} failed")
+
+    if failed_steps:
+        db.update_chain_status(chain_id, "failed")
+        print(f"\n[mc] Chain #{chain_id} publish failed; steps={failed_steps}")
+        return False
 
     db.update_chain_status(chain_id, "published" if mode == "auto" else "manual_pending")
     print(f"\n[mc] Chain #{chain_id} publish complete")
+    return True
 
 
 # ── Phase 5: 카드 주입 (draft_md 기반) ──────────────────────────────
@@ -533,6 +542,9 @@ def inject_cards_chain(chain_id: int, deploy: bool = True) -> None:
     posts = db.get_chain_posts_ordered(chain_id, direction="asc")
     if len(posts) < 2:
         print(f"[mc] Not enough posts for card injection")
+        return
+    if any(not p.get("published_url") for p in posts):
+        print(f"[mc] Card injection blocked: chain #{chain_id} has unpublished posts")
         return
 
     seed_keyword = chain.get("seed", "")
@@ -678,7 +690,12 @@ def smoke_test(chain_id: int) -> dict:
     for post in posts:
         url = post.get("published_url")
         if not url:
-            print(f"  [smoke] Post #{post['id']}: no published_url — skipping")
+            detail = {"url": "", "status_code": None, "title_found": False,
+                      "og_image_url": None, "og_image_ok": False,
+                      "overall": "fail", "error": "missing published_url"}
+            results[post["id"]] = detail
+            db.update_smoke_test_result(post["id"], "fail", detail)
+            print(f"  [smoke] ❌ Post #{post['id']}: no published_url")
             continue
 
         detail = {"url": url, "status_code": None, "title_found": False,
@@ -887,8 +904,11 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
         return chain_id
 
     if publish_mode:
-        publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides,
-                      theme_override=theme_override, cf_project_override=cf_project_override)
+        published_ok = publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides,
+                                     theme_override=theme_override, cf_project_override=cf_project_override)
+        if not published_ok:
+            print(f"[mc] Publish failed for chain #{chain_id}; cards and smoke test blocked")
+            return None
         if publish_mode != "manual":
             inject_cards_chain(chain_id)
             # Phase 21: 발행 후 smoke test

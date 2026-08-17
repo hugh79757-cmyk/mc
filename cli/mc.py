@@ -260,7 +260,10 @@ def _resume_chain(chain_id: int, site_override: str | None, logger: logging.Logg
     missing_publish = [p for p in posts if not p.get("published_url")]
     if missing_publish:
         logger.info(f"[resume] Publish: {len(missing_publish)}/{len(posts)} posts missing — running publish_chain()")
-        publish_chain(chain_id, mode="auto", blog_overrides=blog_overrides)
+        published_ok = publish_chain(chain_id, mode="auto", blog_overrides=blog_overrides)
+        if not published_ok:
+            logger.error(f"[resume] Chain #{chain_id} publish failed; cards not injected")
+            return 1
         inject_cards_chain(chain_id)
         posts = db.get_chain_posts(chain_id)  # refresh for final status
     else:

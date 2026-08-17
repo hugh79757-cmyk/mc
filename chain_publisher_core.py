@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import logging
 import time
+import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import List
@@ -39,6 +40,19 @@ import markdown_processor  # noqa: E402 — Phase 26 W4: MarkdownProcessor 파�
 
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_hugo_frontmatter_text(text: str) -> None:
+    """발행 파일 저장 전 frontmatter를 YAML로 한 번만 검증한다."""
+    match = re.match(r"^---\s*\n(.*?)\n---\s*\n", text, re.DOTALL)
+    if not match:
+        raise DeployValidationError("frontmatter opener/closer 누락")
+    try:
+        data = yaml.safe_load(match.group(1))
+    except Exception as exc:
+        raise DeployValidationError(f"frontmatter YAML 파싱 실패: {exc}") from exc
+    if not isinstance(data, dict) or not data.get("title") or not data.get("slug"):
+        raise DeployValidationError("frontmatter 필수 필드(title/slug) 누락")
 
 
 # R2_IMAGE_DOMAINS / HTML_TAG_RE 정의는 constants.py 로 이동 (단일 진실 공급원)
@@ -516,10 +530,16 @@ class PublisherCore:
             # DB에서 post 조회 (image_meta JSON으로 통합)
             from chain_db import get_conn, update_thumbnail as _db_update_thumb
             _conn = get_conn()
-            _row = _conn.execute(
-                "SELECT id, image_meta FROM chain_posts WHERE slug = ?",
-                (slug,),
-            ).fetchone()
+            if post_id:
+                _row = _conn.execute(
+                    "SELECT id, image_meta FROM chain_posts WHERE id = ? AND slug = ?",
+                    (post_id, slug),
+                ).fetchone()
+            else:
+                _row = _conn.execute(
+                    "SELECT id, image_meta FROM chain_posts WHERE slug = ?",
+                    (slug,),
+                ).fetchone()
             _conn.close()
 
             if not _row:
@@ -736,6 +756,7 @@ class PublisherCore:
             _fixed = "\n".join(_new_fm_lines) + "\n\n" + _rest_body
 
             index_md = target_dir / "index.md"
+            _validate_hugo_frontmatter_text(_fixed)
             index_md.write_text(_fixed, encoding="utf-8")
 
             # 4. 본문 이미지 경로 R2 URL로 교체
@@ -816,6 +837,7 @@ class PublisherCore:
                 # 자동 제거: AI CTA 문구 제거
                 text = replace_ai_cta(text)
                 logger.warning(f"[D8-GATE] Auto-removed {len(_leaks_found)} leak(s) from {slug}")
+            _validate_hugo_frontmatter_text(text)
             index_md.write_text(text, encoding="utf-8")
 
             # 4-b. R2 교체 결과를 DB published_md에 저장 (card injection용)
