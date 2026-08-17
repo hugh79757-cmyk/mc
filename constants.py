@@ -15,6 +15,7 @@ import re
 # ── 공신력 도메인 화이트리스트 (chain_card_injector 에서 이동) ─────────
 
 AUTHORITY_GOVERNMENT = (".go.kr", ".or.kr", ".gov.kr")
+KNOWN_OFFICIAL_SITE_DOMAINS = ("amberpurehill.com", "en.amberpurehill.com")
 AUTHORITY_PLATFORMS = {
     "place.naver.com": "네이버 플레이스",
     "map.naver.com": "네이버 지도",

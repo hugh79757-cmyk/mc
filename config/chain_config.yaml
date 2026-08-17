@@ -96,6 +96,29 @@ chain_blogs:
   0: rotcha
   1: issue.techpawz
   2: techpawz
+travel_chain_roles:
+  rotcha:
+    role: discovery_basic_understanding
+    promise: "장소와 숙소의 기본 정보를 이해시키고 첫 관심을 만든다"
+    reader_question: "이 숙소는 어디에 있고 어떤 여행자에게 맞는가?"
+    owned_facts: [지역, 숙소유형, 위치, 확인된핵심시설]
+    deferred_facts: [동행별비교, 객실별조건, 예약정책, 가격확인]
+    next_question: "내 일정과 동행 구성에 실제로 맞는가?"
+  issue.techpawz:
+    role: comparison_practical_use
+    promise: "시설과 조건을 실제 여행 상황에 적용해 선택을 돕는다"
+    reader_question: "가족·커플·반려동물·취사 중심 여행에 어떤 차이가 있는가?"
+    owned_facts: [동행별적합성, 객실조건, 시설사용상황, 제한사항, 비교축]
+    deferred_facts: [가격, 취소환불, 추가비용, 공식예약확인]
+    next_question: "예약 전에 무엇을 확인하고 어떻게 최종 결정할 것인가?"
+  techpawz:
+    role: decision_booking_confirmation
+    promise: "예약 전 확인사항과 공식 정보 경로로 최종 결정을 돕는다"
+    reader_question: "가격·정책·객실 조건을 무엇부터 확인해야 하는가?"
+    owned_facts: [가격확인방법, 예약조건, 취소환불, 추가비용, 공식채널, 최종체크리스트]
+    deferred_facts: []
+    next_question: "공식 정보와 예약 조건을 확인한 뒤 결정한다"
+
 chain_blog_mapping:
   default:
     depth:

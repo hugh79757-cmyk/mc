@@ -5,6 +5,7 @@ mc — 체인 주제 도출 모듈 (Phase 2)
 """
 
 import json
+import re
 import sys
 from typing import Optional
 
@@ -18,6 +19,7 @@ ensure_5000_on_path()
 from shared.ai_writer import generate
 
 import chain_db as db
+from title_engine import score_title
 
 # ── Category-specific lateral prompt validation (config 자동 로드) ──
 def _expected_lateral_keys(prompts: dict) -> list:
@@ -34,6 +36,29 @@ def _validate_lateral_prompts(prompts: dict) -> None:
     missing = [k for k in expected if k not in prompts]
     if missing:
         print(f"[mc] ⚠️ Missing lateral prompt(s): {', '.join(missing)}")
+
+
+def _apply_cuap_titles(seed, posts):
+    """Audit AI titles without inventing template or English fragments."""
+    updated = []
+    for post in posts:
+        if not isinstance(post, dict):
+            updated.append(post)
+            continue
+        title = str(post.get("title", "") or "").strip()
+        keyword = str(post.get("target_keyword") or seed)
+        event_tokens = (chr(52629)+chr(51228), chr(47924)+chr(47497)+chr(46020)+chr(50896))
+        if classify_keyword(seed) == "travel" and any(token in seed for token in event_tokens):
+            import datetime as _dt
+            current_year = _dt.datetime.now().year
+            title = re.sub(r"(?<!\\d)20\\d{2}(?!\\d)", lambda m: m.group(0) if int(m.group(0)) == current_year else "", title)
+            title = re.sub(r"\\s{2,}", " ", title).strip(" -:")
+            post["title"] = title
+        score, issues = score_title(title, keyword)
+        if issues:
+            print(f"    [CUAP] title retained; score={score}, issues={','.join(issues)}")
+        updated.append(post)
+    return updated
 
 
 def derive_chain(seed: str, chain_type: str = None,
@@ -84,8 +109,17 @@ def derive_chain(seed: str, chain_type: str = None,
 
     system_prompt = prompts.get("derive_system", prompts.get("derive_system_prompt", ""))
     user_prompt = prompts[derive_key].format(seed=seed, category=category)
-
-    # ── 3. AI derivation ──
+    if category == "travel":
+        role_cfg = load_config().get("travel_chain_roles", {}) or {}
+        role_lines = []
+        for depth, blog in enumerate(("rotcha", "issue.techpawz", "techpawz")):
+            role = role_cfg.get(blog, {}) or {}
+            role_lines.append(
+                f"Step {depth + 1} blog={blog}; role={role.get('role', '')}; "
+                f"promise={role.get('promise', '')}; question={role.get('reader_question', '')}; "
+                f"next={role.get('next_question', '')}"
+            )
+        user_prompt += "\n\n[MANUAL CHAIN THREE-BLOG CONTRACT]\n" + "\n".join(role_lines) + "\nDo not repeat the same article role, facts, or title angle across the three steps.\n"
     result = generate(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
@@ -108,6 +142,8 @@ def derive_chain(seed: str, chain_type: str = None,
         posts_data = review_callback(posts_data)
     if edit_callback:
         posts_data = edit_callback(posts_data)
+    # CUAP title quality gate; CTA, AdSense and publishing are unchanged.
+    posts_data = _apply_cuap_titles(seed, posts_data)
 
     # ── 6. DB 저장 (with chain_type) ──
     db.init_db()

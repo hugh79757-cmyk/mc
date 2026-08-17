@@ -106,6 +106,12 @@ def classify_keyword(keyword: str) -> str:
 
     kw = keyword.lower()
 
+    EVENT_TOKENS = ('축제', '페슌', '팩엁', '정시', '박람', '행시', '무릉도원')
+    # Event/travel override for place-based visitor content.
+    if any(token in keyword for token in EVENT_TOKENS):
+        return "travel"
+
+
     # 후처리: ~주가 키워드는 pattern 매칭보다 우선 stock
     if kw.endswith("주가"):
         return "stock"

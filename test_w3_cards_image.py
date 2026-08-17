@@ -667,3 +667,17 @@ class TestD9GateExternalCardDedup:
         # "관련 공식 사이트" 텍스트가 2번 (본문) + 1번 (새 카드) = 3번 나와야 함
         assert result.count("관련 공식 사이트") == 3
         assert result.count("바로가기") == 1  # 카드의 버튼만 1개
+
+
+
+
+def test_known_official_site_beats_social_platform_for_final_cta():
+    """Known official site must outrank social platforms for final CTA."""
+    from chain_card_injector import _score_official
+
+    official = _score_official("https://amberpurehill.com/", title="Amber Pure Hill Hotels & Resorts", keyword="Amber Pure Hill Jeju", rank=9)
+    instagram = _score_official("https://www.instagram.com/amber_purehill_jeju/", title="Amber Pure Hill Jeju", keyword="Amber Pure Hill Jeju", rank=0)
+
+    assert official[0] == 1
+    assert official[1] > instagram[1]
+    assert instagram[0] == 2

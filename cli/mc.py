@@ -29,8 +29,13 @@ from pathlib import Path
 # Project root setup — cli/mc.py is at project_root/cli/mc.py
 # ─────────────────────────────────────────────────────────────────
 _PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
+_PROJECT_ROOT_STR = str(_PROJECT_ROOT)
+sys.path[:] = [_p for _p in sys.path if _p != _PROJECT_ROOT_STR]
+sys.path.insert(0, _PROJECT_ROOT_STR)
+import importlib
+if "mc" in sys.modules and not hasattr(sys.modules["mc"], "__path__"):
+    del sys.modules["mc"]
+importlib.import_module("mc")
 
 # ─────────────────────────────────────────────────────────────────
 # Logging setup
@@ -432,7 +437,7 @@ def _run_background(keyword: str, args, logger: logging.Logger) -> int:
     pid_file = str(_LOG_DIR / f"mc-cli-{ts}.pid")
 
     # Build argv for the subprocess
-    argv = [sys.executable, "-m", "cli.mc", keyword]
+    argv = [sys.executable, "-m", "cli.mc", "run", keyword]
     if args.dry_run:
         argv.append("--dry-run")
     elif args.draft:
@@ -443,6 +448,10 @@ def _run_background(keyword: str, args, logger: logging.Logger) -> int:
         argv.append("--publish")
     if args.site:
         argv.extend(["--site", args.site])
+    if getattr(args, "no_search", False):
+        argv.append("--no-search")
+    elif getattr(args, "search", False):
+        argv.append("--search")
     argv.extend(["--pid-file", pid_file])
 
     # Open log file (append mode) for subprocess output

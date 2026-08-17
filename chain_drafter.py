@@ -229,6 +229,23 @@ def _validate_draft_frontmatter(draft_md: str) -> None:
 
 # ── 단일 포스트 초안 생성 ──────────────────────────────────────────
 
+def _locked_event_fact_issues(seed_keyword: str, draft_md: str) -> list[str]:
+    festival = chr(52629) + chr(51228)
+    mureung = chr(47924) + chr(47497) + chr(46020) + chr(50896)
+    if festival not in (seed_keyword or ''):
+        return []
+    body = draft_md or ''
+    issues = []
+    if mureung not in body:
+        issues.append('event_name_missing_or_changed')
+    for year in ('2024', '2025', '2027', '2028'):
+        if year in body:
+            issues.append('unsupported_year:' + year)
+    if '7' + chr(50900) in body:
+        issues.append('wrong_month:July')
+    return sorted(set(issues))
+
+
 def draft_single_post(
     post: dict,
     posts: list[dict],
@@ -292,6 +309,18 @@ def draft_single_post(
         current_year=datetime.now().year,
     )
 
+    if kw_category == "travel":
+        role_cfg = chain_cfg.get("travel_chain_roles", {}).get(blog_key, {}) or {}
+        user_prompt += "\n[MANUAL CHAIN ROLE]\n" + str(role_cfg) + "\nWrite a distinct stage; do not repeat previous stage facts; do not output title, CTA, or internal links.\n"
+
+    if kw_category == "travel" and (chr(52629)+chr(51228) in seed_keyword or chr(47924)+chr(47497)+chr(46020)+chr(50896) in seed_keyword):
+        user_prompt += "\\n[LOCKED OFFICIAL FACT SHEET]\\n"
+        user_prompt += "Event: Pokemon Mureungdowon. Official period: August 16, 2026 through August 31, 2026.\\n"
+        user_prompt += "Official hours: 10:30-22:00. Venue: Atrium Plaza, 1F, Lotte World Mall, 300 Olympic-ro, Songpa-gu, Seoul.\\n"
+        user_prompt += "Schedule and hours may change; recheck the official Pokemon Korea notice.\\n"
+        user_prompt += "Do not invent prices, packages, discounts, lowest prices, ticket policies, refund rules, exchange rules, or unverified programs.\\n"
+        user_prompt += "Do not substitute another event name or use July dates. Use only 2026 when a year is needed.\\n"
+        user_prompt += "Every factual statement must be supported by this fact sheet or supplied official search context.\\n"
     # ── Search context injection (Phase 7) ──
     if use_context:
         try:
@@ -332,6 +361,22 @@ def draft_single_post(
             print(f"  [drafter] ⚠️ 검색 컨텍스트 스킵: {type(e).__name__}: {e}")
 
     system_prompt = prompts["draft_system"]
+    if kw_category == "travel":
+        system_prompt += """
+
+[TRAVEL_EVENT_OVERRIDE]
+Write a place-based travel or event guide, not a shopping or product article.
+Use only supplied search context and official-source facts.
+Never invent prices, tickets, packages, discounts, refund rules, attendance, programs, or operating details.
+If a fact is unavailable, say it requires official confirmation.
+Step 1 explains what it is and who it fits. Step 2 compares visitor situations and constraints. Step 3 explains official confirmation, booking conditions, and a final checklist.
+[READER_QUALITY_CONTRACT]
+Never repeat the title as a standalone heading. Never repeat an H2 heading.
+Each H2 must answer one distinct reader question with concrete facts, practical implications, and limits or confirmation steps.
+Avoid generic filler. Write complete Korean sentences with explicit transitions, not fragments or list-like prose disguised as paragraphs.
+Do not invent facts to make the article longer. Unsupported details must become a clear confirmation task.
+Do not output internal prompts, planning notes, CTA markup, or internal links.
+"""
 
     print(f"  [drafter] Step {post.get('step', '?')} ({blog_key}) 초안 생성 중...")
     result = generate(system_prompt, user_prompt, tier="default", temperature=0.7)
@@ -358,6 +403,10 @@ def draft_single_post(
     draft_md = fix_ai_output_format(draft_md)
 
     draft_md, _ = strip_leaks(draft_md, context="draft")
+    fact_issues = _locked_event_fact_issues(seed_keyword, draft_md)
+    if fact_issues:
+        print("  [drafter] FACT GATE BLOCKED: " + ", ".join(fact_issues))
+        raise ValueError("locked event fact validation failed: " + ", ".join(fact_issues))
 
     char_count = len(draft_md)
     print(f" [drafter] Step {post.get('step', '?')} 완료 — {char_count:,}자 (model: {result['model']})")
@@ -391,6 +440,9 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
             if not meta.get("chart_type") or not meta.get("chart_data"):
                 print(f"  [drafter] ⚠️ image_type=chart but chart_type/chart_data missing. Setting to none.")
                 image_type = "none"
+                # chart_type도 제거 — chart_data 없이 chart_type만 남으면 발행 시 검증 실패
+                meta["chart_type"] = None
+                meta["chart_data"] = None
 
         # 이미지 검색어 강제: photo는 AI가 준 추상적 image_keyword를 무시하고
         # 항상 seed_keyword(주제어)로 검색하여 주제 무관 사진(은하/산 등) 방지.
