@@ -464,6 +464,8 @@ class TestRunBackground(unittest.TestCase):
         argv = call_args[0][0] if call_args[0] else call_args.kwargs.get("argv")
         if not argv:
             argv = [a for a in call_args[0]]
+        self.assertEqual(argv[0:4], [argv[0], "-m", "cli.mc", "run"])
+        self.assertEqual(argv[4], "업클로젯")
         self.assertIn("--pid-file", argv)
 
     @patch("subprocess.Popen")

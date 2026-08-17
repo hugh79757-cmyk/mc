@@ -39,6 +39,19 @@ _LOG_DIR = _PROJECT_ROOT / "logs"
 _LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _cleanup_stale_pid_files() -> int:
+    """실제 프로세스가 없는 오래된 MC PID 파일만 정리한다."""
+    removed = 0
+    for pid_file in _LOG_DIR.glob("mc-cli-*.pid"):
+        try:
+            pid = int(pid_file.read_text(encoding="utf-8").strip())
+            os.kill(pid, 0)
+        except (OSError, ValueError):
+            pid_file.unlink(missing_ok=True)
+            removed += 1
+    return removed
+
+
 def _setup_logging(force_flush: bool = True) -> logging.Logger:
     """
     Set up dual logging: stdout (INFO, user-facing) + file (DEBUG, detailed).
@@ -435,7 +448,7 @@ def _run_background(keyword: str, args, logger: logging.Logger) -> int:
     pid_file = str(_LOG_DIR / f"mc-cli-{ts}.pid")
 
     # Build argv for the subprocess
-    argv = [sys.executable, "-m", "cli.mc", keyword]
+    argv = [sys.executable, "-m", "cli.mc", "run", keyword]
     if args.dry_run:
         argv.append("--dry-run")
     elif args.draft:
@@ -848,6 +861,7 @@ def main() -> int:
             _atexit.register(lambda: _pid_file.unlink(missing_ok=True))
 
     # Logging
+    _cleanup_stale_pid_files()
     logger = _setup_logging()
 
     # ── Route to handler ──────────────────────────────────────────
