@@ -404,6 +404,25 @@ def _get_blog_for_step(chain_id: int, step: int, config: dict,
     return defaults[step - 1] if step <= len(defaults) else "rotcha"
 
 
+def _validate_chain_post_identity(chain_id: int, posts: list[dict]) -> bool:
+    """현재 chain의 seed와 post 메타데이터가 섞이지 않았는지 발행 전에 확인한다."""
+    chain = db.get_chain(chain_id)
+    seed = str((chain or {}).get("seed") or "").strip()
+    mismatches = []
+    for post in posts:
+        if post.get("chain_id") != chain_id:
+            mismatches.append((post.get("id"), "chain_id"))
+        target = str(post.get("target_keyword") or "").strip()
+        if seed and target and target != seed:
+            mismatches.append((post.get("id"), f"target_keyword={target}"))
+        if not post.get("slug"):
+            mismatches.append((post.get("id"), "slug_missing"))
+    if mismatches:
+        print(f"[mc] BLOCKED: Chain #{chain_id} post identity mismatch: {mismatches}")
+        return False
+    return True
+
+
 def publish_chain(chain_id: int, mode: str = "auto",
                   blog_overrides: dict = None,
                   theme_override: str = None,
@@ -429,7 +448,10 @@ def publish_chain(chain_id: int, mode: str = "auto",
     posts = db.get_chain_posts_ordered(chain_id, direction="desc")
     if not posts:
         print(f"[mc] Chain #{chain_id} has no posts")
-        return
+        return False
+    if not _validate_chain_post_identity(chain_id, posts):
+        db.update_chain_status(chain_id, "failed")
+        return False
 
     # 누락 이미지 자동 보완 (기존 체인 발행 시 이미지 생성 누락 방지)
     _missing = [p for p in posts if not p.get("image_url")]
@@ -440,6 +462,9 @@ def publish_chain(chain_id: int, mode: str = "auto",
         except Exception as _e:
             print(f"[mc] 이미지 보완 실패 (발행 계속): {_e}")
         posts = db.get_chain_posts_ordered(chain_id, direction="desc")
+        if not _validate_chain_post_identity(chain_id, posts):
+            db.update_chain_status(chain_id, "failed")
+            return False
 
     print(f"\n{'='*60}")
     print(f"[mc] Publishing chain #{chain_id} (reverse order: 3→2→1)")
