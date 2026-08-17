@@ -1460,3 +1460,40 @@ H2 가이드라인:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestPublishSafetyGates:
+    def test_chain_post_identity_blocks_foreign_keyword(self):
+        from unittest.mock import patch
+        from chain_publisher import _validate_chain_post_identity
+
+        with patch("chain_publisher.db.get_chain", return_value={"seed": "남양주 물의 정원"}):
+            assert not _validate_chain_post_identity(7, [{
+                "id": 1,
+                "chain_id": 7,
+                "target_keyword": "테라 토마토 맥주",
+                "slug": "terra-tomato",
+            }])
+
+    def test_frontmatter_gate_rejects_yaml_corruption(self):
+        from chain_publisher_core import _validate_hugo_frontmatter_text, DeployValidationError
+
+        _validate_hugo_frontmatter_text('---\ntitle: "Valid"\nslug: "valid"\n---\n\nBody')
+        with pytest.raises(DeployValidationError):
+            _validate_hugo_frontmatter_text('---\ntitle: [broken\nslug: "bad"\n---\n\nBody')
+
+    def test_frontmatter_gate_rejects_missing_slug(self):
+        from chain_publisher_core import _validate_hugo_frontmatter_text, DeployValidationError
+
+        with pytest.raises(DeployValidationError, match="slug"):
+            _validate_hugo_frontmatter_text('---\ntitle: "No slug"\n---\n\nBody')
+
+    def test_missing_smoke_url_is_recorded_as_failure(self):
+        from unittest.mock import patch
+        from chain_publisher import smoke_test
+
+        with patch("chain_publisher.db.get_chain_posts", return_value=[{"id": 1, "published_url": None}]), \
+             patch("chain_publisher.db.update_smoke_test_result") as update:
+            result = smoke_test(7)
+        assert result[1]["overall"] == "fail"
+        update.assert_called_once()
