@@ -132,6 +132,9 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
     Delegates to chain_publisher.run_chain() which handles:
       derive → draft → schema validation → image → publish → card injection.
     """
+    if not keyword or keyword.startswith("-"):
+        logger.error(f"Invalid seed keyword: {keyword!r}; flags must follow 'run <keyword>'")
+        return 2
     from chain_publisher import run_chain
 
     # Determine pipeline stage
