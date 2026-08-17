@@ -24,7 +24,7 @@ from .base_provider import BaseImageProvider
 POLLINATIONS_STYLE_MAP = {
     "rotcha": "soft pastel illustration, gentle color palette, artistic",
     "issue.techpawz": "clean infographic style, modern flat design, isometric, pastel palette, professional",
-    "techpawz": "editorial product photography, vivid natural colors, clean studio lighting, artistic",
+    "techpawz": "sketch style, pencil drawing, monochrome, hand-drawn, artistic",
 }
 
 # 주제별 스타일 (라운드로빈 대신 image_keyword로 매칭)
@@ -37,13 +37,13 @@ TOPIC_STYLES = {
     "pension": "oil painting style, textured brushstrokes, warm tones",
     "cafe": "soft pastel illustration, gentle color palette, artistic",
     # 추상/사물 주제
-    "tech": "modern editorial illustration, vivid blue and teal accents, crisp details",
-    "ai": "modern editorial illustration, vivid blue and purple accents, crisp details",
+    "tech": "sketch style, pencil drawing, monochrome, hand-drawn",
+    "ai": "sketch style, pencil drawing, monochrome, hand-drawn",
     "market": "clean infographic style, modern flat design",
     "finance": "clean infographic style, modern flat design",
     "shopping": "soft pastel illustration, gentle color palette, artistic",
     "fashion": "soft pastel illustration, gentle color palette, artistic",
-    "game": "colorful game concept art, dynamic lighting, crisp details",
+    "game": "sketch style, pencil drawing, monochrome, hand-drawn",
     "food": "watercolor painting, soft wash, translucent colors",
 }
 
@@ -56,7 +56,7 @@ NO_PEOPLE_BLOCK = (
 
 # Pollinations 프롬프트 맨 앞에 배치하는 강제 문장 (긍정 명령)
 FORCED_LANDSCAPE_PREAMBLE = (
-    "NO PEOPLE. NO HANDS. NO BODY PARTS. SUBJECT-RELEVANT COMPOSITION. LANDSCAPE OR SCENERY ONLY WHEN THE TOPIC IS A LANDSCAPE; OTHERWISE SHOW THE SUBJECT CLEARLY. USE COLOR AND LIGHTING THAT MATCH THE TOPIC."
+    "NO PEOPLE. NO HANDS. NO BODY PARTS. LANDSCAPE OR SCENERY ONLY."
 )
 
 POLLINATIONS_ASPECT_RATIOS = {
@@ -165,7 +165,7 @@ def build_contextual_prompt(
     elif topic_type == "abstract":
         scene = f"abstract concept art of {image_keyword}, geometric shapes, symbolic representation, serene background"
     else:
-        scene = f"a clear subject-focused scenic setting featuring {image_keyword}, context-appropriate environment, visually engaging composition"
+        scene = f"scenic landscape background with {image_keyword}, still life object in natural setting, outdoor environment, peaceful scenery"
 
     parts = [
         FORCED_LANDSCAPE_PREAMBLE,
@@ -203,7 +203,7 @@ def build_full_prompt(
     elif topic_type == "abstract":
         scene = f"abstract concept art of {image_keyword}, serene background"
     else:
-        scene = f"a clear subject-focused scenic setting featuring {image_keyword}, context-appropriate environment"
+        scene = f"scenic landscape background with {image_keyword}, outdoor natural setting"
 
     parts = [
         FORCED_LANDSCAPE_PREAMBLE,

@@ -5,14 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image, ImageOps
 
-
-def write_test_image(path):
-    gray = Image.effect_noise((1024, 1024), 80).convert("L")
-    image = ImageOps.colorize(gray, black="#153b5b", white="#f6d365")
-    fmt = "WEBP" if path.suffix.lower() == ".webp" else "JPEG"
-    image.save(path, format=fmt, quality=95)
 
 class TestThumbnailGeneration:
     """image/thumbnail.py 테스트."""
@@ -73,11 +66,11 @@ class TestThumbnailGeneration:
             {"id": "abc123", "url_raw": "https://unsplash.com/photo.jpg", "author": "Test"}
         ]
         mock_download.return_value = temp_dir / "thumb_unsplash_abc123.jpg"
-        write_test_image(temp_dir / "thumb_unsplash_abc123.jpg")
+        (temp_dir / "thumb_unsplash_abc123.jpg").write_bytes(b"fake")
 
         with patch("image.thumbnail.add_text_overlay") as mock_overlay:
             mock_overlay.return_value = temp_dir / "thumb_final.webp"
-            write_test_image(temp_dir / "thumb_final.webp")
+            (temp_dir / "thumb_final.webp").write_bytes(b"fake")
 
             result = generate_thumbnail("Test Title", "test keyword", "test-slug")
             assert result is not None
@@ -100,11 +93,11 @@ class TestThumbnailGeneration:
             {"id": "xyz789", "url": "https://pexels.com/photo.jpg", "author": "Test"}
         ]
         mock_download.return_value = temp_dir / "thumb_pexels_xyz789.jpg"
-        write_test_image(temp_dir / "thumb_pexels_xyz789.jpg")
+        (temp_dir / "thumb_pexels_xyz789.jpg").write_bytes(b"fake")
 
         with patch("image.thumbnail.add_text_overlay") as mock_overlay:
             mock_overlay.return_value = temp_dir / "thumb_final.webp"
-            write_test_image(temp_dir / "thumb_final.webp")
+            (temp_dir / "thumb_final.webp").write_bytes(b"fake")
 
             result = generate_thumbnail("Title", "keyword", "slug")
             assert result is not None

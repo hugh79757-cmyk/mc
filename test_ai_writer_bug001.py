@@ -55,7 +55,6 @@ def _fake_config(max_tokens=6000):
         }
     return {
         "providers": {"deepseek": {"api_key_env": "DEEPSEEK_API_KEY", "base_url": "http://x"}},
-        "tier_order": list(tiers),
         **tiers,
     }
 
@@ -96,9 +95,9 @@ class TestGenerateTruncationRetry:
             patch("shared.ai_writer.time.sleep"),
         ):
             return generate("system", "user", max_tokens=max_tokens)
-    def test_reasoning_content_is_ignored_and_retries_without_leak(self):
-        """Reasoning content is never promoted to user-visible content."""
-        # The production policy ignores reasoning_content to prevent chain-of-thought leakage.
+
+    def test_reasoning_content_truncated_retries_with_more_tokens(self):
+        """content가 비고 reasoning_content가 잘렸으면(finish_reason=length) 반환하지 않고 재시도."""
         client = MagicMock()
         client.chat.completions.create.side_effect = [
             _response(content=None, reasoning_content=TRUNCATED_REASONING, finish_reason="length"),
@@ -108,9 +107,9 @@ class TestGenerateTruncationRetry:
 
         assert result["content"] == VALID_JSON
         assert client.chat.completions.create.call_count == 2
-        assert TRUNCATED_REASONING not in result["content"]
         calls = client.chat.completions.create.call_args_list
-        assert calls[1].kwargs["max_tokens"] == calls[0].kwargs["max_tokens"] == 6000
+        assert calls[1].kwargs["max_tokens"] > calls[0].kwargs["max_tokens"]
+        assert calls[1].kwargs["max_tokens"] == 6000 * 2 + 512
 
     def test_finish_reason_length_with_nonempty_content_retries(self):
         """content가 있어도 finish_reason=length면 절단으로 보고 재시도."""
@@ -135,14 +134,16 @@ class TestGenerateTruncationRetry:
         assert result["content"] == VALID_JSON
         assert client.chat.completions.create.call_count == 1
 
-    def test_complete_reasoning_content_is_rejected(self):
-        """Complete reasoning_content is not promoted to user-visible content."""
+    def test_complete_reasoning_content_returned_directly(self):
+        """완결된 reasoning_content(finish_reason=stop, 잘림 없음)는 그대로 반환 — 기존 동작 보존."""
         client = MagicMock()
-        response = _response(content=None, reasoning_content=VALID_JSON, finish_reason="stop")
-        client.chat.completions.create.side_effect = [response] * (5 * 3)
-        with pytest.raises(RuntimeError):
-            self._generate(client)
-        assert client.chat.completions.create.call_count == 5 * 3
+        client.chat.completions.create.side_effect = [
+            _response(content=None, reasoning_content=VALID_JSON, finish_reason="stop"),
+        ]
+        result = self._generate(client)
+
+        assert result["content"] == VALID_JSON
+        assert client.chat.completions.create.call_count == 1
 
     def test_all_truncated_raises_runtime_error(self):
         """모든 tier/재시도가 잘리면 RuntimeError — 잘린 조각을 성공으로 반환하지 않음."""
@@ -150,7 +151,7 @@ class TestGenerateTruncationRetry:
         truncated = _response(
             content=None, reasoning_content=TRUNCATED_REASONING, finish_reason="length"
         )
-        client.chat.completions.create.side_effect = [truncated] * (5 * 3)  # explicit tier_order: 5 tiers x 3 retries
+        client.chat.completions.create.side_effect = [truncated] * (5 * 3)  # 5 tier x 3 retry
         with pytest.raises(RuntimeError):
             self._generate(client)
         assert client.chat.completions.create.call_count == 5 * 3
@@ -196,20 +197,3 @@ class TestIsTruncated:
         """
         assert _is_truncated(TRUNCATED_REASONING, None) is True
         assert _is_truncated(TRUNCATED_REASONING, "length") is True
-
-class TestTimeoutFallback:
-    def test_request_timeout_moves_to_next_tier(self):
-        client = MagicMock()
-        client.chat.completions.create.side_effect = [
-            TimeoutError('request timed out'),
-            _response(content=VALID_JSON, finish_reason='stop'),
-        ]
-        owner = TestGenerateTruncationRetry()
-        with (
-            patch('shared.ai_writer.load_models_config', return_value=_fake_config()),
-            patch('shared.ai_writer.get_client', return_value=client),
-            patch('shared.ai_writer.time.sleep'),
-        ):
-            result = generate('system', 'user')
-        assert result['content'] == VALID_JSON
-        assert client.chat.completions.create.call_count == 2

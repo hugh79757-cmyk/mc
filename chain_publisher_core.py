@@ -320,9 +320,7 @@ def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -
 
     if image_meta:
         if image_meta.get("chart_type") and not image_meta.get("chart_data"):
-            # chart_data 없이 chart_type만 남으면 경고 후 chart_type 제거
-            logger.warning(f"[verify] chart_type 설정됨 but chart_data 비어있음 — chart_type 제거: {slug}")
-            image_meta["chart_type"] = None
+            raise DeployValidationError("chart_type 설정됨 but chart_data 비어있음")
 
     logger.info(f"[verify] 소스 검증 통과: {slug}")
 

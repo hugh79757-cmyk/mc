@@ -29,7 +29,7 @@ from mc.cta import get_cta, get_official_cta_text
 from url_utils import extract_domain, normalize_url, strip_tracking_params, decode_idn  # noqa: F401 — URL 처리 단일 진실 공급원 (Phase 26)
 
 from constants import (  # noqa: F401 — 상수 단일 진실 공급원 (Phase 26)
-    AUTHORITY_PLATFORMS, SKIP_DOMAINS, SKIP_PATHS, KNOWN_OFFICIAL_SITE_DOMAINS,
+    AUTHORITY_PLATFORMS, SKIP_DOMAINS, SKIP_PATHS,
 )
 
 from link_finder import LinkFinder  # noqa: F401 — 링크 추출 단일 진실 공급원 (Phase 26 W2)
@@ -86,8 +86,6 @@ def _score_official(url: str, title: str = "", keyword: str = "", rank: int = 99
 
     # punycode 디코딩: 한글 도메인(시포트리조트.kr → xn--oy2b11opse0mmca85p.kr) 대응
     domain_unicode = _decode_idn(domain)
-    if domain in KNOWN_OFFICIAL_SITE_DOMAINS or any(domain.endswith("." + d) for d in KNOWN_OFFICIAL_SITE_DOMAINS):
-        return (1, 100, "\uacf5\uc2dd \uc0ac\uc774\ud2b8")
     url_lower = url.lower()
     url_unicode = url_lower.replace(domain, domain_unicode)  # URL 내 punycode를 한글로 치환
 
@@ -560,16 +558,10 @@ class CardInjector:
             next_card = self.build_card_html(next_title, next_url, cta)
             body = self.inject_bottom_card(body, next_card)
 
-        # Travel chains use one CTA at the end; legacy behavior remains for other categories.
-        # This prevents short travel posts from being interrupted by duplicate cards.
-        try:
-            from mc_paths import classify_keyword
-            travel_single_cta = classify_keyword(seed_keyword) == "travel"
-        except Exception:
-            travel_single_cta = False
-        if travel_single_cta:
-            mid_card = None
-        elif is_last:
+        # 중간 카드: H2>=3일 때 2번째 H2 직후 1개 (하단 카드와 별개, 총 2개 구조)
+        # is_last(Depth 2)는 다음 글이 없으므로 중간에도 외부 링크 카드로 유도,
+        # 그 외에는 다음 글 카드로 이탈 방지.
+        if is_last:
             mid_links = self.find_external_links(
                 title=post_title, keyword=seed_keyword, seed=seed_keyword
             )

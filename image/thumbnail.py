@@ -23,7 +23,6 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 from mc_paths import load_config
-from .thumbnail_quality import validate_thumbnail
 
 # ── 디렉토리 ──
 
@@ -339,60 +338,83 @@ def generate_thumbnail(
   slug: str = "",
   subtitle: Optional[str] = None,
 ) -> Optional[tuple[Path, str]]:
-  """Generate a thumbnail with deterministic candidates and quality gates."""
+  """
+  Generate a thumbnail photo with text overlay.
+
+  Provider order:
+  1. Unsplash (real photo)
+  2. Pexels (real photo, fallback)
+  3. Pollinations (AI generated, fallback)
+  4. Krea (AI generated, fallback)
+
+  Args:
+    title: Title text to overlay on the image.
+    keyword: Search keyword for photo lookup.
+    slug: Unique slug for filename.
+    subtitle: Optional sub-title line.
+
+  Returns:
+    (path, source_name) tuple, or None if all providers failed.
+    source_name: 'unsplash' | 'pexels' | 'pollinations' | 'pillow_chart' | 'unknown'
+  """
+  # Idempotency: if file already exists at expected path, return it directly
   if slug:
     expected = IMAGE_DIR / f"thumb_{slug}.webp"
+    # 하위호환: 기존 .jpg 파일도 확인
     expected_jpg = IMAGE_DIR / f"thumb_{slug}.jpg"
     if not expected.exists() and expected_jpg.exists():
         expected = expected_jpg
     if expected.exists():
-        print(f" [thumbnail] 파일 존재, 재사용: {expected}")
-        return (expected, _infer_source_from_path(expected))
+      print(f" [thumbnail] 파일 존재, 재사용: {expected}")
+      return (expected, _infer_source_from_path(expected))
+
   env = _load_env()
   config = load_config()
   thumb_cfg = config.get("thumbnail", {})
   provider = thumb_cfg.get("provider", "auto")
-  fallback_chain = thumb_cfg.get("fallback_chain", ["pexels"])
+  fallback_chain = thumb_cfg.get("fallback_chain", ["pexels", "pollinations", "krea"])
   target_size = tuple(thumb_cfg.get("target_size", [1024, 1024]))
-  query = " ".join(str(keyword or "").split()).strip()
-  if not query:
-      print(" [thumbnail] 검색어 없음")
-      return None
 
-  def try_candidates(provider_name, provider_obj, results):
-      for photo in (results or [])[:8]:
-          photo_id = photo.get("id", "unknown")
-          print(f" [thumbnail] {provider_name} 후보 → {photo_id}")
-          downloaded = provider_obj.download(photo)
-          if not downloaded:
-              continue
-          rendered = add_text_overlay(downloaded, title, subtitle, target_size)
-          if not rendered:
-              continue
-          ok, issues, _ = validate_thumbnail(
-              rendered, slug=slug or rendered.stem, provider=provider_name,
-              query=query, asset=photo, expected_size=target_size,
-          )
-          if ok:
-              print(f" [thumbnail] 품질 통과 → {rendered}")
-              return rendered
-          print(f" [thumbnail] 후보 제외({photo_id}): {', '.join(issues)}")
-      return None
+  downloaded: Optional[Path] = None
+  source: str = "unknown"
 
+  # ── Provider 1: Unsplash ──
   if provider in ("auto", "unsplash"):
-      unsplash = UnsplashProvider(env["unsplash_key"])
-      rendered = try_candidates("unsplash", unsplash, unsplash.search(query))
-      if rendered:
-          return (rendered, "unsplash")
+    unsplash = UnsplashProvider(env["unsplash_key"])
+    if results := unsplash.search(keyword):
+      photo = random.choice(results)
+      print(f" [thumbnail] Unsplash → {photo['id']} by {photo['author']}")
+      downloaded = unsplash.download(photo)
+      if downloaded:
+        source = "unsplash"
+        result = add_text_overlay(downloaded, title, subtitle, target_size)
+        if result:
+          return (result, source)
+
+  # ── Fallback chain ──
   for fallback_name in fallback_chain:
-      if fallback_name != "pexels":
-          continue
+    if downloaded:
+      break
+
+    if fallback_name == "pexels":
       pexels = PexelsProvider(env["pexels_key"])
-      rendered = try_candidates("pexels", pexels, pexels.search(query))
-      if rendered:
-          return (rendered, "pexels")
-  print(f" [thumbnail] All providers failed quality gate for '{query}'")
+      if results := pexels.search(keyword):
+        photo = random.choice(results)
+        print(f" [thumbnail] Pexels → {photo['id']} by {photo['author']}")
+        downloaded = pexels.download(photo)
+        if downloaded:
+          source = "pexels"
+          result = add_text_overlay(downloaded, title, subtitle, target_size)
+          if result:
+            return (result, source)
+
+    # Pollinations/Krea (AI 생성) fallback 전면 금지 — 스톡(Pexels/Unsplash)만 허용.
+    # fallback_chain에 이름이 남아 있어도 매칭 분기가 없어 무시된다.
+
+  print(f" [thumbnail] All providers failed for '{keyword}'")
   return None
+
+
 def generate_content_image(
     prompt: str,
     slug: str = "post",
