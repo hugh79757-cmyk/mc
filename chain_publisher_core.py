@@ -692,6 +692,14 @@ class PublisherCore:
             # 3. 포스트 번들 디렉토리 생성
             target_dir = hugo_path / content_dir / slug
             target_dir.mkdir(parents=True, exist_ok=True)
+            existing_index = target_dir / "index.md"
+            if existing_index.exists() and post_id:
+                existing_text = existing_index.read_text(encoding="utf-8", errors="replace")
+                existing_marker = re.search(r"^mc_post_id:\s*['\"]?(\d+)", existing_text, re.MULTILINE)
+                if existing_marker and existing_marker.group(1) != str(post_id):
+                    raise DeployValidationError(
+                        f"stale Hugo bundle 차단: {existing_index} belongs to post_id={existing_marker.group(1)}"
+                    )
 
             # 구형 평면 파일 정리
             stale_flat = hugo_path / content_dir / f"{slug}.md"
@@ -728,6 +736,8 @@ class PublisherCore:
             # 수정: draft→false, slug, date, featureimage 강제
             _fm_fields["draft"] = "false"
             _fm_fields["slug"] = f'"{slug}"'
+            if post_id:
+                _fm_fields["mc_post_id"] = str(post_id)
             if "date" not in _fm_fields:
                 _fm_fields["date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+09:00")
             if r2_thumb_url:
