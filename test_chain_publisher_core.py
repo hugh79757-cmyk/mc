@@ -1072,7 +1072,7 @@ class TestSmokeTest(unittest.TestCase):
         ]
 
         results = smoke_test(99)
-        self.assertEqual(len(results), 0)  # URL 없으면 결과에 없음
+        self.assertEqual(len(results), 1)  # 누락 URL도 실패 결과로 기록
 
     @patch("chain_publisher.db.get_chain_posts")
     @patch("chain_publisher.db.update_smoke_test_result")
