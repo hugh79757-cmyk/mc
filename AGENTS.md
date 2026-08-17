@@ -62,3 +62,11 @@ wrangler pages deploy ./public --project-name rotcha-blog
 - CTA 통일: 모든 사이트에서 "더 알아보기 →" 사용
 - 코드 펜스 자동 수정: `fix_unclosed_fences()` (미닫힌 ````json` 처리)
 - D8/D9 게이트: CTA 텍스트 필터 + 기존 shortcode 중복 제거
+
+## Reusable Publish Quality Contract
+- Every new keyword publish must load the `mc-publish-quality-pipeline` skill and the `llm-fallback-chain-management` skill before execution.
+- Run evidence collection, exact Unicode keyword normalization, derive-only, draft/validate, image, resume/publish, and three-URL smoke test as separate checkpoints.
+- Do not publish a title that promises facts, price, lowest price, recipe, comparison, reservation, or review without matching evidence in the locked fact sheet.
+- Preserve CTA cards, AdSense markers, Hugo frontmatter, and the three-blog role contract.
+- On failure, classify the stage and direct cause, fix only the failed stage, resume by chain ID, and report partial publication honestly.
+- Use persistent fallback rotation: successful tier first, timeout/empty response immediate next tier, 429/quota per-tier cooldown, and no indefinite wait.
