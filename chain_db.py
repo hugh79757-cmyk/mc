@@ -105,6 +105,9 @@ CREATE TABLE IF NOT EXISTS publish_log (
 MIGRATIONS_SQL = [
 # Phase 1→2
 "ALTER TABLE chains ADD COLUMN chain_type TEXT NOT NULL DEFAULT 'depth'",
+"ALTER TABLE chains ADD COLUMN stage TEXT NOT NULL DEFAULT 'derived'",
+"ALTER TABLE chains ADD COLUMN last_error TEXT",
+"ALTER TABLE chains ADD COLUMN heartbeat_at TEXT",
 "ALTER TABLE chain_posts ADD COLUMN step INTEGER DEFAULT 0",
 "ALTER TABLE chain_posts ADD COLUMN chain_type TEXT DEFAULT 'depth'",
 "ALTER TABLE chain_posts ADD COLUMN angle TEXT",
@@ -350,12 +353,12 @@ def get_all_chains() -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def update_chain_status(chain_id: int, status: str):
+def update_chain_status(chain_id: int, status: str, *, stage: str = None, error: str = None):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_conn()
     conn.execute(
-        "UPDATE chains SET status = ?, updated_at = ? WHERE id = ?",
-        (status, now, chain_id),
+        "UPDATE chains SET status = ?, stage = COALESCE(?, stage), last_error = ?, heartbeat_at = ?, updated_at = ? WHERE id = ?",
+        (status, stage, error, now, now, chain_id),
     )
     conn.commit()
     conn.close()

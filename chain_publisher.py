@@ -844,6 +844,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
     from chain_drafter import draft_chain
     print(f"\n{'='*60}\n[mc] Drafting chain #{chain_id}\n{'='*60}\n")
     drafted = draft_chain(chain_id, seed, use_context=use_context)
+    db.update_chain_status(chain_id, "generating", stage="validate", error=None)
     print(f"\n[mc] Draft complete: {len(drafted)} posts")
 
     # 스키마 검증 게이트
@@ -887,6 +888,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
         return chain_id
 
     if publish_mode:
+        db.update_chain_status(chain_id, "generating", stage="publish", error=None)
         publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides,
                       theme_override=theme_override, cf_project_override=cf_project_override)
         if publish_mode != "manual":
