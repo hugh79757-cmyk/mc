@@ -57,10 +57,13 @@ def run_all_checks(
     per_blog_scores: dict[str, dict] = {}
 
     # ── Load contracts for each blog ──
+    # Map blog_id to contract file name (issue.techpawz → issue_techpawz)
+    _CONTRACT_MAP = {"issue.techpawz": "issue_techpawz"}
     contracts: dict[str, ContractSpec] = {}
     for blog_id in posts:
+        contract_id = _CONTRACT_MAP.get(blog_id, blog_id)
         try:
-            contracts[blog_id] = load_contract(blog_id)
+            contracts[blog_id] = load_contract(contract_id)
         except FileNotFoundError:
             all_violations.setdefault(blog_id, []).append(
                 f"Missing contract file for '{blog_id}'"
