@@ -9,11 +9,11 @@ class TestParseHtml:
 
     def test_extracts_h1(self):
         page = parse_html("<html><body><h1>Main Heading</h1></body></html>")
-        assert "Main Heading" in page.h1_texts
+        assert page.h1 == "Main Heading"
 
     def test_extracts_h2(self):
         page = parse_html("<html><body><h2>Section 1</h2><h2>Section 2</h2></body></html>")
-        assert len(page.h2_texts) == 2
+        assert len(page.h2_list) == 2
 
     def test_extracts_paragraphs(self):
         page = parse_html("<html><body><p>First paragraph.</p><p>Second paragraph.</p></body></html>")
@@ -28,31 +28,36 @@ class TestParseHtml:
 class TestCheckHtmlDuplicates:
     def test_duplicate_title(self):
         html = "<html><head><title>My Post</title></head><body><h1>My Post</h1></body></html>"
-        result = check_html_duplicates(html)
+        contract = ContractSpec(cta_max_count=2)
+        result = check_html_duplicates(html, contract)
         assert result.passed is False
         assert any("duplicate_title" in v for v in result.violations)
 
     def test_no_duplicate_title(self):
         html = "<html><head><title>My Post</title></head><body><h1>Different Heading</h1></body></html>"
-        result = check_html_duplicates(html)
+        contract = ContractSpec(cta_max_count=2)
+        result = check_html_duplicates(html, contract)
         assert not any("duplicate_title" in v for v in result.violations)
 
     def test_duplicate_cta(self):
         cta_html = "<p>다음 글</p>" * 4
         html = f"<html><head><title>T</title></head><body><h1>H</h1>{cta_html}</body></html>"
-        result = check_html_duplicates(html)
+        contract = ContractSpec(cta_max_count=2)
+        result = check_html_duplicates(html, contract)
         assert result.passed is False
         assert any("duplicate_cta" in v for v in result.violations)
 
     def test_single_cta(self):
         html = "<html><head><title>T</title></head><body><h1>H</h1><p>다음 글</p></body></html>"
-        result = check_html_duplicates(html)
+        contract = ContractSpec(cta_max_count=2)
+        result = check_html_duplicates(html, contract)
         assert not any("duplicate_cta" in v for v in result.violations)
 
     def test_duplicate_paragraph(self):
         para = "<p>This is a long enough paragraph that should be detected as duplicate text.</p>"
         html = f"<html><head><title>T</title></head><body><h1>H</h1>{para}{para}</body></html>"
-        result = check_html_duplicates(html)
+        contract = ContractSpec(cta_max_count=2)
+        result = check_html_duplicates(html, contract)
         assert result.passed is False
         assert any("duplicate_paragraph" in v for v in result.violations)
 
@@ -65,6 +70,7 @@ class TestCheckHtmlDuplicates:
 <p>This is unique content for section two.</p>
 <p>다음 글도 보세요</p>
 </body></html>"""
-        result = check_html_duplicates(html)
+        contract = ContractSpec(cta_max_count=2)
+        result = check_html_duplicates(html, contract)
         assert result.passed is True
         assert result.violations == []
