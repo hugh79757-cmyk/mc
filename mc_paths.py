@@ -132,6 +132,56 @@ _REJECTED_CATEGORIES = frozenset({
     "real_estate", "automotive", "stock", "etc",
 })
 
+# derive 프롬프트가 생성하는 한국어 category_guess → 영어 매핑
+_KO_TO_EN_CATEGORY = {
+    "여행/숙박": "travel",
+    "여행/관광": "travel",
+    "엔터테인먼트": "entertainment",
+    "지식/정보": "knowledge",
+    "의약품/증상": "medicine",
+    "전자기기/상품": "product",
+    "고객센터/서비스": "customer_service",
+    "정부지원/금융": "gov_finance",
+    "쇼핑몰/브랜드": "shopping_brand",
+    "골프장/CC": "golf_course",
+    "IT/기술": "product",
+    "쇼핑/리뷰": "product",
+    "쇼핑/소비": "product",
+    "자동차/구매": "product",
+    "부동산/분양": "product",
+    "투자/금융": "product",
+    "일반": "product",
+}
+
+
+def normalize_category(raw: str) -> str:
+    """한국어 category_guess를 영어 지원 카테고리로 정규화."""
+    if not raw:
+        return ""
+    if raw in LLM_SUPPORTED_CATEGORIES:
+        return raw
+    # 1차: 정확한 키 매핑
+    if raw in _KO_TO_EN_CATEGORY:
+        return _KO_TO_EN_CATEGORY[raw]
+    # 2차: 부분 문자열 매핑 (LLM이 "건강식품/영양정보" 같은 변형 생성 시 대응)
+    _kw_map = [
+        ("여행", "travel"), ("숙박", "travel"), ("관광", "travel"),
+        ("엔터", "entertainment"), ("영화", "entertainment"), ("드라마", "entertainment"),
+        ("지식", "knowledge"), ("용어", "knowledge"), ("개념", "knowledge"),
+        ("의약", "medicine"), ("건강", "medicine"), ("효능", "medicine"),
+        ("부작", "medicine"), ("복용", "medicine"),
+        ("고객", "customer_service"), ("AS", "customer_service"), ("서비스", "customer_service"),
+        ("정부", "gov_finance"), ("금융", "gov_finance"), ("지원금", "gov_finance"),
+        ("쇼핑", "shopping_brand"), ("브랜드", "shopping_brand"), ("할인", "shopping_brand"),
+        ("골프", "golf_course"), ("그린피", "golf_course"),
+        ("제품", "product"), ("전자", "product"), ("리뷰", "product"), ("가전", "product"),
+    ]
+    raw_lower = raw.lower()
+    for kw, cat in _kw_map:
+        if kw.lower() in raw_lower:
+            return cat
+    return raw
+
 
 def _load_category_cache() -> Dict[str, str]:
     """파일 기반 캐시 로드. 없으면 빈 dict."""

@@ -30,7 +30,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from mc_paths import (
     ensure_5000_on_path, load_config, load_prompts, get_chain_blog_key,
-    PROMPTS_PATH, DRAFTS_DIR,
+    normalize_category, PROMPTS_PATH, DRAFTS_DIR,
 )
 
 ensure_5000_on_path()
@@ -948,7 +948,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
                 "title": post.get("target_keyword", ""),
                 "body_md": post.get("draft_md", ""),
                 "html": "",  # not rendered yet; HTML check deferred to post-build
-                "category": post.get("category_guess", ""),
+                "category": normalize_category(post.get("category_guess", "")),
             }
 
         if gate_posts:

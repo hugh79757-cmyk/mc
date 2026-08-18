@@ -10,7 +10,7 @@ from typing import Optional
 
 from mc_paths import (
     ensure_5000_on_path, load_config, load_prompts,
-    get_chain_blog_key, resolve_chain_type, classify_keyword
+    get_chain_blog_key, resolve_chain_type, classify_keyword, normalize_category
 )
 
 ensure_5000_on_path()
@@ -105,13 +105,25 @@ def derive_chain(seed: str, chain_type: str = None,
         print(content[:2000])
         return 0
 
-    # ── 5. 검토/편집 ──
+    # ── 5. category_guess 정규화 ──
+    # LLM이 Step 2/3에서 category_guess를 비우는 경우가 빈번 → Step 1 값으로 채움
+    if posts_data:
+        _s1_cat = posts_data[0].get("category_guess", "")
+        if _s1_cat:
+            for _p in posts_data[1:]:
+                if not _p.get("category_guess"):
+                    _p["category_guess"] = _s1_cat
+        # 한국어 category_guess → 영어 정규화
+        for _p in posts_data:
+            _p["category_guess"] = normalize_category(_p.get("category_guess", ""))
+
+    # ── 6. 검토/편집 ──
     if review_callback:
         posts_data = review_callback(posts_data)
     if edit_callback:
         posts_data = edit_callback(posts_data)
 
-    # ── 6. DB 저장 (with chain_type) ──
+    # ── 7. DB 저장 (with chain_type) ──
     db.init_db()
     chain_id = db.create_chain(seed, depth_count=len(posts_data), chain_type=resolved_type)
     for _idx, post in enumerate(posts_data):
