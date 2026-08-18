@@ -111,16 +111,16 @@ class TestCheckRoleElements:
     def test_role_check_rotcha_pass(self):
         """Rotcha with all required sections should pass."""
         contract = load("rotcha", category="product")
-        body = """## 제품 개요
+        body = """## 제품 개요와 핵심 스펙
 남양주 물의 정원 소개
 
-## 핵심 특징/스펙
+## 디자인과 주요 특징
 방문 코스 안내
 
-## 사용법/활용법
+## 경쟁 모델과 비교 포인트
 교통편 안내
 
-## 구매 참고사항
+## 핵심 요약
 운영시간 안내
 """
         result = check_role_elements("rotcha", body, contract)
@@ -130,44 +130,44 @@ class TestCheckRoleElements:
     def test_role_check_rotcha_missing(self):
         """Rotcha missing sections should fail."""
         contract = load("rotcha", category="product")
-        body = """## 제품 개요
+        body = """## 제품 개요와 핵심 스펙
 남양주 물의 정원 소개
 """
         result = check_role_elements("rotcha", body, contract)
         assert result.passed is False
-        assert "핵심 특징/스펙" in result.missing_sections
-        assert "사용법/활용법" in result.missing_sections
-        assert "구매 참고사항" in result.missing_sections
+        assert "디자인과 주요 특징" in result.missing_sections
+        assert "경쟁 모델과 비교 포인트" in result.missing_sections
+        assert "핵심 요약" in result.missing_sections
 
     def test_role_check_issue_missing_comparison(self):
         """Issue without comparison table should have it in missing."""
         contract = load("issue_techpawz", category="product")
-        body = """## 비교 대상 제품
+        body = """## 스펙 상세 비교와 벤치마크
 제품 A와 B
 
-## 스펙 비교
+## 실사용 경험과 장단점
 성능과 가격
 
-## 추천 결론
+## 비교 분석 정리
 최고의 제품은 A입니다.
 """
         result = check_role_elements("issue_techpawz", body, contract)
         assert result.passed is False
-        assert "가격대 비교" in result.missing_sections
+        assert "가격대와 구매 전략" in result.missing_sections
 
     def test_role_check_techpawz_pass(self):
         """Techpawz with all required sections should pass."""
         contract = load("techpawz", category="product")
-        body = """## 구매 체크리스트
+        body = """## 최종 구매 가이드
 방문 전 확인사항
 
-## 가격/구매처
+## 구매처 비교와 할인 혜택
 가격 정보
 
-## 사용법/관리법
+## 초기 설정과 활용 팁
 구매 방법
 
-## 주의사항
+## 구매 결정 지원
 주의할 점
 """
         result = check_role_elements("techpawz", body, contract)
@@ -177,18 +177,18 @@ class TestCheckRoleElements:
     def test_role_check_issue_pass(self):
         """Issue with all required sections should pass."""
         contract = load("issue_techpawz", category="product")
-        body = """## 비교 대상 제품
+        body = """## 스펙 상세 비교와 벤치마크
 제품 A와 B
 
-## 스펙 비교
+## 실사용 경험과 장단점
 성능과 가격
 
-## 가격대 비교
+## 가격대와 구매 전략
 | 항목 | A | B |
 |------|---|---|
 | 가격 | 1만원 | 2만원 |
 
-## 추천 결론
+## 비교 분석 정리
 최고의 제품은 A입니다.
 """
         result = check_role_elements("issue_techpawz", body, contract)
