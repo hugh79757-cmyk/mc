@@ -20,3 +20,19 @@ class GateResult:
     passed: bool
     violations: list[str] = field(default_factory=list)
     score: float = 1.0
+
+
+@dataclass
+class DedupResult:
+    """Result of cross-blog deduplication check."""
+    passed: bool
+    pair_scores: dict[str, float] = field(default_factory=dict)
+    violations: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RoleResult:
+    """Result of role elements check for a blog."""
+    passed: bool
+    missing_sections: list[str] = field(default_factory=list)
+    extra_sections: list[str] = field(default_factory=list)
