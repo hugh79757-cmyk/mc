@@ -59,9 +59,23 @@ _DIGIT_RE = re.compile(r"\d")
 _HANGUL_PROPER = re.compile(
     r"[가-힣]{2,}(?:\s[가-힣]+)*"  # 2+ char Korean words (potential named entities)
 )
+_TOKEN_RE = re.compile(
+    r"[가-힣]{2,}|[a-zA-Z]{3,}|\d+"
+)
+_BODY_FALLBACK_THRESHOLD = 0.40
 _ADDRESS_RE = re.compile(
     r"(?:시|군|구|동|읍|면|리|로|길|번지|\d{1,5}-\d{1,5})"
 )
+
+
+def _tokenize_for_match(text: str) -> list[str]:
+    """Split text into meaningful tokens for fuzzy matching.
+
+    Korean words (2+ chars, particles stripped), English words (3+ chars),
+    and numbers.
+    """
+    raw = _TOKEN_RE.findall(text.lower())
+    return [_STRIP_PARTICLES.sub("", t) for t in raw if len(t) >= 2]
 
 
 def _has_concrete_info(text: str) -> bool:
@@ -149,6 +163,16 @@ def check_section_coverage(
                     found = True
                     break
         if not found:
+            # Body-text fallback: check if promise tokens appear in full body
+            promise_tokens = _tokenize_for_match(promise)
+            body_tokens = _tokenize_for_match(body_md)
+            if promise_tokens and body_tokens:
+                body_token_set = set(body_tokens)
+                matched = sum(1 for t in promise_tokens if t in body_token_set)
+                ratio = matched / len(promise_tokens)
+                if ratio >= _BODY_FALLBACK_THRESHOLD and _has_concrete_info(body_md):
+                    met.append((promise, "(body_fallback)"))
+                    continue
             unmet.append((promise, "no matching section"))
 
     return {"met": met, "unmet": unmet}
@@ -175,8 +199,8 @@ def validate_title_body(title: str, body_md: str) -> TitleBodyResult:
 
     coverage = check_section_coverage(body_md, promises)
 
-    met = [p for p, _ in coverage["met"]]
-    unmet = [p for p, _ in coverage["unmet"]]
+    met = [p for p, *_ in coverage["met"]]
+    unmet = [p for p, *_ in coverage["unmet"]]
 
     # Score: 1.0 if all met, decreasing linearly
     if len(promises) == 0:
@@ -188,11 +212,11 @@ def validate_title_body(title: str, body_md: str) -> TitleBodyResult:
         "total_promises": len(promises),
         "coverage": [
             {"promise": p, "status": "met", "heading": h}
-            for p, h in coverage["met"]
+            for p, h, *_ in coverage["met"]
         ]
         + [
             {"promise": p, "status": "unmet", "reason": r}
-            for p, r in coverage["unmet"]
+            for p, r, *_ in coverage["unmet"]
         ],
     }
 

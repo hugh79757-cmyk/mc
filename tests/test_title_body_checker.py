@@ -2,6 +2,7 @@
 
 from quality.title_body_checker import (
     TitleBodyResult,
+    _tokenize_for_match,
     check_section_coverage,
     extract_title_promises,
     validate_title_body,
@@ -147,3 +148,49 @@ class TestValidateTitleBody:
         result = validate_title_body("남양주 물의 정원", body)
         assert result.score == 1.0
         assert len(result.unmet_promises) == 0
+
+
+# ---------------------------------------------------------------------------
+# Body-text fallback
+# ---------------------------------------------------------------------------
+
+class TestBodyFallback:
+    def test_body_fallback_met(self):
+        """Promise not in headings but body discusses it → met via body_fallback."""
+        body = (
+            "## 개요\n"
+            "케이뱅크 황금캡슐은 매일 출금한도를 채워 넣으면 당첨 확률이 높아진다.\n\n"
+            "## 신청 방법\n"
+            "앱에서 케이뱅크 계좌를 개설한 뒤 황금캡슐 이벤트에 응모하면 된다.\n"
+        )
+        cov = check_section_coverage(body, ["케이뱅크 황금캡슐 이벤트란? 숨 혜택", "당첨 확률 높이 법"])
+        met_names = [p for p, *_ in cov["met"]]
+        assert "당첨 확률 높이 법" in met_names
+        assert len(cov["unmet"]) == 0
+
+    def test_body_fallback_still_unmet_when_absent(self):
+        """Promise not in headings and not in body → still unmet."""
+        body = (
+            "## 개요\n"
+            "케이뱅크 황금캡슐은 매일 출금한도를 채워 넣으면 당첨 확률이 높아진다.\n"
+        )
+        cov = check_section_coverage(body, ["해외 송금 수수료 비교"])
+        assert len(cov["unmet"]) == 1
+        assert "no matching section" in cov["unmet"][0][1]
+
+    def test_body_fallback_below_threshold(self):
+        """Promise partially in body (< 40% tokens) → still unmet."""
+        body = (
+            "## 개요\n"
+            "케이뱅크 황금캡슐은 매일 출금한도를 채워 넣으면 당첨 확률이 높아진다.\n"
+        )
+        cov = check_section_coverage(body, ["해외 송금 수수료 비교"])
+        assert len(cov["unmet"]) == 1
+
+    def test_tokenizer_basic(self):
+        """_tokenize_for_match splits Korean words, English words, numbers."""
+        tokens = _tokenize_for_match("케이뱅크 황금캡슐 Event 123")
+        assert "케이뱅크" in tokens
+        assert "황금캡슐" in tokens
+        assert "event" in tokens
+        assert "123" in tokens
