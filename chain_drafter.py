@@ -273,6 +273,14 @@ def draft_single_post(
     for i, tmpl in enumerate(raw_sections, 1):
         h2_lines.append(f"{i}. {tmpl.replace('{keyword}', seed_keyword)}")
     h2_guidelines = "\n".join(h2_lines)
+    # Hard constraint: require AI to include these exact section names in H2
+    h2_guidelines += (
+        "\n\n🔴 H2 제목 규칙 (위반 시 초안 폐기): "
+        "각 H2는 반드시 위 가이드라인의 섹션 이름을 원문 그대로 포함해야 합니다. "
+        "키워드를 앞에 붙여도 됩니다 (예: '제주 본태박물관 — 장소 개요'). "
+        "하지만 '장소 개요'를 '위치와 기본 정보'로, '교통/접근성'을 '교통편 안내'로 "
+        "다른 단어로 대체하면 안 됩니다. 가이드라인에 없는 H2 섹션을 추가하지 마세요."
+    )
 
     # ── 프롬프트 조립 ──
     from datetime import datetime

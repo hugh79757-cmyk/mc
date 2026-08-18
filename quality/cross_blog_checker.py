@@ -6,6 +6,7 @@ import re
 from itertools import combinations
 
 from quality._types import ContractSpec, DedupResult, RoleResult
+from quality.contract_loader import match_section
 
 
 def split_sentences(body_md: str) -> list[str]:
@@ -126,10 +127,11 @@ def check_role_elements(
         if line.startswith("## ") and not line.startswith("### "):
             headings.append(line[3:].strip())
 
-    # Check required sections
+    # Check required sections (fuzzy match)
     missing: list[str] = []
     for section in contract.required_sections:
-        if section not in headings:
+        matched, _method = match_section(section, headings)
+        if not matched:
             missing.append(section)
 
     # No extra sections check needed per plan (extra_sections always empty)

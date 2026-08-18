@@ -17,6 +17,76 @@ SUPPORTED_CATEGORIES = frozenset({
     "travel", "entertainment", "knowledge",
 })
 
+# Default threshold for fuzzy section matching
+DEFAULT_FUZZY_THRESHOLD = 0.5
+
+
+def match_section(
+    contract_section: str,
+    headings: list[str],
+    threshold: float = DEFAULT_FUZZY_THRESHOLD,
+) -> tuple[bool, str]:
+    """Match a contract section name against actual H2 headings.
+
+    Returns (matched: bool, method: str) where method is
+    "exact", "contains", "fuzzy", or "none".
+    """
+    # 1. Exact match
+    if contract_section in headings:
+        return True, "exact"
+
+    # 2. Contains match (either direction, case-insensitive)
+    cs_lower = contract_section.lower()
+    for h in headings:
+        h_lower = h.lower()
+        if cs_lower in h_lower or h_lower in cs_lower:
+            return True, "contains"
+
+    # 3. Normalized contains: normalize delimiters, then contains
+    cs_norm = re.sub(r'[/·,]', ' ', cs_lower).strip()
+    for h in headings:
+        h_norm = re.sub(r'[/·,]', ' ', h.lower()).strip()
+        if cs_norm in h_norm or h_norm in cs_norm:
+            return True, "contains"
+
+    # 4. Keyword overlap (tokenize + strip Korean particles)
+    cs_tokens = _fuzzy_tokens(cs_lower)
+    for h in headings:
+        h_tokens = _fuzzy_tokens(h.lower())
+        if not cs_tokens or not h_tokens:
+            continue
+        overlap = len(cs_tokens & h_tokens)
+        union = len(cs_tokens | h_tokens)
+        if union > 0 and overlap / union >= threshold:
+            return True, "fuzzy"
+
+    return False, "none"
+
+
+# Korean particles/suffixes to strip for fuzzy matching
+_PARTICLES = frozenset({
+    "와", "과", "의", "를", "을", "은", "는", "이", "가",
+    "로", "에", "도", "만", "부터", "까지", "와", "한", "된",
+    "와", "や", "と", "で", "の", "に", "も",
+})
+
+
+def _fuzzy_tokens(text: str) -> set[str]:
+    """Tokenize text, strip common Korean particles."""
+    raw = re.split(r'[\s/·,]+', text)
+    tokens = set()
+    for t in raw:
+        if len(t) <= 1:
+            continue
+        # Strip trailing particle
+        for p in sorted(_PARTICLES, key=len, reverse=True):
+            if t.endswith(p) and len(t) - len(p) >= 2:
+                t = t[: -len(p)]
+                break
+        if t:
+            tokens.add(t)
+    return tokens
+
 
 def load(blog_id: str, category: str | None = None) -> ContractSpec:
     """Load a ContractSpec from contracts/{blog_id}.yaml.
@@ -65,10 +135,11 @@ def validate_post(post_md: str, contract: ContractSpec) -> GateResult:
     """
     violations: list[str] = []
 
-    # --- required sections ---
+    # --- required sections (fuzzy match) ---
     headings = _extract_h2_headings(post_md)
     for section in contract.required_sections:
-        if section not in headings:
+        matched, method = match_section(section, headings)
+        if not matched:
             violations.append(f"Missing required section: '{section}'")
 
     # --- forbidden patterns ---
