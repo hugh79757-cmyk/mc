@@ -218,7 +218,7 @@ Status: Not Started
 ### Phase 43 — Pre-Publish Research Step
 Goal: derive 후 draft 전에 웹 리서치를 삽입하여 팩트시트 기반 글 생성
 Requirements: QG-04, QG-05
-Status: Not Started
+Status: ✅ Complete — quality/pre_researcher.py (Factsheet/Fact + NaverSearchClient + graceful degradation + prompt injection). 16 tests.
 
 ### Phase 44 — Factuality Filter
 Goal: 출처 없는 수치·후기·통계 문장을 발행 전 자동 차단

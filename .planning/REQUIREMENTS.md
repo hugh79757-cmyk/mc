@@ -140,8 +140,8 @@
 - QG-01: 각 블로그(rotcha/issue.techpawz/techpawz)별 산출물 계약이 YAML로 정의되어야 한다
 - QG-02: contract_loader가 YAML을 로드하고 필수 필드 누락 시 GateResult.FAIL을 반환해야 한다
 - QG-03: 제목의 핵심 약속 토픽이 본문 H2/H3 섹션에 구체적 정보와 함께 존재해야 한다
-- QG-04: derive→draft 사이에 웹 리서치가 실행되어 factsheet.json이 생성되어야 한다
-- QG-05: 본문의 수치·통계·후기 문장에 [출처: ...] 태그가 필수이며, 없으면 발행 차단
+- QG-04: derive→draft 사이에 웹 리서치가 실행되어 factsheet.json이 생성되어야 한다 ✅ Phase 43-01
+- QG-05: 본문의 수치·통계·후기 문장에 [출처: ...] 태그가 필수이며, 없으면 발행 차단 ✅ Phase 43-01 (inject_factsheet_to_prompt 구현, Phase 44에서 필터 게이트 구현)
 - QG-06: 금지 표현("최저가", "100%", "검증된") 포함 시 발행 차단
 - QG-07: 동일 chain 3편 간 문장 유사도 30% 이하
 - QG-08: 블로그별 역할 필수 섹션 존재 (rotcha=가이드코스, issue=비교표, techpawz=체크리스트)
@@ -153,4 +153,4 @@
 
 **Total:** 42 requirements (23 v1 + 11 v2/v3 + 8 Phase 14) — 41 validated, 1 deprecated, 0 unmapped
 **M2:** 13 requirements (CLONE 5 + INFRA 4 + CFG 5 + VERIFY 3) — 0 mapped yet, 0 unmapped ✓
-**M3:** 11 requirements (QG-01~QG-11) — 0 validated, 0 unmapped ✓
+**M3:** 11 requirements (QG-01~QG-11) — 2 validated (QG-04, QG-05), 0 unmapped ✓
