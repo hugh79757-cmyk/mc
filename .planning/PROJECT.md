@@ -109,7 +109,7 @@ The writing prompt is the user's existing SEO-optimized Hugo blog prompt with st
 
 ---
 
-*Last updated: 2026-08-18 — M3 (9점 품질 달성) 마일스톤 등록*
+*Last updated: 2026-08-18 — M3 (9점 품질 달성) GSD 정식 등록 (Requirements 40건)*
 
 ## Evolution
 
