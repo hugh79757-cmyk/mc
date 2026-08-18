@@ -39,6 +39,7 @@ See: .planning/PROJECT.md
 | **Quick 20260801 — 표 렌더링 깨짐 수정** | **✅ Complete** | **3개 사이트 표 9건 수정 + markdown_processor.fix_tables 신설 + prompts.yaml 3줄 구조 지시. 762 tests ✅. .planning/quick/20260801-broken-table-render/SUMMARY.md** |
 | **31 — 공공기관 라벨 제거 (공식 링크 동적 판정)** | **✅ Complete** | **_score_official()에서 AUTHORITY_GOVERNMENT 분기 + "공공기관" 하드코딩 제거. find_external_links() 2-pass→1-pass 단순화. 모든 도메인 동일 신호(키워드-도메인 일치, 제목 "공식", 순위)로 판정. 763 tests ✅** |
 | **43 — 사전 리서치 (pre_researcher)** | **✅ Complete** | **quality/pre_researcher.py: Factsheet/Fact 데이터클래스 + NaverSearchClient 재사용 리서치 + graceful degradation + 프롬프트 주입. 16 신규 테스트. 966 tests ✅** |
+| **44 — 사실성 검증 (factuality_checker)** | **✅ Complete** | **quality/factuality_checker.py: extract_claims(숫자/리뷰/통계 패턴) + check_forbidden + validate_factuality(점수 0.7 임계값). 21 신규 테스트. 1003 tests ✅** |
 | **45 — 크로스 블로그 중복 검증** | **✅ Complete** | **quality/cross_blog_checker.py: 3-gram Jaccard 유사도 + 역할 필수 요소 검증. 16 신규 테스트. 1000 tests ✅** |
 | **32 — 연도 오류 방지 시스템** | **✅ Complete** | **year_guard.py 유틸리티 + 3겹 방어 (입력단/생성단/출력단). 패턴 3종 + 사실날짜 보호. 22 단위 + 6 통합 = 28건 신규. 792 tests ✅** |
 | **33 — JSON 메타데이터 잔류 근본 수정** | **✅ Complete (2026-08-02 승인)** | **parse_ai_output() 중괄호 깊이 카운팅 파싱 분리 + _extract_clean_body 블록 단위 2차 방어 + 배포 검증 실패 상세 로깅. 커밋 59ed4dd. 851 tests ✅** |
