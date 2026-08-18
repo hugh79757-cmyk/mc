@@ -948,6 +948,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
                 "title": post.get("target_keyword", ""),
                 "body_md": post.get("draft_md", ""),
                 "html": "",  # not rendered yet; HTML check deferred to post-build
+                "category": post.get("category_guess", ""),
             }
 
         if gate_posts:

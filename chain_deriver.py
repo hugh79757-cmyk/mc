@@ -46,6 +46,8 @@ def derive_chain(seed: str, chain_type: str = None,
     5. DB 저장
     Returns: chain_id
     """
+    # Defensive normalization for direct callers that bypass the CLI.
+    seed = str(seed).strip()
     # ── 1. 키워드 분류 + 방향 결정 ──
     resolved_type = resolve_chain_type(seed, override=chain_type)
     category = classify_keyword(seed)

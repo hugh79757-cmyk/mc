@@ -152,6 +152,8 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
     Delegates to chain_publisher.run_chain() which handles:
       derive → draft → schema validation → image → publish → card injection.
     """
+    # Normalize user input before classification, DB persistence, and slug/identity checks.
+    keyword = str(keyword).strip()
     if not keyword or keyword.startswith("-"):
         logger.error(f"Invalid seed keyword: {keyword!r}; flags must follow 'run <keyword>'")
         return 2
@@ -462,6 +464,8 @@ def _run_background(keyword: str, args, logger: logging.Logger) -> int:
     stdout/stderr redirected to the daily log file.
     PID file: logs/mc-cli-<ts>.pid — deleted by subprocess on exit via atexit.
     """
+    # Keep detached child argv identical to foreground execution.
+    keyword = str(keyword).strip()
     import subprocess
     import sys
     from datetime import datetime as _dt
@@ -881,6 +885,10 @@ def main() -> int:
     status_parser.add_argument("--json", action="store_true", help="JSON 출력")
 
     args = parser.parse_args()
+
+    # Normalize once at the CLI boundary so every route receives the same seed.
+    if getattr(args, "keyword", None) is not None:
+        args.keyword = str(args.keyword).strip()
 
     # ── PID file cleanup on exit (for background subprocess) ───────
     if args.pid_file:
