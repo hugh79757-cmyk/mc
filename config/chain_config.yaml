@@ -201,4 +201,4 @@ term_corrections:
   "영덕시 포트리조트": "영덕 시포트리조트"
   "영덕시포트리조트": "영덕 시포트리조트"
 
-db_path: /Users/twinssn/Projects/5000/data/mc_chains.db
+db_path: data/mc_chains.db
