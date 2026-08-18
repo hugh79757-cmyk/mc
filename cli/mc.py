@@ -204,6 +204,7 @@ def _run_full(keyword: str, args, logger: logging.Logger) -> int:
         publish_mode=publish_mode,
         blog_overrides=blog_overrides,
         use_context=use_context,
+        force=getattr(args, 'force', False),
     )
 
     elapsed = (datetime.now() - start).total_seconds()
@@ -817,7 +818,11 @@ def main() -> int:
 
     # Execution mode
     main_parser.add_argument("--background", action="store_true",
-                            help="Run in background (detached process)")
+                             help="Run in background (detached process)")
+
+    # Quality gate override
+    main_parser.add_argument("--force", action="store_true",
+                             help="Force publish even if quality gate returns review")
 
     # ── Queue command ─────────────────────────────────────────────
     queue_parser = subparsers.add_parser("queue", help="키워드 큐 관리")

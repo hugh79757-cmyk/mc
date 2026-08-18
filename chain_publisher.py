@@ -878,7 +878,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
               image_only: bool = False, chain_type: str = None,
               publish_mode: str = None, blog_overrides: dict = None,
               theme_override: str = None, cf_project_override: str = None,
-              use_context: bool = True) -> int:
+              use_context: bool = True, force: bool = False) -> int:
     config = load_config()
     chain_id = derive_chain(seed, chain_type=chain_type)
     if not chain_id:
@@ -935,6 +935,39 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
     generate_chain_images(chain_id)
     if image_only:
         return chain_id
+
+    # ── Quality gate (Phase 47) ──────────────────────────────────
+    if publish_mode:
+        from quality.gate import run_all_checks, GateVerdict
+        step_labels = {1: "rotcha", 2: "issue.techpawz", 3: "techpawz"}
+        gate_posts = {}
+        for post in db.get_chain_posts(chain_id):
+            step = post.get("step", 0)
+            blog_id = step_labels.get(step, f"step{step}")
+            gate_posts[blog_id] = {
+                "title": post.get("target_keyword", ""),
+                "body_md": post.get("draft_md", ""),
+                "html": "",  # not rendered yet; HTML check deferred to post-build
+            }
+
+        if gate_posts:
+            verdict = run_all_checks(str(chain_id), gate_posts)
+            print(f"\n[mc] Quality gate: {verdict.action} (score={verdict.total_score})")
+            if verdict.violations:
+                for blog_id, viols in verdict.violations.items():
+                    for v in viols:
+                        print(f"  [{blog_id}] {v}")
+
+            if verdict.action == "reject":
+                print(f"[mc] Quality gate REJECTED (score {verdict.total_score} < 7.0)")
+                print("[mc] Publish aborted. Fix violations and retry.")
+                return None
+            elif verdict.action == "review" and not force:
+                print(f"[mc] Quality gate REVIEW (score {verdict.total_score} 7.0~8.9)")
+                print("[mc] 수동 승인 필요. --force 로 강제 발행하거나 위반 사항을 수정하세요.")
+                return None
+            elif verdict.action == "review" and force:
+                print(f"[mc] Quality gate REVIEW but --force enabled, proceeding")
 
     if publish_mode:
         published_ok = publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides,
