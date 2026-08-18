@@ -11,14 +11,38 @@ from quality._types import ContractSpec, GateResult
 
 _CONTRACTS_DIR = Path(__file__).resolve().parent.parent / "contracts"
 
+SUPPORTED_CATEGORIES = frozenset({
+    "product", "customer_service", "gov_finance",
+    "shopping_brand", "golf_course", "medicine",
+    "travel", "entertainment", "knowledge",
+})
 
-def load(blog_id: str) -> ContractSpec:
-    """Load a ContractSpec from contracts/{blog_id}.yaml."""
+
+def load(blog_id: str, category: str | None = None) -> ContractSpec:
+    """Load a ContractSpec from contracts/{blog_id}.yaml.
+
+    If required_sections is a dict (category-keyed), select by *category*.
+    Falls back to GateResult.FAIL if category is None or unsupported.
+    If required_sections is a plain list, use it as-is (backward compat).
+    """
     path = _CONTRACTS_DIR / f"{blog_id}.yaml"
     if not path.exists():
         raise FileNotFoundError(f"No contract for blog '{blog_id}': {path}")
     data = yaml.safe_load(path.read_text())
+
+    required = data.get("required_sections", [])
+    if isinstance(required, dict):
+        if not category or category not in required:
+            data["required_sections"] = []  # empty → validate_post will fail
+        else:
+            data["required_sections"] = required[category]
+
     return ContractSpec(blog_id=blog_id, **data)
+
+
+def is_category_supported(category: str | None) -> bool:
+    """Return True if category has contract support."""
+    return category in SUPPORTED_CATEGORIES
 
 
 def _extract_h2_headings(post_md: str) -> list[str]:

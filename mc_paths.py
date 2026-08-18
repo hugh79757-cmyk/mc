@@ -7,10 +7,14 @@ mc — 경로 해석 및 5000 import 지원 (Phase 2)
   3. config/*.yaml → 파이썬 dict 로 로드
 """
 
+import json
+import logging
 import os
 import sys
 import yaml
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 # ── 프로젝트 루트 ──
 MC_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -95,27 +99,117 @@ def get_chain_direction_role(chain_type: str, step: int) -> str:
     return roles.get(step, f"Step {step}")
 
 
-def classify_keyword(keyword: str) -> str:
-    """
-    시드 키워드 성격 자동 분류.
-    prompts.yaml의 keyword_categories 패턴을 config에서 자동으로 읽어 판별.
-    새 카테고리는 prompts.yaml에 추가만 하면 자동 인식됨 (코드 수정 불필요).
-    Returns: keyword_categories의 키 중 하나, 또는 "etc".
-    """
+# ── LLM 분류기 ──────────────────────────────────────────────────────────
+
+_CATEGORY_CACHE_PATH = os.path.join(PROJECT_ROOT, "data", "category_cache.json")
+
+# LLM 분류 프롬프트 — 9개 지원 카테고리 + 4개 보류
+_CLASSIFY_SYSTEM = """아래 키워드의 블로그 글 카테고리를 하나만 선택하시오.
+
+카테고리 목록과 판단 기준:
+- travel: 장소 방문, 여행지, 축제, 팝업스토어, 박물관, 공원, 맛집, 카페, 동물원, 식물원, 분수대, 공원 산책
+- entertainment: 영화, 드라마, 애니메이션, 게임, 웹툰, 소설, 결말, 줄거리, 리뷰, 만화, 애니 캐릭터
+- knowledge: 용어 뜻풀이, 인물 정보, 역사, 교양, 상식, 시사 이슈, 동물/곤충 정보, 시기/발달, 식단/이유식
+- product: 제품 구매, 가전, 생활용품, IT기기, 캠핑장비, 비교, 추천, 한정판/에디션 제품
+- medicine: 의약품, 건강기능식품, 증상, 효능, 부작용, 복용법
+- customer_service: 고객센터, AS센터, 전화번호, 문의 방법
+- gov_finance: 정부지원, 보험, 연금, 실업급여, 보조금, 신청방법
+- shopping_brand: 쇼핑몰, 브랜드, 할인, 세일, 기획전, 멤버십
+- golf_course: 골프장, 그린피, 예약, 코스 정보
+
+판단이 어려우면 가장 가까운 카테고리를 선택하시오.
+반드시 위 카테고리 중 하나만 답하시오. 카테고리명만 출력하시오."""
+
+# 지원 카테고리 (계약서 존재 + 분류 가능)
+LLM_SUPPORTED_CATEGORIES = frozenset({
+    "travel", "entertainment", "knowledge",
+    "product", "customer_service", "gov_finance",
+    "shopping_brand", "golf_course", "medicine",
+})
+
+# 보류 카테고리 → reject
+_REJECTED_CATEGORIES = frozenset({
+    "real_estate", "automotive", "stock", "etc",
+})
+
+
+def _load_category_cache() -> Dict[str, str]:
+    """파일 기반 캐시 로드. 없으면 빈 dict."""
+    try:
+        with open(_CATEGORY_CACHE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (FileNotFoundError, OSError, ValueError):
+        return {}
+
+
+def _save_category_cache(cache: Dict[str, str]) -> None:
+    """캐시를 파일에 저장."""
+    try:
+        os.makedirs(os.path.dirname(_CATEGORY_CACHE_PATH), exist_ok=True)
+        tmp = _CATEGORY_CACHE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, _CATEGORY_CACHE_PATH)
+    except OSError as exc:
+        logger.warning("[classify] 캐시 저장 실패: %s", exc)
+
+
+def _classify_with_llm(keyword: str) -> Optional[str]:
+    """LLM으로 키워드 분류. Gemini API 직접 호출. 429 시 1회 재시도."""
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        logger.warning("[classify] GEMINI_API_KEY 없음 — LLM 분류 불가")
+        return None
+
+    import time
+    import urllib.request
+    import urllib.error
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-flash-lite-latest:generateContent"
+        f"?key={api_key}"
+    )
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": f"{_CLASSIFY_SYSTEM}\n\n키워드: {keyword}"}]}],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 20},
+    }).encode("utf-8")
+
+    for attempt in range(2):  # max 2 attempts (original + 1 retry)
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            text = data["candidates"][0]["content"]["parts"][0]["text"].strip().lower()
+            if text in LLM_SUPPORTED_CATEGORIES:
+                return text
+            logger.warning("[classify] LLM이 지원되지 않는 카테고리 반환: %s", text)
+            return None
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt == 0:
+                time.sleep(2.0)  # 2초 대기 후 재시도
+                continue
+            logger.warning("[classify] LLM 호출 실패: %s", exc)
+            return None
+        except Exception as exc:
+            logger.warning("[classify] LLM 호출 실패: %s", exc)
+            return None
+    return None
+
+
+def _classify_with_regex(keyword: str) -> str:
+    """기존 정규식 분류 (fallback)."""
     import re
 
     kw = keyword.lower()
 
-    # 후처리: ~주가 키워드는 pattern 매칭보다 우선 stock
     if kw.endswith("주가"):
         return "stock"
 
     prompts = load_prompts()
     categories = prompts.get("keyword_categories", {})
 
-    # etc는 항상 마지막 fallback. 나머지는 priority 오름차순(작을수록 먼저) 순회.
-    # priority 미지정 시 기본 100. 동점이면 config 정의 순서 유지(안정 정렬).
-    # → 강한 신호(예: golf_course의 CC)가 약한 부수 신호(travel 지역명)보다 우선.
     cat_names = [c for c in categories.keys() if c != "etc"]
     cat_names.sort(key=lambda c: (categories.get(c, {}) or {}).get("priority", 100))
 
@@ -123,11 +217,43 @@ def classify_keyword(keyword: str) -> str:
         cat_config = categories.get(cat_name, {}) or {}
         patterns = cat_config.get("patterns", []) or []
         for pat in patterns:
-            # 소문자 kw(한글·일반)와 원본 keyword(대문자 약어 CC 등) 모두 검사
             if re.search(pat, kw) or re.search(pat, keyword):
                 return cat_name
 
     return _postprocess_stock_priority(kw, "etc")
+
+
+def classify_keyword(keyword: str, *, use_llm: bool = True, use_cache: bool = True) -> str:
+    """
+    시드 키워드 성격 자동 분류.
+
+    1순위: 파일 기반 캐시 (같은 키워드 재분류 방지)
+    2순위: LLM 분류 (gemini-flash-lite, 가장 저렴)
+    3순위: 기존 정규식 패턴 매칭 (fallback)
+
+    Returns: 지원 카테고리 중 하나, 또는 "etc" (보류/미분류).
+    """
+    # ~주가 키워드는 즉시 stock (LLM 불필요)
+    if keyword.lower().endswith("주가"):
+        return "stock"
+
+    # 1. 캐시 확인 (LLM 호출 불필요)
+    if use_cache:
+        cache = _load_category_cache()
+        if keyword in cache:
+            return cache[keyword]
+
+    # 2. LLM 분류 (use_llm=True일 때만)
+    if use_llm:
+        llm_result = _classify_with_llm(keyword)
+        if llm_result:
+            if use_cache:
+                cache[keyword] = llm_result
+                _save_category_cache(cache)
+            return llm_result
+
+    # 3. 정규식 fallback
+    return _classify_with_regex(keyword)
 
 
 def _postprocess_stock_priority(keyword: str, category: str) -> str:

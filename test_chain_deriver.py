@@ -6,116 +6,116 @@ import pytest
 
 
 class TestClassifyKeyword:
-    """키워드 성격 분류 테스트 - mc_paths.classify_keyword."""
+    """키워드 성격 분류 테스트 - mc_paths.classify_keyword (regex fallback)."""
 
     def test_tech_keyword_returns_etc(self):
         """기술 키워드 → etc (keyword_categories에 해당하는 IT 패턴 없으면 fallback)."""
         from mc_paths import classify_keyword
 
-        result = classify_keyword("Python 프로그래밍")
+        result = classify_keyword("Python 프로그래밍", use_llm=False, use_cache=False)
         assert result == "etc"
 
     def test_shopping_keyword_returns_product(self):
         """쇼핑 키워드(아이폰) → product (Phase 28: product 카테고리 추가)."""
         from mc_paths import classify_keyword
 
-        result = classify_keyword("아이폰 15 구매")
+        result = classify_keyword("아이폰 15 구매", use_llm=False, use_cache=False)
         assert result == "product"
 
     def test_travel_keyword_returns_travel(self):
         """여행 키워드 → travel."""
         from mc_paths import classify_keyword
 
-        result = classify_keyword("제주도 여행 코스")
+        result = classify_keyword("제주도 여행 코스", use_llm=False, use_cache=False)
         assert result == "travel"
 
     def test_issue_keyword_returns_etc(self):
         """이슈/시사 키워드 → etc (keyword_categories에 issue 없음)."""
         from mc_paths import classify_keyword
 
-        result = classify_keyword("기후 변화 대응 정책")
+        result = classify_keyword("기후 변화 대응 정책", use_llm=False, use_cache=False)
         assert result == "etc"
 
     def test_unknown_keyword_returns_etc(self):
         """매핑 없는 키워드 → etc."""
         from mc_paths import classify_keyword
 
-        result = classify_keyword("알 수 없는 키워드 zyx123")
+        result = classify_keyword("알 수 없는 키워드 zyx123", use_llm=False, use_cache=False)
         assert result == "etc"
 
     def test_stock_suffix_gaja_forces_stock(self):
         """~주가 키워드는 후처리로 stock 우선."""
         from mc_paths import classify_keyword
 
-        assert classify_keyword("삼성전자주가") == "stock"
-        assert classify_keyword("제주항공주가") == "stock"
+        assert classify_keyword("삼성전자주가", use_llm=False, use_cache=False) == "stock"
+        assert classify_keyword("제주항공주가", use_llm=False, use_cache=False) == "stock"
 
     def test_travel_waterpark_expansion(self):
         """워터파크/온천 등 신규 P1 패턴."""
         from mc_paths import classify_keyword
 
-        assert classify_keyword("서울 워터파크") == "travel"
-        assert classify_keyword("강릉 온천") == "travel"
-        assert classify_keyword("해수욕장 펜션") == "travel"
+        assert classify_keyword("서울 워터파크", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("강릉 온천", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("해수욕장 펜션", use_llm=False, use_cache=False) == "travel"
 
     def test_travel_location_expansion(self):
         """신규 지명 P2 패턴."""
         from mc_paths import classify_keyword
 
-        assert classify_keyword("춘천 여행") == "travel"
-        assert classify_keyword("담양 숙소") == "travel"
-        assert classify_keyword("영덕파나크") == "travel"
+        assert classify_keyword("춘천 여행", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("담양 숙소", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("영덕파나크", use_llm=False, use_cache=False) == "travel"
 
     def test_travel_resort_brand_expansion(self):
         """리조트 브랜드 P3 패턴."""
         from mc_paths import classify_keyword
 
-        assert classify_keyword("소노문해운대") == "travel"
-        assert classify_keyword("한화리조트") == "travel"
-        assert classify_keyword("신라스테이") == "travel"
+        assert classify_keyword("소노문해운대", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("한화리조트", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("신라스테이", use_llm=False, use_cache=False) == "travel"
 
     def test_stock_pattern_gaja_added(self):
         """주가 stock 패턴 추가."""
         from mc_paths import classify_keyword
 
-        assert classify_keyword("삼성전자 주가") == "stock"
-        assert classify_keyword("NAVER 주가") == "stock"
+        assert classify_keyword("삼성전자 주가", use_llm=False, use_cache=False) == "stock"
+        assert classify_keyword("NAVER 주가", use_llm=False, use_cache=False) == "stock"
 
     def test_classification_order_and_postprocess(self):
         """travel→stock→real_estate→automotive→etc 순서 + ~주가 후처리."""
         from mc_paths import classify_keyword
 
-        assert classify_keyword("ETF 투자") == "stock"
-        assert classify_keyword("제주항공주가") == "stock"
-        assert classify_keyword("소노벨 리조트") == "travel"
+        assert classify_keyword("ETF 투자", use_llm=False, use_cache=False) == "stock"
+        assert classify_keyword("제주항공주가", use_llm=False, use_cache=False) == "stock"
+        assert classify_keyword("소노벨 리조트", use_llm=False, use_cache=False) == "travel"
 
     def test_spa_context_pattern_excludes_spiderman(self):
         """스파$ 패턴: 정상 스파는 travel, 스파이더맨은 etc."""
         from mc_paths import classify_keyword
 
-        assert classify_keyword("제주오레브스파") == "travel"
-        assert classify_keyword("스파이더맨") == "etc"
-        assert classify_keyword("스파이더맨노웨이홈") == "etc"
-        assert classify_keyword("인스파이어뷔페") == "etc"
+        assert classify_keyword("제주오레브스파", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("스파이더맨", use_llm=False, use_cache=False) == "etc"
+        assert classify_keyword("스파이더맨노웨이홈", use_llm=False, use_cache=False) == "etc"
+        assert classify_keyword("인스파이어뷔페", use_llm=False, use_cache=False) == "etc"
 
     def test_city_context_requirements(self):
         """도시명은 travel 접미사와 결합할 때만 travel."""
         from mc_paths import classify_keyword
 
         # false positives → etc
-        assert classify_keyword("광주베이비페어") == "etc"
-        assert classify_keyword("울산날씨") == "etc"
-        assert classify_keyword("청주SK뷰자이") == "etc"
-        assert classify_keyword("청주동일하이빌2차") == "etc"
+        assert classify_keyword("광주베이비페어", use_llm=False, use_cache=False) == "etc"
+        assert classify_keyword("울산날씨", use_llm=False, use_cache=False) == "etc"
+        assert classify_keyword("청주SK뷰자이", use_llm=False, use_cache=False) == "etc"
+        assert classify_keyword("청주동일하이빌2차", use_llm=False, use_cache=False) == "etc"
         # valid prefix compounds → travel
-        assert classify_keyword("광주호텔") == "travel"
-        assert classify_keyword("울산펜션") == "travel"
-        assert classify_keyword("청주리조트") == "travel"
+        assert classify_keyword("광주호텔", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("울산펜션", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("청주리조트", use_llm=False, use_cache=False) == "travel"
         # valid brand+suffix compound → travel
-        assert classify_keyword("홀리데이인광주") == "travel"
+        assert classify_keyword("홀리데이인광주", use_llm=False, use_cache=False) == "travel"
         # strong destination city alone → travel
-        assert classify_keyword("제주") == "travel"
-        assert classify_keyword("부산") == "travel"
+        assert classify_keyword("제주", use_llm=False, use_cache=False) == "travel"
+        assert classify_keyword("부산", use_llm=False, use_cache=False) == "travel"
 
 
 class TestResolveChainType:
@@ -386,6 +386,10 @@ class TestDeriveLateralCategoryDispatch:
         ("ETF 투자", "stock"),
         ("아이폰 17", "product"),
     ])
+    @patch("chain_deriver.classify_keyword", side_effect=lambda kw, **kw_args: {
+        "하이바이풀빌라": "travel", "아파트 분양": "real_estate",
+        "전기차 추천": "automotive", "ETF 투자": "stock", "아이폰 17": "product",
+    }[kw] if isinstance(kw, str) else "etc")
     @patch("chain_deriver.generate")
     @patch("chain_deriver.load_config")
     @patch("chain_deriver.load_prompts")
@@ -398,6 +402,7 @@ class TestDeriveLateralCategoryDispatch:
         mock_load_prompts,
         mock_load_config,
         mock_generate,
+        mock_classify,
         sample_chain_config,
         sample_prompts,
         keyword,
