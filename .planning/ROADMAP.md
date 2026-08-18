@@ -197,3 +197,84 @@
 | e2e dry-run 3종 통과 | ○ | e2e_derive_dryrun / e2e_draft_only / e2e_publish_dryrun |
 | pytest green 유지 | ○ | 기존 851건 + 신규 테스트 |
 | DoD 체크리스트 | ○ | 실발행은 미포함 (별도 승인 게이트) |
+
+---
+
+# 새 마일스톤: 9점 품질 달성을 위한 파이프라인 개선 (M3)
+
+**등록:** 2026-08-18
+**근거:** 최근 발행 블로그 품질 점수 5.8~7.2점. 테라 토마토 맥주 수동 개선으로 9/10 달성 확인 (triage 20260817). 자동화 파이프라인에 품질 게이트를 통합해 일관되게9점 달성 목표.
+**선행 조건:** M2(Phase 37-40) 완료.
+**종료 상태 (DoD):** 모든 Phase41-47 완료 +pytest green + 최소1개 키워드로 e2e 품질 점수9.0+ 달성.
+
+## Phase 41: 산출물 계약서 정의 (Output Contract)
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| contracts/ 디렉토리 생성 | ○ | |
+| contracts/rotcha.yaml 정의 | ○ | rotcha 사이트별 필수 섹션·금지 섹션·제목 패턴 |
+| contracts/issue_techpawz.yaml 정의 | ○ | issue.techpawz 역할(비교/검증) 반영 |
+| contracts/techpawz.yaml 정의 | ○ | techpawz 역할(구매/실전) 반영 |
+| contract_loader.py — YAML 로드 + 검증 | ○ | config/schema.yaml 관례 준수 |
+| quality_gate.py — 계약 기반 검증 엔진 | ○ | publish 전 계약 충족 여부 판정 |
+| pytest 통합 | ○ | 계약 로드·검증 테스트 |
+
+## Phase 42: 제목-본문 정합성 검증
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| title_body_checker.py 생성 | ○ | 한글标题 일관성 + 키워드 출현 패턴 검증 |
+| 제목-본문 키워드 매칭 규칙 | ○ | 제목 키워드가 본문에 최소 N회 출현 |
+| 게이트 통합 | ○ | quality_gate.py에 제목 검증 추가 |
+| pytest | ○ | 제목-본문 검증 테스트 |
+
+## Phase 43: 사실 기반 필터 (Factuality Filter)
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| factuality_checker.py 생성 | ○ | source_tag 강제 + factuality 스코어 산출 |
+| source_tag 필수 규칙 | ○ | 인용·수치·사실 주장에 출처 명시 강제 |
+| _strip_prompt_leak() 연동 | ○ | 기존 릭 방어 패턴과 통합 |
+| 게이트 통합 | ○ | quality_gate.py에 사실성 검증 추가 |
+| pytest | ○ | 사실성 필터 테스트 |
+
+## Phase 44: 블로그 간 중복 해소 + 역할 분리
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| cross_blog_checker.py 생성 | ○ | 동일 키워드 체인 내 블로그 간 중복 탐지 |
+| 역할 분리 강제 규칙 | ○ | rotcha(정보) / issue(비교) / techpawz(실전) 구분 검증 |
+| 콘텐츠 유사도 기반 중복 탐지 | ○ | TF-IDF 또는 키워드 오버랩 기준 |
+| 게이트 통합 | ○ | quality_gate.py에 중복 검증 추가 |
+| pytest | ○ | 중복 해소 테스트 |
+
+## Phase 45: HTML 렌더링 중복 검사
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| html_render_checker.py 생성 | ○ | 렌더링 후 HTML에서 중복 문단·이미지·카드 탐지 |
+| 카드/CTA 렌더링 검증 | ○ | chain-card shortcode 정상 렌더링 + 중복 제거 |
+| 기존 audit_format.py 연동 | ○ | Phase29 검증 항목과 통합 |
+| 게이트 통합 | ○ | quality_gate.py에 렌더링 검증 추가 |
+| pytest | ○ | 렌더링 중복 테스트 |
+
+## Phase 46: 발행 전 사전 리서치 단계 삽입
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| pre_publish_researcher.py 생성 | ○ | Naver API + GPT 요약 기반 사전 리서치 |
+| search_retriever 재사용 | ○ | 기존 Naver API 인프라 활용 |
+| 리서치 결과 → 프롬프트 주입 | ○ | facts·수치·출처를 drafting 프롬프트에 주입 |
+| derive 단계와의 통합 | ○ | derive 후, draft 전 리서치 실행 |
+| pytest | ○ | 리서치 단계 테스트 |
+
+## Phase 47: 썸네일 검증 +9점 스코어링 시스템
+
+| 작업 | 상태 | 비고 |
+|------|------|------|
+| thumbnail_checker.py 생성 | ○ | 썸네일 존재·크기·품질 검증 |
+| quality_scorer.py 생성 | ○ | 가중합 점수 산출 (계약40% + 사실성25% + 역할20% + 시각15%) |
+| 점수 기준 설정 | ○ | 7.0미만 = 재생성, 9.0+ = 자동 승인 |
+| 기존 image 파이프라인 연동 | ○ | image/ 모듈과 통합 |
+| 게이트 통합 | ○ | quality_gate.py에 스코어링 추가 |
+| pytest + e2e 검증 | ○ | 최소1개 키워드로9점 달성 확인 |

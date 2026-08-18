@@ -37,6 +37,15 @@ One random keyword → 3 interconnected blog posts on 3 different domains, each 
   - **CFG-M2-01~05**: chain_config sites/chain_blogs/chain_blog_mapping 교체 + 카드 색상 파랑
   - **VERIFY-M2-01~03**: e2e dry-run 3종 + pytest green + DoD 체크리스트
 
+- **M3 Active (Phase 41-47) — 9점 품질 달성을 위한 파이프라인 개선** (M2 완료 후 착수):
+  - **M3-QC-01~03**: 산출물 계약서 YAML 정의 + 계약서 로더 + 검증 엔진 (Phase 41)
+  - **M3-QC-04~06**: 제목-본문 정합성 검증 — 한글标题 일관성 + 키워드 출현 패턴 + 검증 게이트 (Phase 42)
+  - **M3-QC-07~08**: 사실 기반 필터 — source_tag 강제 + factuality 스코어 (Phase 43)
+  - **M3-QC-09~10**: 블로그 간 중복 해소 + 역할 분리 강제 (Phase 44)
+  - **M3-QC-11~12**: HTML 렌더링 중복 검사 + 카드/CTA 렌더링 검증 (Phase 45)
+  - **M3-QC-13~14**: 발행 전 사전 리서치 단계 삽입 (Phase 46)
+  - **M3-QC-15~16**: 썸네일 검증 +9점 스코어링 시스템 (Phase 47)
+
 ### Out of Scope
 
 - Multi-chain parallel execution — one chain at a time
@@ -93,10 +102,14 @@ The writing prompt is the user's existing SEO-optimized Hugo blog prompt with st
 | 정보가 3-블로그 체인 독립 레포 복제 (M2, 2026-08-02) | 3-체인 형식을 정보가 계열에서도 운영. 조사에서 DB/shared/R2 분리 지점 확정 | — Pending (Phase 37~40) |
 | shared 의존성 vendoring (M2) | ai_writer.py + env_loader.py + models.yaml 복사, PATH_5000 제거 — 독립 레포 취지 | — Pending |
 | 정보가 카드 색상 = 체인 카드만 파랑 (M2) | shortcode #2563eb 신규, html_renderer.py external 카드 구조 유지 | — Pending |
+| M3 품질 계약서 = YAML per blog (Phase 41) | site×step별 필수 섹션·금지 섹션·제목 패턴·출처 규칙을 YAML로 정의. JSON-Schema 대신 관대한 YAML 선택 (config/schema.yaml 관례 준수) | — Pending |
+| M3 source_tag 강제 (Phase 43) | AI 생성 콘텐츠에 출처 명시 강제. "확인된 사실"↔"AI 추론" 구분. 기존 _strip_prompt_leak() 패턴 활용 | — Pending |
+| M3 사전 리서치 = Naver API + GPT 요약 (Phase 46) | 기존 search_retriever(Naver API) 재사용 + GPT 요약. 발행 전 사실 기반 데이터 수집 → 프롬프트 주입 | — Pending |
+| M3 품질 점수 = 가중합 (Phase 47) | 계약 충족(40%) + 사실성(25%) + 역할 분리(20%) + 시각 품질(15%). 기준: 7.0미만 = 재생성, 9.0+ = 자동 승인 | — Pending |
 
 ---
 
-*Last updated: 2026-08-02 — M2 (정보가 3-블로그 체인 복제) 마일스톤 등록*
+*Last updated: 2026-08-18 — M3 (9점 품질 달성) 마일스톤 등록*
 
 ## Evolution
 
