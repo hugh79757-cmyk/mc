@@ -35,6 +35,8 @@ HUGO_R2_DOMAINS = {
     "biz.techpawz": ("images/biz-techpawz", "https://img.aikorea24.kr"),
     "kuta": ("images/kuta", "https://img-kuta.informationhot.kr"),
     "techpawz-hugo": ("images/techpawz", "https://img.techpawz.com"),
+    "5.informationhot": ("images/5_informationhot", "https://img-5.informationhot.kr"),
+    "informationhot": ("images/informationhot", "https://img-informationhot.kr"),
 }
 
 # 사이트별 R2 버킷 매핑 (기본: hotissue-images, 분기 대상만 명시)
