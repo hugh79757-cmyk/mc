@@ -110,17 +110,17 @@ class TestCheckRoleElements:
 
     def test_role_check_rotcha_pass(self):
         """Rotcha with all required sections should pass."""
-        contract = load("rotcha")
-        body = """## 개요
+        contract = load("rotcha", category="product")
+        body = """## 제품 개요
 남양주 물의 정원 소개
 
-## 코스/일정
+## 핵심 특징/스펙
 방문 코스 안내
 
-## 교통/접근성
+## 사용법/활용법
 교통편 안내
 
-## 입장료/운영시간
+## 구매 참고사항
 운영시간 안내
 """
         result = check_role_elements("rotcha", body, contract)
@@ -129,42 +129,42 @@ class TestCheckRoleElements:
 
     def test_role_check_rotcha_missing(self):
         """Rotcha missing sections should fail."""
-        contract = load("rotcha")
-        body = """## 개요
+        contract = load("rotcha", category="product")
+        body = """## 제품 개요
 남양주 물의 정원 소개
 """
         result = check_role_elements("rotcha", body, contract)
         assert result.passed is False
-        assert "코스/일정" in result.missing_sections
-        assert "교통/접근성" in result.missing_sections
-        assert "입장료/운영시간" in result.missing_sections
+        assert "핵심 특징/스펙" in result.missing_sections
+        assert "사용법/활용법" in result.missing_sections
+        assert "구매 참고사항" in result.missing_sections
 
     def test_role_check_issue_missing_comparison(self):
         """Issue without comparison table should have it in missing."""
-        contract = load("issue_techpawz")
-        body = """## 비교 대상
+        contract = load("issue_techpawz", category="product")
+        body = """## 비교 대상 제품
 제품 A와 B
 
-## 비교 기준
+## 스펙 비교
 성능과 가격
 
-## 결론
+## 추천 결론
 최고의 제품은 A입니다.
 """
         result = check_role_elements("issue_techpawz", body, contract)
         assert result.passed is False
-        assert "비교표" in result.missing_sections
+        assert "가격대 비교" in result.missing_sections
 
     def test_role_check_techpawz_pass(self):
         """Techpawz with all required sections should pass."""
-        contract = load("techpawz")
-        body = """## 체크리스트
+        contract = load("techpawz", category="product")
+        body = """## 구매 체크리스트
 방문 전 확인사항
 
-## 가격/재고
+## 가격/구매처
 가격 정보
 
-## 예약/구매방법
+## 사용법/관리법
 구매 방법
 
 ## 주의사항
@@ -176,19 +176,19 @@ class TestCheckRoleElements:
 
     def test_role_check_issue_pass(self):
         """Issue with all required sections should pass."""
-        contract = load("issue_techpawz")
-        body = """## 비교 대상
+        contract = load("issue_techpawz", category="product")
+        body = """## 비교 대상 제품
 제품 A와 B
 
-## 비교 기준
+## 스펙 비교
 성능과 가격
 
-## 비교표
+## 가격대 비교
 | 항목 | A | B |
 |------|---|---|
 | 가격 | 1만원 | 2만원 |
 
-## 결론
+## 추천 결론
 최고의 제품은 A입니다.
 """
         result = check_role_elements("issue_techpawz", body, contract)
