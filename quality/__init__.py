@@ -1,1 +1,1 @@
-from quality._types import ContractSpec
+from quality._types import ContractSpec, GateResult
