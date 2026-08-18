@@ -313,12 +313,12 @@ def _resume_chain(chain_id: int, site_override: str | None, logger: logging.Logg
     if all_done:
         db.update_chain_status(chain_id, "completed")
         logger.info(f"Chain #{chain_id} fully completed via resume")
+        return 0
     else:
         still_missing = [p["id"] for p in final_posts if not p.get("published_url")]
-        logger.warning(f"Chain #{chain_id} resume finished but {len(still_missing)} posts still unpublished: {still_missing}")
-
-    logger.info(f"Resume complete for chain #{chain_id}")
-    return 0
+        db.update_chain_status(chain_id, "failed")
+        logger.error(f"Chain #{chain_id} resume failed: {len(still_missing)} posts still unpublished: {still_missing}")
+        return 1
 
 
 def _draft_existing(chain_id: int, logger: logging.Logger) -> int:

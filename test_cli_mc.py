@@ -356,12 +356,19 @@ class TestResumeChain(unittest.TestCase):
 
         mock_get_chain.return_value = {"id": 66, "seed": "테스트", "status": "image_generated"}
 
-        # Posts have draft_md and image_url but no published_url
-        mock_get_posts.return_value = [
-            {"id": 1, "draft_md": "content", "image_url": "/img1.jpg", "published_url": None},
-            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": None},
-            {"id": 3, "draft_md": "content", "image_url": "/img3.jpg", "published_url": None},
+        # Posts have draft_md and image_url but no published_url (before publish)
+        posts_before = [
+            {"id": 1, "draft_md": "content", "image_url": "/img1.jpg", "published_url": None, "step": 1},
+            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": None, "step": 2},
+            {"id": 3, "draft_md": "content", "image_url": "/img3.jpg", "published_url": None, "step": 3},
         ]
+        # After publish_chain, posts have published_url
+        posts_after = [
+            {"id": 1, "draft_md": "content", "image_url": "/img1.jpg", "published_url": "https://rotcha.kr/s1/", "step": 1},
+            {"id": 2, "draft_md": "content", "image_url": "/img2.jpg", "published_url": "https://issue.techpawz.kr/s2/", "step": 2},
+            {"id": 3, "draft_md": "content", "image_url": "/img3.jpg", "published_url": "https://techpawz.kr/s3/", "step": 3},
+        ]
+        mock_get_posts.side_effect = [posts_before, posts_after, posts_after]
 
         logger = _setup_logging()
         result = _resume_chain(66, None, logger)

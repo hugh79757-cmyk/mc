@@ -413,7 +413,15 @@ def _validate_chain_post_identity(chain_id: int, posts: list[dict]) -> bool:
         if post.get("chain_id") != chain_id:
             mismatches.append((post.get("id"), "chain_id"))
         target = str(post.get("target_keyword") or "").strip()
-        if seed and target and target != seed:
+        seed_key = " ".join(seed.split())
+        target_key = " ".join(target.split())
+        same_chain_topic = (
+            not seed_key
+            or not target_key
+            or target_key == seed_key
+            or target_key.startswith(seed_key + " ")
+        )
+        if seed_key and target_key and not same_chain_topic:
             mismatches.append((post.get("id"), f"target_keyword={target}"))
         if not post.get("slug"):
             mismatches.append((post.get("id"), "slug_missing"))
@@ -943,6 +951,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
         # Legacy full pipeline
         print(f"\n{'='*60}\n[mc] Publishing chain #{chain_id}\n{'='*60}\n")
         posts = db.get_chain_posts(chain_id)
+        legacy_failed = []
         for i, post in enumerate(posts):
             post_id = post["id"]
             body_md = post.get("draft_md", "")
@@ -955,7 +964,12 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
             else:
                 err = pub_result.get("error", "Unknown")
                 db.update_post_status(post_id, "failed", error_log=err)
+                legacy_failed.append(post["step"])
                 print(f"  [publisher] Publish failed: {err}")
+        if legacy_failed:
+            db.update_chain_status(chain_id, "failed")
+            print(f"\n[mc] Chain #{chain_id} legacy publish failed; steps={legacy_failed}")
+            return None
         db.update_chain_status(chain_id, "completed")
         inject_cards_chain(chain_id)
         # Phase 21: 발행 후 smoke test
