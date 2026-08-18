@@ -1,0 +1,14 @@
+role: "issue_techpawz — 제품/서비스 비교 분석 블로그"
+required_sections:
+  - "비교 대상"
+  - "비교 기준"
+  - "비교표"
+  - "결론"
+forbidden_patterns:
+  - "최저가"
+  - "100%"
+  - "유일한"
+min_specific_facts: 8
+max_generic_ratio: 0.2
+cta_max_count: 2
+thumbnail_keyword_match: true

@@ -1,0 +1,14 @@
+role: "techpawz — 테크/가전제품 상세 리뷰 블로그"
+required_sections:
+  - "체크리스트"
+  - "가격/재고"
+  - "예약/구매방법"
+  - "주의사항"
+forbidden_patterns:
+  - "최저가"
+  - "100%"
+  - "유일한"
+min_specific_facts: 6
+max_generic_ratio: 0.25
+cta_max_count: 2
+thumbnail_keyword_match: true

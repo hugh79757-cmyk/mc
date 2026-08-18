@@ -1,0 +1,14 @@
+role: " rotcha — 방문/체험형 관광지 정보 제공 블로그"
+required_sections:
+  - "개요"
+  - "코스/일정"
+  - "교통/접근성"
+  - "입장료/운영시간"
+forbidden_patterns:
+  - "최저가"
+  - "100%"
+  - "유일한"
+min_specific_facts: 5
+max_generic_ratio: 0.3
+cta_max_count: 3
+thumbnail_keyword_match: true
