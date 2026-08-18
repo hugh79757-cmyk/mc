@@ -276,7 +276,11 @@ def draft_single_post(
 
     # ── 프롬프트 조립 ──
     from datetime import datetime
-    draft_user = prompts["draft_user"]
+    # Category-specific draft prompt (fallback to common)
+    draft_user_key = f"draft_user_{kw_category}"
+    draft_user = prompts.get(draft_user_key, prompts["draft_user"])
+    if draft_user_key in prompts:
+        print(f"  [drafter] Using category-specific draft: {draft_user_key}")
     user_prompt = draft_user.format(
         blog_name=blog_key,
         blog_url=blog_url,
@@ -331,7 +335,11 @@ def draft_single_post(
         except Exception as e:
             print(f"  [drafter] ⚠️ 검색 컨텍스트 스킵: {type(e).__name__}: {e}")
 
-    system_prompt = prompts["draft_system"]
+    # Category-specific system prompt (fallback to common)
+    draft_system_key = f"draft_system_{kw_category}"
+    system_prompt = prompts.get(draft_system_key, prompts["draft_system"])
+    if draft_system_key in prompts:
+        print(f"  [drafter] Using category-specific system: {draft_system_key}")
 
     print(f"  [drafter] Step {post.get('step', '?')} ({blog_key}) 초안 생성 중...")
     result = generate(system_prompt, user_prompt, tier="default", temperature=0.7)
