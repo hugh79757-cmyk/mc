@@ -200,81 +200,56 @@
 
 ---
 
-# 새 마일스톤: 9점 품질 달성을 위한 파이프라인 개선 (M3)
+## Milestone 3: 9-Point Quality Pipeline
 
-**등록:** 2026-08-18
-**근거:** 최근 발행 블로그 품질 점수 5.8~7.2점. 테라 토마토 맥주 수동 개선으로 9/10 달성 확인 (triage 20260817). 자동화 파이프라인에 품질 게이트를 통합해 일관되게9점 달성 목표.
-**선행 조건:** M2(Phase 37-40) 완료.
-**종료 상태 (DoD):** 모든 Phase41-47 완료 +pytest green + 최소1개 키워드로 e2e 품질 점수9.0+ 달성.
+Goal: 발행 전 자동 검증으로 3개 블로그 글 품질 9/10 이상 보장
+Success Criteria: 테스트 키워드 3개 × 3블로그 = 9편 모두 자동 게이트 통과 + 수동 평가 9.0+
 
-## Phase 41: 산출물 계약서 정의 (Output Contract)
+### Phase 41 — Output Contract Definition
+Goal: 블로그별 산출물 계약서 YAML 정의 + 로더 + 기본 검증 함수
+Requirements: QG-01, QG-02
+Status: Not Started
 
-| 작업 | 상태 | 비고 |
-|------|------|------|
-| contracts/ 디렉토리 생성 | ○ | |
-| contracts/rotcha.yaml 정의 | ○ | rotcha 사이트별 필수 섹션·금지 섹션·제목 패턴 |
-| contracts/issue_techpawz.yaml 정의 | ○ | issue.techpawz 역할(비교/검증) 반영 |
-| contracts/techpawz.yaml 정의 | ○ | techpawz 역할(구매/실전) 반영 |
-| contract_loader.py — YAML 로드 + 검증 | ○ | config/schema.yaml 관례 준수 |
-| quality_gate.py — 계약 기반 검증 엔진 | ○ | publish 전 계약 충족 여부 판정 |
-| pytest 통합 | ○ | 계약 로드·검증 테스트 |
+### Phase 42 — Title-Body Contract Checker
+Goal: 제목이 약속한 토픽이 본문에 실질적으로 다뤄졌는지 자동 검증
+Requirements: QG-03
+Status: Not Started
 
-## Phase 42: 제목-본문 정합성 검증
+### Phase 43 — Pre-Publish Research Step
+Goal: derive 후 draft 전에 웹 리서치를 삽입하여 팩트시트 기반 글 생성
+Requirements: QG-04, QG-05
+Status: Not Started
 
-| 작업 | 상태 | 비고 |
-|------|------|------|
-| title_body_checker.py 생성 | ○ | 한글标题 일관성 + 키워드 출현 패턴 검증 |
-| 제목-본문 키워드 매칭 규칙 | ○ | 제목 키워드가 본문에 최소 N회 출현 |
-| 게이트 통합 | ○ | quality_gate.py에 제목 검증 추가 |
-| pytest | ○ | 제목-본문 검증 테스트 |
+### Phase 44 — Factuality Filter
+Goal: 출처 없는 수치·후기·통계 문장을 발행 전 자동 차단
+Requirements: QG-05, QG-06
+Status: Not Started
 
-## Phase 43: 사실 기반 필터 (Factuality Filter)
+### Phase 45 — Cross-Blog Dedup & Role Enforcer
+Goal: 동일 chain 3편의 문장 중복 해소 + 블로그별 역할 필수 요소 강제
+Requirements: QG-07, QG-08
+Status: Not Started
 
-| 작업 | 상태 | 비고 |
-|------|------|------|
-| factuality_checker.py 생성 | ○ | source_tag 강제 + factuality 스코어 산출 |
-| source_tag 필수 규칙 | ○ | 인용·수치·사실 주장에 출처 명시 강제 |
-| _strip_prompt_leak() 연동 | ○ | 기존 릭 방어 패턴과 통합 |
-| 게이트 통합 | ○ | quality_gate.py에 사실성 검증 추가 |
-| pytest | ○ | 사실성 필터 테스트 |
+### Phase 46 — HTML Render Dedup Check
+Goal: Hugo 빌드 후 최종 HTML에서 제목·CTA·문단 중복 자동 탐지
+Requirements: QG-09
+Status: Not Started
 
-## Phase 44: 블로그 간 중복 해소 + 역할 분리
+### Phase 47 — Quality Scorer & Gate Integration
+Goal: 가중합 스코어링 + 7.0 미만 차단 / 9.0+ 자동 승인 게이트 통합
+Requirements: QG-10, QG-11
+Status: Not Started
 
-| 작업 | 상태 | 비고 |
-|------|------|------|
-| cross_blog_checker.py 생성 | ○ | 동일 키워드 체인 내 블로그 간 중복 탐지 |
-| 역할 분리 강제 규칙 | ○ | rotcha(정보) / issue(비교) / techpawz(실전) 구분 검증 |
-| 콘텐츠 유사도 기반 중복 탐지 | ○ | TF-IDF 또는 키워드 오버랩 기준 |
-| 게이트 통합 | ○ | quality_gate.py에 중복 검증 추가 |
-| pytest | ○ | 중복 해소 테스트 |
+### Execution Order (Wave Structure)
 
-## Phase 45: HTML 렌더링 중복 검사
+```
+Wave 1 (병렬):  Phase 41 + Phase 46
+                 ↓
+Wave 2 (병렬):  Phase 42 + Phase 43 + Phase 45  (모두 41에 의존)
+                 ↓
+Wave 3:         Phase 44  (43에 의존)
+                 ↓
+Wave 4:         Phase 47  (41~46 전부 의존)
+```
 
-| 작업 | 상태 | 비고 |
-|------|------|------|
-| html_render_checker.py 생성 | ○ | 렌더링 후 HTML에서 중복 문단·이미지·카드 탐지 |
-| 카드/CTA 렌더링 검증 | ○ | chain-card shortcode 정상 렌더링 + 중복 제거 |
-| 기존 audit_format.py 연동 | ○ | Phase29 검증 항목과 통합 |
-| 게이트 통합 | ○ | quality_gate.py에 렌더링 검증 추가 |
-| pytest | ○ | 렌더링 중복 테스트 |
-
-## Phase 46: 발행 전 사전 리서치 단계 삽입
-
-| 작업 | 상태 | 비고 |
-|------|------|------|
-| pre_publish_researcher.py 생성 | ○ | Naver API + GPT 요약 기반 사전 리서치 |
-| search_retriever 재사용 | ○ | 기존 Naver API 인프라 활용 |
-| 리서치 결과 → 프롬프트 주입 | ○ | facts·수치·출처를 drafting 프롬프트에 주입 |
-| derive 단계와의 통합 | ○ | derive 후, draft 전 리서치 실행 |
-| pytest | ○ | 리서치 단계 테스트 |
-
-## Phase 47: 썸네일 검증 +9점 스코어링 시스템
-
-| 작업 | 상태 | 비고 |
-|------|------|------|
-| thumbnail_checker.py 생성 | ○ | 썸네일 존재·크기·품질 검증 |
-| quality_scorer.py 생성 | ○ | 가중합 점수 산출 (계약40% + 사실성25% + 역할20% + 시각15%) |
-| 점수 기준 설정 | ○ | 7.0미만 = 재생성, 9.0+ = 자동 승인 |
-| 기존 image 파이프라인 연동 | ○ | image/ 모듈과 통합 |
-| 게이트 통합 | ○ | quality_gate.py에 스코어링 추가 |
-| pytest + e2e 검증 | ○ | 최소1개 키워드로9점 달성 확인 |
+Phase 46(HTML 검사)은 다른 quality 모듈에 의존하지 않으므로 Wave 1에서 41과 병렬 실행 가능.

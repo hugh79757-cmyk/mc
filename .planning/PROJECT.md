@@ -37,14 +37,14 @@ One random keyword → 3 interconnected blog posts on 3 different domains, each 
   - **CFG-M2-01~05**: chain_config sites/chain_blogs/chain_blog_mapping 교체 + 카드 색상 파랑
   - **VERIFY-M2-01~03**: e2e dry-run 3종 + pytest green + DoD 체크리스트
 
-- **M3 Active (Phase 41-47) — 9점 품질 달성을 위한 파이프라인 개선** (M2 완료 후 착수):
-  - **M3-QC-01~03**: 산출물 계약서 YAML 정의 + 계약서 로더 + 검증 엔진 (Phase 41)
-  - **M3-QC-04~06**: 제목-본문 정합성 검증 — 한글标题 일관성 + 키워드 출현 패턴 + 검증 게이트 (Phase 42)
-  - **M3-QC-07~08**: 사실 기반 필터 — source_tag 강제 + factuality 스코어 (Phase 43)
-  - **M3-QC-09~10**: 블로그 간 중복 해소 + 역할 분리 강제 (Phase 44)
-  - **M3-QC-11~12**: HTML 렌더링 중복 검사 + 카드/CTA 렌더링 검증 (Phase 45)
-  - **M3-QC-13~14**: 발행 전 사전 리서치 단계 삽입 (Phase 46)
-  - **M3-QC-15~16**: 썸네일 검증 +9점 스코어링 시스템 (Phase 47)
+- **M3 Active (Phase 41-47) — 9-Point Quality Pipeline** (M2 완료 후 착수):
+  - **QG-01, QG-02**: Phase 41 — Output Contract Definition (YAML 계약서 + contract_loader)
+  - **QG-03**: Phase 42 — Title-Body Contract Checker (제목-본문 정합성)
+  - **QG-04, QG-05**: Phase 43 — Pre-Publish Research Step (사전 리서치 → factsheet)
+  - **QG-05, QG-06**: Phase 44 — Factuality Filter (무출처 수치/후기 차단)
+  - **QG-07, QG-08**: Phase 45 — Cross-Blog Dedup & Role Enforcer (문장 중복 + 역할 강제)
+  - **QG-09**: Phase 46 — HTML Render Dedup Check (제목·CTA·문단 중복 탐지)
+  - **QG-10, QG-11**: Phase 47 — Quality Scorer & Gate Integration (가중합 스코어 + 게이트)
 
 ### Out of Scope
 
