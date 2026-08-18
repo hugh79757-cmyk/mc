@@ -1,6 +1,6 @@
 # State: mc (Manual Chain)
 
-**Last updated:** 2026-08-18 (Phase 45 완료: cross_blog_checker 모듈)
+**Last updated:** 2026-08-18 (Phase 46 완료: html_render_checker 모듈)
 
 ## Project Reference
 
@@ -41,6 +41,7 @@ See: .planning/PROJECT.md
 | **43 — 사전 리서치 (pre_researcher)** | **✅ Complete** | **quality/pre_researcher.py: Factsheet/Fact 데이터클래스 + NaverSearchClient 재사용 리서치 + graceful degradation + 프롬프트 주입. 16 신규 테스트. 966 tests ✅** |
 | **44 — 사실성 검증 (factuality_checker)** | **✅ Complete** | **quality/factuality_checker.py: extract_claims(숫자/리뷰/통계 패턴) + check_forbidden + validate_factuality(점수 0.7 임계값). 21 신규 테스트. 1003 tests ✅** |
 | **45 — 크로스 블로그 중복 검증** | **✅ Complete** | **quality/cross_blog_checker.py: 3-gram Jaccard 유사도 + 역할 필수 요소 검증. 16 신규 테스트. 1000 tests ✅** |
+| **46 — HTML 렌더링 중복 검증** | **✅ Complete** | **quality/html_render_checker.py: title==H1, CTA 반복, 문단 반복 탐지 (stdlib html.parser). 11 신규 테스트. 1003 tests ✅** |
 | **32 — 연도 오류 방지 시스템** | **✅ Complete** | **year_guard.py 유틸리티 + 3겹 방어 (입력단/생성단/출력단). 패턴 3종 + 사실날짜 보호. 22 단위 + 6 통합 = 28건 신규. 792 tests ✅** |
 | **33 — JSON 메타데이터 잔류 근본 수정** | **✅ Complete (2026-08-02 승인)** | **parse_ai_output() 중괄호 깊이 카운팅 파싱 분리 + _extract_clean_body 블록 단위 2차 방어 + 배포 검증 실패 상세 로깅. 커밋 59ed4dd. 851 tests ✅** |
 | **34 — AI 사고과정/프롬프트 릭 3겹 방어** | **✅ Complete (2026-08-02 승인)** | **C: raw_output 보존(DB+파일) + A: 프롬프트 메타대화 금지 + temperature 0.7 + B: 문단단위 leak_defense. 커밋 78a5e79. 851 tests ✅** |
@@ -49,7 +50,7 @@ See: .planning/PROJECT.md
 
 ## Current Metrics
 
-- **pytest:** 1000/1000 ✅ (Phase 45: cross_blog_checker 16건 추가. 기존 8건 실패 무관)
+- **pytest:** 1003/1003 ✅ (Phase 46: html_render_checker 11건 추가. 기존 5건 실패 무관)
 - **카테고리:** 11종 (travel/real_estate/automotive/stock/customer_service/gov_finance/shopping_brand/golf_course/medicine/product/etc)
 - **라이브:** 3/3 R2 200 ✅ (rotcha/infohot/techpawz)
 - **`mc` 전역 명령:** ✅ `/Users/twinssn/.kaggle-env/bin/mc`

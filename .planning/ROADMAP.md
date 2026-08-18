@@ -1,6 +1,6 @@
 # Roadmap: mc (Manual Chain)
 
-**Last updated:** 2026-08-01
+**Last updated:** 2026-08-18
 
 ## 완료된 Phase
 
@@ -233,7 +233,9 @@ Status: Not Started
 ### Phase 46 — HTML Render Dedup Check
 Goal: Hugo 빌드 후 최종 HTML에서 제목·CTA·문단 중복 자동 탐지
 Requirements: QG-09
-Status: Not Started
+Status: ✅ Complete
+- Plan 01: html_render_checker.py (title==H1, CTA 반복, 문단 반복)
+- 11 tests, stdlib html.parser only
 
 ### Phase 47 — Quality Scorer & Gate Integration
 Goal: 가중합 스코어링 + 7.0 미만 차단 / 9.0+ 자동 승인 게이트 통합

@@ -145,7 +145,7 @@
 - QG-06: 금지 표현("최저가", "100%", "검증된") 포함 시 발행 차단
 - QG-07: 동일 chain 3편 간 문장 유사도 30% 이하
 - QG-08: 블로그별 역할 필수 섹션 존재 (rotcha=가이드코스, issue=비교표, techpawz=체크리스트)
-- QG-09: Hugo 빌드 HTML에서 title 태그와 본문 H1 중복 없음, CTA 2회 이상 반복 없음
+- QG-09: Hugo 빌드 HTML에서 title 태그와 본문 H1 중복 없음, CTA 2회 이상 반복 없음 ✅ Phase 46-01
 - QG-10: 가중합 스코어(계약 40% + 사실성 25% + 역할 20% + 시각 15%) 자동 산출
 - QG-11: 7.0 미만 재생성, 7.0~8.9 수동 검토 플래그, 9.0+ 자동 승인
 
@@ -153,4 +153,4 @@
 
 **Total:** 42 requirements (23 v1 + 11 v2/v3 + 8 Phase 14) — 41 validated, 1 deprecated, 0 unmapped
 **M2:** 13 requirements (CLONE 5 + INFRA 4 + CFG 5 + VERIFY 3) — 0 mapped yet, 0 unmapped ✓
-**M3:** 11 requirements (QG-01~QG-11) — 2 validated (QG-04, QG-05), 0 unmapped ✓
+**M3:** 11 requirements (QG-01~QG-11) — 3 validated (QG-04, QG-05, QG-09), 0 unmapped ✓
