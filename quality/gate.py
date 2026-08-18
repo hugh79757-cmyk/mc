@@ -6,7 +6,12 @@ import os
 from dataclasses import dataclass, field
 
 from quality._types import ContractSpec, DedupResult
-from quality.contract_loader import load as load_contract, validate_post
+from quality.contract_loader import (
+    load as load_contract,
+    validate_post,
+    is_category_supported,
+    SUPPORTED_CATEGORIES,
+)
 from quality.cross_blog_checker import check_cross_blog_dedup, check_role_elements
 from quality.factuality_checker import validate_factuality
 from quality.html_render_checker import check_html_duplicates
@@ -38,7 +43,7 @@ def run_all_checks(
     Args:
         chain_id: Chain identifier (for logging).
         posts: Dict mapping blog_id to post data.
-               Each value must have: title, body_md, html.
+               Each value must have: title, body_md, html, category.
                Expected keys: rotcha, issue_techpawz, techpawz.
 
     Returns:
@@ -53,17 +58,40 @@ def run_all_checks(
             total_score=10.0,
         )
 
+    # ── Early reject: unsupported category ──
     all_violations: dict[str, list[str]] = {}
     per_blog_scores: dict[str, dict] = {}
+    _CONTRACT_MAP = {"issue.techpawz": "issue_techpawz"}
+
+    for blog_id, post_data in posts.items():
+        category = post_data.get("category") or None
+        if not is_category_supported(category):
+            supported = ", ".join(sorted(SUPPORTED_CATEGORIES))
+            all_violations.setdefault(blog_id, []).append(
+                f"Unsupported category: '{category}'. "
+                f"Supported: {supported}"
+            )
+            per_blog_scores[blog_id] = {"skipped": True, "reason": "unsupported_category"}
+
+    # If all blogs are unsupported, reject immediately
+    if all(per_blog_scores.get(bid, {}).get("reason") == "unsupported_category"
+           for bid in posts):
+        return GateVerdict(
+            action="reject",
+            scores=per_blog_scores,
+            violations=all_violations,
+            total_score=0.0,
+        )
 
     # ── Load contracts for each blog ──
-    # Map blog_id to contract file name (issue.techpawz → issue_techpawz)
-    _CONTRACT_MAP = {"issue.techpawz": "issue_techpawz"}
     contracts: dict[str, ContractSpec] = {}
-    for blog_id in posts:
+    for blog_id, post_data in posts.items():
+        if per_blog_scores.get(blog_id, {}).get("reason") == "unsupported_category":
+            continue
         contract_id = _CONTRACT_MAP.get(blog_id, blog_id)
+        category = post_data.get("category")
         try:
-            contracts[blog_id] = load_contract(contract_id)
+            contracts[blog_id] = load_contract(contract_id, category=category)
         except FileNotFoundError:
             all_violations.setdefault(blog_id, []).append(
                 f"Missing contract file for '{blog_id}'"
@@ -72,6 +100,9 @@ def run_all_checks(
     # ── Per-blog checks ──
     role_results: dict[str, object] = {}
     for blog_id, post_data in posts.items():
+        if per_blog_scores.get(blog_id, {}).get("reason") == "unsupported_category":
+            continue
+
         title = post_data.get("title", "")
         body_md = post_data.get("body_md", "")
         html = post_data.get("html", "")
@@ -128,7 +159,6 @@ def run_all_checks(
         )
 
     # ── Calculate aggregate score ──
-    # Average across blogs for the total
     blog_totals = [
         s["total"] for s in per_blog_scores.values() if "total" in s
     ]

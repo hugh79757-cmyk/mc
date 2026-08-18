@@ -37,11 +37,12 @@ _STATISTICS_PATTERNS: list[str] = [
 
 _SOURCE_TAG_RE = re.compile(r"\[출처:")
 
-# All claim detection compiled patterns (pattern_list, claim_type_label)
+# Claim type priority: review > statistics > number.
+# A sentence matching multiple types gets the most specific one.
 _CLAIM_RULES: list[tuple[list[str], str]] = [
-    (_NUMBER_PATTERNS, "number"),
     (_REVIEW_PATTERNS, "review"),
     (_STATISTICS_PATTERNS, "statistics"),
+    (_NUMBER_PATTERNS, "number"),
 ]
 
 
@@ -95,19 +96,24 @@ def extract_claims(body_md: str) -> list[Claim]:
 
     A sentence is a "claim" if it matches any of the number, review,
     or statistics patterns.  Each claim records whether a [출처:] tag
-    is present for source attribution.
+    is present for source attribution.  Source tags on the immediately
+    following sentence are also recognized (e.g. after a period break).
     """
     sentences = _split_sentences(body_md)
     claims: list[Claim] = []
 
-    for sentence in sentences:
+    for i, sentence in enumerate(sentences):
         for patterns, claim_type in _CLAIM_RULES:
             for pat in patterns:
                 if re.search(pat, sentence):
+                    # Check this sentence and the next for [출처:]
+                    sourced = _has_source_tag(sentence)
+                    if not sourced and i + 1 < len(sentences):
+                        sourced = _has_source_tag(sentences[i + 1])
                     claims.append(Claim(
                         sentence=sentence,
                         claim_type=claim_type,
-                        has_source_tag=_has_source_tag(sentence),
+                        has_source_tag=sourced,
                     ))
                     break  # one match per claim_type is enough
             else:

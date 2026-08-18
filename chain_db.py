@@ -126,6 +126,11 @@ MIGRATIONS_SQL = [
     "ALTER TABLE chain_posts ADD COLUMN smoke_test_detail TEXT",
         # Phase 22: Quality warnings column
     "ALTER TABLE chain_posts ADD COLUMN quality_warnings TEXT",
+    # Phase 7: Search context columns
+    "ALTER TABLE chain_posts ADD COLUMN context_md TEXT",
+    "ALTER TABLE chain_posts ADD COLUMN search_sources TEXT",
+    # Phase 34: raw_ai_output
+    "ALTER TABLE chain_posts ADD COLUMN raw_ai_output TEXT",
 ]
 
 
