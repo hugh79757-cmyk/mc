@@ -230,8 +230,9 @@ Para 2.""".replace("\n", "\n")
 class TestVerifyBeforeDeploy:
     """_verify_before_deploy 검증 게이트 테스트."""
 
+    @patch("chain_publisher_core._check_url_accessible")
     @patch("chain_publisher_core.logger")
-    def test_passes_valid_post(self, mock_logger, temp_dir):
+    def test_passes_valid_post(self, mock_logger, mock_check_url, temp_dir):
         """유효한 포스트 통과."""
         from chain_publisher_core import _verify_before_deploy
 
@@ -299,8 +300,9 @@ title: "Test"
         with pytest.raises(DeployValidationError, match="HTML 주석"):
             _verify_before_deploy(hugo_path, "test-slug")
 
+    @patch("chain_publisher_core._check_url_accessible")
     @patch("chain_publisher_core.logger")
-    def test_warns_on_html_tag_in_source(self, mock_logger, temp_dir):
+    def test_warns_on_html_tag_in_source(self, mock_logger, mock_check_url, temp_dir):
         """소스에 HTML 태그 있으면 WARNING (W3 완료 전까지 ERROR 아님)."""
         from chain_publisher_core import _verify_before_deploy
 
@@ -367,8 +369,9 @@ featureimage: "/images/thumb.jpg"
         with pytest.raises(DeployValidationError, match="유효한 URL이 아님"):
             _verify_before_deploy(hugo_path, "test-slug")
 
+    @patch("chain_publisher_core._check_url_accessible")
     @patch("chain_publisher_core.logger")
-    def test_fails_on_excessive_ads_in_html(self, mock_logger, temp_dir):
+    def test_fails_on_excessive_ads_in_html(self, mock_logger, mock_check_url, temp_dir):
         """HTML 산출물에 광고 3개 초과 시 실패."""
         from chain_publisher_core import _verify_before_deploy, DeployValidationError
 
@@ -394,8 +397,9 @@ Content""", encoding="utf-8")
         with pytest.raises(DeployValidationError, match="광고 슬롯 4개"):
             _verify_before_deploy(hugo_path, "test-slug")
 
+    @patch("chain_publisher_core._check_url_accessible")
     @patch("chain_publisher_core.logger")
-    def test_fails_on_broken_image_refs(self, mock_logger, temp_dir):
+    def test_fails_on_broken_image_refs(self, mock_logger, mock_check_url, temp_dir):
         """깨진 이미지 참조 시 실패."""
         from chain_publisher_core import _verify_before_deploy, DeployValidationError
 
@@ -418,8 +422,9 @@ Content""", encoding="utf-8")
         with pytest.raises(DeployValidationError, match="깨진 이미지 참조 1개"):
             _verify_before_deploy(hugo_path, "test-slug")
 
+    @patch("chain_publisher_core._check_url_accessible")
     @patch("chain_publisher_core.logger")
-    def test_fails_on_json_residue_in_html(self, mock_logger, temp_dir):
+    def test_fails_on_json_residue_in_html(self, mock_logger, mock_check_url, temp_dir):
         """HTML에 JSON 잔류 시 실패."""
         from chain_publisher_core import _verify_before_deploy, DeployValidationError
 
@@ -628,6 +633,7 @@ class TestPublishHugoIntegration:
             mock_get_conn.return_value = mock_conn
             mock_conn.execute.return_value.fetchone.return_value = {
                 "id": 1,
+                "step": 1,
                 "image_meta": json.dumps({
                     "image_type": "none",
                     "image_keyword": None,
@@ -714,6 +720,7 @@ class TestLegacyColumnsRemoved:
             mock_get_conn.return_value = mock_conn
             mock_conn.execute.return_value.fetchone.return_value = {
                 "id": 1,
+                "step": 1,
                 "image_meta": json.dumps({
                     "image_type": "none",
                     "image_keyword": None,
@@ -778,6 +785,7 @@ class TestLegacyColumnsRemoved:
             # image_meta가 NULL인 레코드
             mock_conn.execute.return_value.fetchone.return_value = {
                 "id": 1,
+                "step": 1,
                 "image_meta": None,
             }
 
@@ -831,6 +839,7 @@ class TestHugoBuildFailure:
             mock_get_conn.return_value = mock_conn
             mock_conn.execute.return_value.fetchone.return_value = {
                 "id": 1,
+                "step": 1,
                 "image_meta": json.dumps({
                     "image_type": "none", "image_keyword": None,
                     "thumbnail_path": None, "thumbnail_source": None,
@@ -1316,6 +1325,7 @@ Body text without JSON.
             mock_get_conn.return_value = mock_conn
             mock_conn.execute.return_value.fetchone.return_value = {
                 "id": 1,
+                "step": 1,
                 "image_meta": json.dumps({
                     "image_type": "photo",
                     "image_keyword": "test",
@@ -1329,7 +1339,8 @@ Body text without JSON.
             }
 
             # Mock external calls
-            with patch("chain_publisher_core.get_r2_config", return_value=("images/rotcha", "https://img.rotcha.kr")):
+            with patch("chain_publisher_core._check_url_accessible"):
+              with patch("chain_publisher_core.get_r2_config", return_value=("images/rotcha", "https://img.rotcha.kr")):
                 with patch("chain_publisher_core.upload_all_images", return_value={}):
                     with patch("chain_publisher_core.shutil.which", return_value="/opt/homebrew/bin/hugo"):
                         with patch("subprocess.run") as mock_subprocess:

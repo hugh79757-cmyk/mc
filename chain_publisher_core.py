@@ -13,6 +13,8 @@ import subprocess
 import tempfile
 import logging
 import time
+import urllib.request
+import urllib.error
 import yaml
 from pathlib import Path
 from datetime import datetime
@@ -40,6 +42,29 @@ import markdown_processor  # noqa: E402 — Phase 26 W4: MarkdownProcessor 파�
 
 
 logger = logging.getLogger(__name__)
+
+
+def _check_url_accessible(url: str) -> None:
+    """HEAD 요청으로 URL 접근 가능 여부를 확인한다. 불가능 시 DeployValidationError."""
+    try:
+        _head_req = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(_head_req, timeout=10) as _head_resp:
+            if _head_resp.status >= 400:
+                raise DeployValidationError(
+                    f"featureimage HEAD 응답 오류 ({_head_resp.status}): {url}"
+                )
+    except urllib.error.HTTPError as _he:
+        raise DeployValidationError(
+            f"featureimage 접근 불가 (HTTP {_he.code}): {url}"
+        ) from _he
+    except urllib.error.URLError as _ue:
+        raise DeployValidationError(
+            f"featureimage 연결 실패: {url} ({_ue.reason})"
+        ) from _ue
+    except DeployValidationError:
+        raise
+    except Exception as _e:
+        logger.warning(f"[verify] featureimage HEAD 검증 스킵 (네트워크 오류): {_e}")
 
 
 def _validate_hugo_frontmatter_text(text: str) -> None:
@@ -331,6 +356,13 @@ def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -
             raise DeployValidationError("featureimage가 빈 값")
         if not fi_url.startswith("http"):
             raise DeployValidationError(f"featureimage가 유효한 URL이 아님: {fi_url}")
+        if not any(domain in fi_url for domain in R2_IMAGE_DOMAINS):
+            raise DeployValidationError(
+                f"featureimage가 R2 도메인이 아님: {fi_url} "
+                f"(허용 접두사: {', '.join(R2_IMAGE_DOMAINS)})"
+            )
+        # featureimage 재검증: HEAD 요청으로 R2 URL 접근 가능 확인
+        _check_url_accessible(fi_url)
 
     if image_meta:
         if image_meta.get("chart_type") and not image_meta.get("chart_data"):
@@ -532,12 +564,12 @@ class PublisherCore:
             _conn = get_conn()
             if post_id:
                 _row = _conn.execute(
-                    "SELECT id, image_meta FROM chain_posts WHERE id = ? AND slug = ?",
+                    "SELECT id, step, image_meta FROM chain_posts WHERE id = ? AND slug = ?",
                     (post_id, slug),
                 ).fetchone()
             else:
                 _row = _conn.execute(
-                    "SELECT id, image_meta FROM chain_posts WHERE slug = ?",
+                    "SELECT id, step, image_meta FROM chain_posts WHERE slug = ?",
                     (slug,),
                 ).fetchone()
             _conn.close()
@@ -545,6 +577,7 @@ class PublisherCore:
             if not _row:
                 raise DeployValidationError(f"chain_posts에 slug 없음: {slug}")
             _post_id = _row["id"]
+            _step = _row["step"] or 1
             _image_meta_raw = _row["image_meta"]
             if not _image_meta_raw:
                 raise DeployValidationError(f"image_meta 누락: slug={slug}")
@@ -565,7 +598,7 @@ class PublisherCore:
                     logger.warning(f"[Hugo] image_keyword 없음, 썸네일 생성 스킵: {slug}")
                 else:
                     from image.thumbnail import generate_thumbnail as _gen_thumb
-                    _res = _gen_thumb(title=title, keyword=_kw, slug=slug)
+                    _res = _gen_thumb(title=title, keyword=_kw, slug=slug, step=_step)
                     if _res:
                         _thumb_abs, _thumb_src = _res
                         if _post_id:
@@ -615,7 +648,7 @@ class PublisherCore:
                     # Phase 13 R1: try real photo search first
                     try:
                         from image.search_providers import search_body_image
-                        _body_result = search_body_image(_kw or title, slug=slug)
+                        _body_result = search_body_image(_kw or title, slug=slug, step=_step)
                         if _body_result:
                             _photo_path, _photo_src = _body_result
                     except Exception:
@@ -625,7 +658,7 @@ class PublisherCore:
                         # Fallback: Unsplash/Pexels (Pollinations/Krea 사용 안 함)
                         try:
                             from image.thumbnail import generate_content_image as _gen_photo
-                            _photo_result = _gen_photo(_kw or title, slug=slug)
+                            _photo_result = _gen_photo(_kw or title, slug=slug, step=_step)
                             if _photo_result and _photo_result.ok:
                                 _photo_path = _photo_result.value
                                 _photo_src = "unsplash"

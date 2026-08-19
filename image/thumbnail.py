@@ -23,6 +23,8 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 from mc_paths import load_config
+from image.keyword_extractor import extract_search_queries
+from image.manifest import append_manifest, compute_sha256
 
 # ── 디렉토리 ──
 
@@ -337,6 +339,7 @@ def generate_thumbnail(
   keyword: str,
   slug: str = "",
   subtitle: Optional[str] = None,
+  step: int = 1,
 ) -> Optional[tuple[Path, str]]:
   """
   Generate a thumbnail photo with text overlay.
@@ -378,17 +381,48 @@ def generate_thumbnail(
   downloaded: Optional[Path] = None
   source: str = "unknown"
 
+  # Dedup: 이전에 사용한 photo_id 회피
+  _used_ids = set()
+  try:
+    from chain_db import get_used_photo_ids
+    _used_ids = get_used_photo_ids(keyword)
+  except Exception:
+    pass  # DB 연결 실패 시 dedup 스킵
+
+  # ── 검색어 추출 (LLM 기반 영어 검색어) ──
+  _queries = extract_search_queries(title, category=keyword, step=f"s{step}")
+  _search_query = _queries[0] if _queries else keyword
+  print(f" [thumbnail] 검색어: '{_search_query}' (원본: '{keyword}')")
+
   # ── Provider 1: Unsplash ──
   if provider in ("auto", "unsplash"):
     unsplash = UnsplashProvider(env["unsplash_key"])
-    if results := unsplash.search(keyword):
-      photo = random.choice(results)
+    if results := unsplash.search(_search_query):
+      _fresh = [r for r in results if str(r.get("id", "")) not in _used_ids] or results
+      photo = _fresh[min(step - 1, len(_fresh) - 1)]
       print(f" [thumbnail] Unsplash → {photo['id']} by {photo['author']}")
       downloaded = unsplash.download(photo)
       if downloaded:
         source = "unsplash"
+        try:
+          from chain_db import record_used_image
+          record_used_image(keyword, photo["id"], "unsplash")
+        except Exception:
+          pass
         result = add_text_overlay(downloaded, title, subtitle, target_size)
         if result:
+          # manifest 기록
+          try:
+            append_manifest(
+              slug=slug or title[:30],
+              thumbnail_path=str(result),
+              provider="unsplash",
+              provider_asset_id=str(photo.get("id", "")),
+              query=_search_query,
+              sha256=compute_sha256(result),
+            )
+          except Exception:
+            pass
           return (result, source)
 
   # ── Fallback chain ──
@@ -398,14 +432,32 @@ def generate_thumbnail(
 
     if fallback_name == "pexels":
       pexels = PexelsProvider(env["pexels_key"])
-      if results := pexels.search(keyword):
-        photo = random.choice(results)
+      if results := pexels.search(_search_query):
+        _fresh = [r for r in results if str(r.get("id", "")) not in _used_ids] or results
+        photo = _fresh[min(step - 1, len(_fresh) - 1)]
         print(f" [thumbnail] Pexels → {photo['id']} by {photo['author']}")
         downloaded = pexels.download(photo)
         if downloaded:
           source = "pexels"
+          try:
+            from chain_db import record_used_image
+            record_used_image(keyword, photo["id"], "pexels")
+          except Exception:
+            pass
           result = add_text_overlay(downloaded, title, subtitle, target_size)
           if result:
+            # manifest 기록
+            try:
+              append_manifest(
+                slug=slug or title[:30],
+                thumbnail_path=str(result),
+                provider="pexels",
+                provider_asset_id=str(photo.get("id", "")),
+                query=_search_query,
+                sha256=compute_sha256(result),
+              )
+            except Exception:
+              pass
             return (result, source)
 
     # Pollinations/Krea (AI 생성) fallback 전면 금지 — 스톡(Pexels/Unsplash)만 허용.
@@ -423,6 +475,7 @@ def generate_content_image(
     model: str = "unsplash",
     seed: int = None,
     retries: int = 3,
+    step: int = 1,
 ) -> "Result":
     """
     Unsplash/Pexels 실사 사진을 콘텐츠 이미지로 저장 (텍스트 오버레이 없음).
@@ -464,21 +517,52 @@ def generate_content_image(
 
     downloaded: Optional[Path] = None
 
+    # ── 검색어 추출 (LLM 기반 영어 검색어) ──
+    _queries = extract_search_queries(keyword, category=keyword, step=f"s{step}")
+    _search_query = _queries[0] if _queries else keyword
+    print(f" [content_image] 검색어: '{_search_query}' (원본: '{keyword}')")
+
+    # Dedup: 이전에 사용한 photo_id 회피
+    _used_ids = set()
+    try:
+        from chain_db import get_used_photo_ids
+        _used_ids = get_used_photo_ids(keyword)
+    except Exception:
+        pass
+
     # ── Provider 1: Unsplash ──
     unsplash_key = env.get("unsplash_key", "")
     if unsplash_key:
         try:
             unsplash = UnsplashProvider(unsplash_key)
-            if results := unsplash.search(keyword):
-                photo = random.choice(results)
+            if results := unsplash.search(_search_query):
+                _fresh = [r for r in results if str(r.get("id", "")) not in _used_ids] or results
+                photo = _fresh[min(step - 1, len(_fresh) - 1)]
                 print(f" [content_image] Unsplash → {photo['id']} by {photo['author']}")
                 downloaded = unsplash.download(photo)
                 if downloaded:
+                    try:
+                        from chain_db import record_used_image
+                        record_used_image(keyword, photo["id"], "unsplash")
+                    except Exception:
+                        pass
                     # 저장: 텍스트 오버레이 없이 원본 리사이즈만
                     img = Image.open(downloaded).convert("RGB")
                     img = img.resize((width, height), Image.LANCZOS)
                     img.save(expected, "WEBP", quality=85)
                     print(f" [content_image] ✅ 저장: {expected}")
+                    # manifest 기록
+                    try:
+                        append_manifest(
+                            slug=_slug,
+                            thumbnail_path=str(expected),
+                            provider="unsplash",
+                            provider_asset_id=str(photo.get("id", "")),
+                            query=_search_query,
+                            sha256=compute_sha256(expected),
+                        )
+                    except Exception:
+                        pass
                     return Result.success(expected)
         except Exception as e:
             print(f" [content_image] Unsplash 실패: {e}")
@@ -488,15 +572,33 @@ def generate_content_image(
     if pexels_key and "pexels" in fallback_chain:
         try:
             pexels = PexelsProvider(pexels_key)
-            if results := pexels.search(keyword):
-                photo = random.choice(results)
+            if results := pexels.search(_search_query):
+                _fresh = [r for r in results if str(r.get("id", "")) not in _used_ids] or results
+                photo = _fresh[min(step - 1, len(_fresh) - 1)]
                 print(f" [content_image] Pexels → {photo['id']} by {photo['author']}")
                 downloaded = pexels.download(photo)
                 if downloaded:
+                    try:
+                        from chain_db import record_used_image
+                        record_used_image(keyword, photo["id"], "pexels")
+                    except Exception:
+                        pass
                     img = Image.open(downloaded).convert("RGB")
                     img = img.resize((width, height), Image.LANCZOS)
                     img.save(expected, "WEBP", quality=85)
                     print(f" [content_image] ✅ 저장: {expected}")
+                    # manifest 기록
+                    try:
+                        append_manifest(
+                            slug=_slug,
+                            thumbnail_path=str(expected),
+                            provider="pexels",
+                            provider_asset_id=str(photo.get("id", "")),
+                            query=_search_query,
+                            sha256=compute_sha256(expected),
+                        )
+                    except Exception:
+                        pass
                     return Result.success(expected)
         except Exception as e:
             print(f" [content_image] Pexels 실패: {e}")

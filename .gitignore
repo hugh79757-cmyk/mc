@@ -11,6 +11,8 @@ venv/
 
 # DB (로컬 전용)
 data/*.db
+data/thumbnails/
+data/category_cache.json
 
 # 생성된 이미지 (Hugo static에 복사됨)
 output/

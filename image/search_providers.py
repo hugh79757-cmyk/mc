@@ -62,13 +62,14 @@ _PEXELS_KEY = os.environ.get("PEXELS_API_KEY", "")
 
 # ── Main entry point ──
 
-def search_body_image(keyword: str, slug: str) -> Optional[tuple[Path, str]]:
+def search_body_image(keyword: str, slug: str, step: int = 1) -> Optional[tuple[Path, str]]:
     """
     Search for a body image via Unsplash -> Pexels.
 
     Args:
         keyword: Search keyword.
         slug: Post slug for filename.
+        step: Chain step (1-based). Used for dedup offset into results.
 
     Returns:
         (path, source_name) tuple, or None if all providers failed.
@@ -82,17 +83,30 @@ def search_body_image(keyword: str, slug: str) -> Optional[tuple[Path, str]]:
         if path_str and os.path.exists(path_str):
             return (Path(path_str), source)
 
+    # Dedup: 이전에 사용한 photo_id 회피
+    _used_ids = set()
+    try:
+        from chain_db import get_used_photo_ids
+        _used_ids = get_used_photo_ids(keyword)
+    except Exception:
+        pass  # DB 연결 실패 시 dedup 스킵
+
     # Try Unsplash first
     from image.thumbnail import UnsplashProvider
 
     provider = UnsplashProvider(_UNSPLASH_KEY)
     if results := provider.search(keyword):
-        photo = results[0]
+        _fresh = [r for r in results if str(r.get("id", "")) not in _used_ids] or results
+        photo = _fresh[min(step - 1, len(_fresh) - 1)]
         downloaded = provider.download(photo)
         if downloaded and downloaded.exists():
-            # Rename to body_{slug}_unsplash_{id}.webp
             body_path = _to_body_path(downloaded, slug, "unsplash", photo.get("id", "0"))
             _write_cache(cache_key, {"path": str(body_path), "source": "unsplash"})
+            try:
+                from chain_db import record_used_image
+                record_used_image(keyword, photo.get("id", "0"), "unsplash")
+            except Exception:
+                pass
             return (body_path, "unsplash")
 
     # Fallback to Pexels
@@ -100,11 +114,17 @@ def search_body_image(keyword: str, slug: str) -> Optional[tuple[Path, str]]:
 
     provider = PexelsProvider(_PEXELS_KEY)
     if results := provider.search(keyword):
-        photo = results[0]
+        _fresh = [r for r in results if str(r.get("id", "")) not in _used_ids] or results
+        photo = _fresh[min(step - 1, len(_fresh) - 1)]
         downloaded = provider.download(photo)
         if downloaded and downloaded.exists():
             body_path = _to_body_path(downloaded, slug, "pexels", str(photo.get("id", "0")))
             _write_cache(cache_key, {"path": str(body_path), "source": "pexels"})
+            try:
+                from chain_db import record_used_image
+                record_used_image(keyword, str(photo.get("id", "0")), "pexels")
+            except Exception:
+                pass
             return (body_path, "pexels")
 
     # All providers failed — cache the miss to avoid repeat calls

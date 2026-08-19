@@ -163,7 +163,7 @@ class TestWrapperEquivalence:
         import inspect as _inspect
         from image.search_providers import search_body_image
         sig = _inspect.signature(search_body_image)
-        assert list(sig.parameters) == ["keyword", "slug"]
+        assert list(sig.parameters) == ["keyword", "slug", "step"]
 
         mock_unsplash = MagicMock()
         mock_cls.return_value = mock_unsplash

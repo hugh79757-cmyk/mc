@@ -160,8 +160,8 @@ except ImportError as e:
     print(f"[publisher] image/ package not found ({e}), using legacy URL")
 
 
-def _process_post_image(post: dict, blog_key: str, chain_type: str) -> int:
-    """단일 포스트 이미지 생성 (ThreadPoolExecutor용). Returns post_id."""
+def _process_post_image(post: dict, blog_key: str, chain_type: str, chain_seed: str = "") -> int:
+    """단일 포스트 이미지 생성 (serial loop). Returns post_id."""
     post_id = post["id"]
     print(f"\n  [publisher] Image — post #{post_id}")
 
@@ -202,12 +202,20 @@ def _process_post_image(post: dict, blog_key: str, chain_type: str) -> int:
         # DB image_prompt를 실제 전달값으로 갱신 (W3)
         db.update_post_image_prompt(post_id, full_prompt)
 
+        # Bug C+D fix: dedup/검색에는 chain seed(한글 키워드)를 전달.
+        # full_prompt는 img_build 전용이며, generate_content_image 내부에서
+        # extract_search_queries + used_images dedup에 keyword를 사용하므로
+        # 이미지 프롬프트가 아닌 실제 키워드를 전달해야 중복 회피가 동작한다.
+        # Bug D: 체인 내 모든 step이 동일 dedup 키를 사용해야 하므로
+        # chain seed를 사용 (target_keyword는 step마다 다름).
+        _keyword = chain_seed or post.get("image_keyword", post.get("target_keyword", ""))
+
         # Retry with exponential backoff
         max_retries = 3
         base_wait = 2
         image_result = None
         for attempt in range(max_retries):
-            image_result = img_gen(full_prompt, slug=_slug)
+            image_result = img_gen(_keyword, slug=_slug)
             if image_result and image_result.ok:
                 break
             _err = getattr(image_result, "error", "img_gen returned None/empty")
@@ -331,27 +339,22 @@ def generate_chain_images(chain_id: int) -> None:
     for post in posts:
         blog_keys[post["id"]] = get_chain_blog_key(post["depth"])
 
-    print(f"\n  [publisher] Generating images for {len(posts)} posts (parallel)...")
+    print(f"\n  [publisher] Generating images for {len(posts)} posts (sequential, used_images dedup)...")
     start_time = time.time()
 
     post_ids = []
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = {
-            executor.submit(_process_post_image, post, blog_keys[post["id"]], chain_type): post["id"]
-            for post in posts
-        }
-        for future in as_completed(futures):
-            post_id = futures[future]
-            try:
-                result = future.result()
-                post_ids.append(result)
-            except Exception as e:
-                print(f"  [publisher] ⚠️ Post #{post_id} image generation failed: {e}")
-                import traceback
-                traceback.print_exc()
+    for post in posts:
+        post_id = post["id"]
+        try:
+            result = _process_post_image(post, blog_keys[post_id], chain_type, chain_seed=chain.get("seed", ""))
+            post_ids.append(result)
+        except Exception as e:
+            print(f"  [publisher] ⚠️ Post #{post_id} image generation failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     elapsed = time.time() - start_time
-    print(f"\n  [publisher] Chain #{chain_id} images done in {elapsed:.1f}s (parallel)")
+    print(f"\n  [publisher] Chain #{chain_id} images done in {elapsed:.1f}s (sequential)")
 
     db.update_chain_status(chain_id, "image_generated")
 

@@ -98,6 +98,16 @@ CREATE TABLE IF NOT EXISTS publish_log (
     published_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(blog_id, slug)
 );
+
+-- Image dedup: 같은 키워드의 이미지 검색에서 이전에 사용한 photo_id를 회피
+CREATE TABLE IF NOT EXISTS used_images (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword     TEXT NOT NULL,
+    photo_id    TEXT NOT NULL,
+    source      TEXT NOT NULL,
+    used_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    UNIQUE(keyword, photo_id)
+);
 """
 
 # ── Phase 1 → Phase 2 마이그레이션 ──
@@ -1139,3 +1149,26 @@ def get_chains_since(date_str: str) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ── Image dedup: used_images table ──────────────────────────────
+
+def record_used_image(keyword: str, photo_id: str, source: str) -> None:
+    """Record a photo_id as used for a keyword. Duplicates silently ignored."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR IGNORE INTO used_images (keyword, photo_id, source) VALUES (?, ?, ?)",
+        (keyword, str(photo_id), source),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_used_photo_ids(keyword: str) -> set[str]:
+    """Return all photo_ids previously used for a keyword."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT photo_id FROM used_images WHERE keyword = ?", (keyword,)
+    ).fetchall()
+    conn.close()
+    return {r["photo_id"] for r in rows}
