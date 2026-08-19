@@ -1,5 +1,6 @@
 # Triage Index
 
+- 2026-08-18 | fix | 5-category-prompts-and-fuzzy-matching | 5개 카테고리 draft 프롬프트 추가 + fuzzy H2 매칭 + DB category_guess 표준화
 - 2026-08-17 | release-quality | terra-tomato-quality-release | Terra Tomato Beer 세 블로그 9점 품질 릴리스, Hugo 3/3 빌드·Cloudflare Pages 직접 배포·라이브 검증 완료
 - 2026-08-04 | fix | mc-run-missing-boto3-deps | mc run 의존성 누락 수정 (boto3/python-slugify/python-frontmatter/python-dotenv), requirements.txt+pyproject.toml 업데이트
 - 2026-08-04 | config | zhipu-zai-key-mismatch | Zhipu AI API 키 env var 불일치 수정 (ZAI_API_KEY→ZHIPU_API_KEY), tier 16 GLM 4.5 Flash 스킵 버그 해결
