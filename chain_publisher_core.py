@@ -356,10 +356,17 @@ def _verify_before_deploy(hugo_path: Path, slug: str, image_meta: dict = None) -
             raise DeployValidationError("featureimage가 빈 값")
         if not fi_url.startswith("http"):
             raise DeployValidationError(f"featureimage가 유효한 URL이 아님: {fi_url}")
-        if not any(domain in fi_url for domain in R2_IMAGE_DOMAINS):
+        from urllib.parse import urlparse
+        _fi_host = (urlparse(fi_url).hostname or "").lower()
+        _allowed_proxy_hosts = {
+            "img.rotcha.kr",
+            "img-issue.techpawz.com",
+            "img.techpawz.com",
+        }
+        if not any(domain in fi_url for domain in R2_IMAGE_DOMAINS) and _fi_host not in _allowed_proxy_hosts:
             raise DeployValidationError(
                 f"featureimage가 R2 도메인이 아님: {fi_url} "
-                f"(허용 접두사: {', '.join(R2_IMAGE_DOMAINS)})"
+                f"(허용 접두사: {', '.join(R2_IMAGE_DOMAINS)}; 허용 호스트: {', '.join(sorted(_allowed_proxy_hosts))})"
             )
         # featureimage 재검증: HEAD 요청으로 R2 URL 접근 가능 확인
         _check_url_accessible(fi_url)
