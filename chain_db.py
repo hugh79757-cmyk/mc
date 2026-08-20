@@ -5,6 +5,7 @@ SQLite 스키마 및 CRUD. Phase 2 추가: draft_md, slug, chain_type 컬럼.
 """
 
 import sqlite3
+from chain_observability import emit_event
 import json
 import os
 from datetime import datetime
@@ -374,6 +375,7 @@ def update_chain_status(chain_id: int, status: str):
     )
     conn.commit()
     conn.close()
+    emit_event(chain_id, "chain_status_changed", new_status=status)
 
 
 def update_chain_type(chain_id: int, chain_type: str):
@@ -454,6 +456,9 @@ def get_post(post_id: int) -> Optional[dict]:
 def update_post_status(post_id: int, status: str, error_log: str = None):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_conn()
+    row = conn.execute("SELECT chain_id, step, status, slug FROM chain_posts WHERE id = ?", (post_id,)).fetchone()
+    old_status = row["status"] if row else None
+    chain_id = row["chain_id"] if row else None
     if error_log:
         conn.execute(
             "UPDATE chain_posts SET status = ?, error_log = ?, updated_at = ? WHERE id = ?",
@@ -466,6 +471,8 @@ def update_post_status(post_id: int, status: str, error_log: str = None):
         )
     conn.commit()
     conn.close()
+    if chain_id is not None:
+        emit_event(chain_id, "post_status_changed", post_id=post_id, step=row["step"] if row else None, slug=row["slug"] if row else None, old_status=old_status, new_status=status, error_summary=(error_log[:1000] if error_log else None))
 
 
 def update_post_image(post_id: int, image_url: str):

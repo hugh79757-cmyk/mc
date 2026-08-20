@@ -27,6 +27,9 @@ import time
 import urllib.parse
 import urllib.request
 import json
+import traceback
+from datetime import datetime
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from mc_paths import (
     ensure_5000_on_path, load_config, load_prompts, get_chain_blog_key,
@@ -40,9 +43,32 @@ from shared.publishers.hugo_writer import _write_hugo_post
 
 import chain_db as db
 from chain_deriver import derive_chain
+from chain_observability import emit_event
 from chain_publisher_core import (
     DeployValidationError, BodyExtractionError, ImageGenerationError
 )
+
+
+def _write_publish_exception_log(chain_id: int, post: dict, blog_key: str, slug: str, exc: Exception) -> str:
+    """Persist full publish failure context for post-mortem diagnosis."""
+    safe_slug = str(slug).replace("/", "_").replace("\\", "_")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = Path(__file__).resolve().parent / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"publish_exception_chain{chain_id}_post{post.get('id')}_{safe_slug}_{ts}.log"
+    detail = (
+        f"chain_id={chain_id}\npost_id={post.get('id')}\nstep={post.get('step')}\n"
+        f"blog_key={blog_key}\nslug={slug}\ntitle={post.get('title', '')}\n"
+        f"target_keyword={post.get('target_keyword', '')}\n"
+        f"hugo_file_path={post.get('hugo_file_path', '')}\n"
+        f"exception_type={type(exc).__name__}\nexception_message={exc}\n\n"
+        f"TRACEBACK\n{traceback.format_exc()}"
+    )
+    try:
+        log_path.write_text(detail, encoding="utf-8")
+    except Exception:
+        return ""
+    return str(log_path)
 
 # Image package imports
 from image import generate_image as img_gen
@@ -67,8 +93,7 @@ def _preflight_check() -> bool:
     E2E 실행 전 필수 사항 확인.
     False 반환 시 발행 중단.
     """
-    from pathlib import Path
-
+    
     # 1. Unsplash (Primary) — ERROR
     if not os.environ.get('UNSPLASH_ACCESS_KEY'):
         print("ERROR: UNSPLASH_ACCESS_KEY not set in .env")
@@ -482,6 +507,7 @@ def publish_chain(chain_id: int, mode: str = "auto",
     print(f"{'='*60}")
 
     db.update_chain_status(chain_id, "generating")
+    emit_event(chain_id, "publish_chain_started", mode=mode, post_count=len(posts))
     failed_steps = []
 
     for i, post in enumerate(posts):
@@ -511,38 +537,50 @@ def publish_chain(chain_id: int, mode: str = "auto",
                 site_cfg["cf_pages_project"] = cf_project_override
             config["sites"][blog_key] = site_cfg
 
+        failure_detail = ""
+        failure_log_path = ""
+        emit_event(chain_id, "publish_post_started", post_id=post["id"], step=step, blog_key=blog_key, slug=slug, draft_len=len(draft_md), mode=mode)
         try:
-            url, method, file_path = core.publish_post(blog_key, draft_md, slug, title, labels, post_id=post["id"])
-        except DeployValidationError as e:
-            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 배포 검증 실패 — {e}")
-            url, method, file_path = "", "hugo", ""
-        except BodyExtractionError as e:
-            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 본문 추출 실패 — {e}")
-            url, method, file_path = "", "hugo", ""
-        except ImageGenerationError as e:
-            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 이미지 생성 실패 — {e}")
+            url, method, file_path = core.publish_post(blog_key, draft_md, slug,
+ title, labels, post_id=post["id"])
+            if not url:
+                failure_detail = f"publish_post returned no URL (method={method!r}, file_path={file_path!r})"
+        except (DeployValidationError, BodyExtractionError, ImageGenerationError) as e:
+            failure_detail = f"{type(e).__name__}: {e}"
+            failure_log_path = _write_publish_exception_log(chain_id, post, blog_key, slug, e)
+            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): {failure_detail} log={failure_log_path}")
             url, method, file_path = "", "hugo", ""
         except Exception as e:
-            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): 예기치 않은 오류 — {e}")
+            failure_detail = f"{type(e).__name__}: {e}"
+            failure_log_path = _write_publish_exception_log(chain_id, post, blog_key, slug, e)
+            print(f"  [PUBLISH-FAIL] Step {step} ({blog_key}): {failure_detail} log={failure_log_path}")
             url, method, file_path = "", "hugo", ""
-
         if url:
             db.update_published_url(post["id"], url, method)
             if file_path:
                 db.update_post_published(post["id"], file_path)
+            emit_event(chain_id, "publish_post_succeeded", post_id=post["id"], step=step, blog_key=blog_key, slug=slug, url=url, method=method, file_path=file_path)
             print(f"  [publish] ✅ Step {step} published: {url}")
         else:
-            db.update_post_status(post["id"], "failed",
-                                  error_log=f"publish failed to {blog_key}")
+            if not failure_detail:
+                failure_detail = f"publish_post returned no URL (method={method!r}, file_path={file_path!r})"
+            persisted_error = (
+                f"publish failed to {blog_key}; step={step}; slug={slug}; "
+                f"detail={failure_detail}; exception_log={failure_log_path or 'none'}"
+            )
+            db.update_post_status(post["id"], "failed", error_log=persisted_error)
+            emit_event(chain_id, "publish_post_failed", post_id=post["id"], step=step, blog_key=blog_key, slug=slug, detail=failure_detail, exception_log=failure_log_path or None)
             failed_steps.append(step)
             print(f"  [publish] Step {step} failed")
 
     if failed_steps:
         db.update_chain_status(chain_id, "failed")
+        emit_event(chain_id, "publish_chain_failed", failed_steps=failed_steps)
         print(f"\n[mc] Chain #{chain_id} publish failed; steps={failed_steps}")
         return False
 
     db.update_chain_status(chain_id, "published" if mode == "auto" else "manual_pending")
+    emit_event(chain_id, "publish_chain_succeeded", mode=mode)
     print(f"\n[mc] Chain #{chain_id} publish complete")
     return True
 
@@ -883,11 +921,13 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
               theme_override: str = None, cf_project_override: str = None,
               use_context: bool = True, force: bool = False) -> int:
     config = load_config()
+    # derive has no chain id until it returns; record seed-level start in the CLI log.
     chain_id = derive_chain(seed, chain_type=chain_type)
     if not chain_id:
         print("[mc] Chain derivation failed, aborting.")
         return 0
 
+    emit_event(chain_id, "stage_started", stage="draft", seed=seed, chain_type=chain_type)
     if dry_run:
         chain = db.get_chain(chain_id)
         print(f"\n[mc] Dry-run — Chain #{chain['id']}: seed='{chain['seed']}', "
@@ -897,6 +937,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
     from chain_drafter import draft_chain
     print(f"\n{'='*60}\n[mc] Drafting chain #{chain_id}\n{'='*60}\n")
     drafted = draft_chain(chain_id, seed, use_context=use_context)
+    emit_event(chain_id, "stage_finished", stage="draft", result="ok", post_count=len(drafted))
     print(f"\n[mc] Draft complete: {len(drafted)} posts")
 
     # 스키마 검증 게이트
@@ -935,7 +976,9 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
     if draft_only:
         return chain_id
 
+    emit_event(chain_id, "stage_started", stage="image")
     generate_chain_images(chain_id)
+    emit_event(chain_id, "stage_finished", stage="image", result="ok")
     if image_only:
         return chain_id
 
@@ -956,6 +999,7 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
 
         if gate_posts:
             verdict = run_all_checks(str(chain_id), gate_posts)
+            emit_event(chain_id, "quality_gate_result", action=verdict.action, score=verdict.total_score, violations=verdict.violations)
             print(f"\n[mc] Quality gate: {verdict.action} (score={verdict.total_score})")
             if verdict.violations:
                 for blog_id, viols in verdict.violations.items():
@@ -974,16 +1018,22 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
                 print(f"[mc] Quality gate REVIEW but --force enabled, proceeding")
 
     if publish_mode:
+        emit_event(chain_id, "stage_started", stage="publish")
         published_ok = publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides,
                                      theme_override=theme_override, cf_project_override=cf_project_override)
         if not published_ok:
+            emit_event(chain_id, "stage_finished", stage="publish", result="failed")
             print(f"[mc] Publish failed for chain #{chain_id}; cards and smoke test blocked")
             return None
+        emit_event(chain_id, "stage_finished", stage="publish", result="ok")
         if publish_mode != "manual":
+            emit_event(chain_id, "stage_started", stage="cards")
             inject_cards_chain(chain_id)
+            emit_event(chain_id, "stage_finished", stage="cards", result="ok")
             # Phase 21: 발행 후 smoke test
             print(f"\n{'─'*60}\n[mc] Running smoke test for chain #{chain_id}\n{'─'*60}\n")
-            smoke_test(chain_id)
+            smoke_result = smoke_test(chain_id)
+            emit_event(chain_id, "stage_finished", stage="smoke_test", result="ok", details=smoke_result)
     else:
         # Legacy full pipeline
         print(f"\n{'='*60}\n[mc] Publishing chain #{chain_id}\n{'='*60}\n")
