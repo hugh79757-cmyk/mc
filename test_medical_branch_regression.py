@@ -1,6 +1,9 @@
 import json
+import urllib.error
+from unittest.mock import patch
 
-from chain_publisher_core import _request_safe_url
+import chain_publisher_core
+from chain_publisher_core import _check_url_accessible, _request_safe_url
 from search_retriever import retrieve_medical_context_for_post
 
 
@@ -41,3 +44,21 @@ def test_request_safe_url_quotes_non_ascii_path_and_preserves_percent_encoding()
     assert "/%EB%A6%AC%EB%B0%94%EB%A1%9C%EC%A0%95%202026.webp" in safe
     assert "x=%ED%95%9C%EA%B8%80&ok=1" in safe
     assert "%25EB" not in safe
+
+
+def test_featureimage_check_retries_transient_403_then_succeeds():
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    transient = urllib.error.HTTPError("https://img.rotcha.kr/x.webp", 403, "edge", {}, None)
+    with patch.object(chain_publisher_core.urllib.request, "urlopen", side_effect=[transient, Response()]) as mocked, patch.object(chain_publisher_core.time, "sleep") as sleeper:
+        _check_url_accessible("https://img.rotcha.kr/펠루비정.webp")
+    assert mocked.call_count == 2
+    assert sleeper.call_count == 1
+    assert mocked.call_args_list[0].args[0].headers["User-agent"].startswith("Mozilla/5.0")

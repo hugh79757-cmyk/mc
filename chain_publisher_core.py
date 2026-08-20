@@ -54,27 +54,49 @@ def _request_safe_url(url: str) -> str:
 
 
 def _check_url_accessible(url: str) -> None:
-    """HEAD 요청으로 URL 접근 가능 여부를 확인한다. 불가능 시 DeployValidationError."""
-    try:
-        _safe_url = _request_safe_url(url)
-        _head_req = urllib.request.Request(_safe_url, method="HEAD")
-        with urllib.request.urlopen(_head_req, timeout=10) as _head_resp:
-            if _head_resp.status >= 400:
+    """HEAD 요청으로 URL 접근 가능 여부를 확인한다.
+
+    R2/Cloudflare edge는 업로드 직후 일시적으로 403·404·429를 반환할 수
+    있으므로, 영구 오류와 구분하기 위해 제한적으로 재시도한다.
+    """
+    _safe_url = _request_safe_url(url)
+    _transient_statuses = {403, 404, 408, 425, 429, 500, 502, 503, 504}
+    _last_error = None
+    for _attempt in range(3):
+        try:
+            _head_req = urllib.request.Request(
+                _safe_url,
+                method="HEAD",
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; MC-Featureimage-Check/1.0)",
+                    "Accept": "image/avif,image/webp,image/*,*/*;q=0.8",
+                },
+            )
+            with urllib.request.urlopen(_head_req, timeout=10) as _head_resp:
+                if _head_resp.status < 400:
+                    return
+                if _head_resp.status not in _transient_statuses:
+                    raise DeployValidationError(
+                        f"featureimage HEAD 응답 오류 ({_head_resp.status}): {url}"
+                    )
+                _last_error = f"HTTP {_head_resp.status}"
+        except urllib.error.HTTPError as _he:
+            _last_error = f"HTTP {_he.code}"
+            if _he.code not in _transient_statuses:
                 raise DeployValidationError(
-                    f"featureimage HEAD 응답 오류 ({_head_resp.status}): {url}"
-                )
-    except urllib.error.HTTPError as _he:
-        raise DeployValidationError(
-            f"featureimage 접근 불가 (HTTP {_he.code}): {url}"
-        ) from _he
-    except urllib.error.URLError as _ue:
-        raise DeployValidationError(
-            f"featureimage 연결 실패: {url} ({_ue.reason})"
-        ) from _ue
-    except DeployValidationError:
-        raise
-    except Exception as _e:
-        logger.warning(f"[verify] featureimage HEAD 검증 스킵 (네트워크 오류): {_e}")
+                    f"featureimage 접근 불가 (HTTP {_he.code}): {url}"
+                ) from _he
+        except urllib.error.URLError as _ue:
+            _last_error = f"연결 실패: {_ue.reason}"
+        except DeployValidationError:
+            raise
+        except Exception as _e:
+            _last_error = str(_e)
+        if _attempt < 2:
+            time.sleep(2 ** _attempt)
+    raise DeployValidationError(
+        f"featureimage 접근 불가 (재시도 3회 후 {_last_error}): {url}"
+    )
 
 
 def _validate_hugo_frontmatter_text(text: str) -> None:
