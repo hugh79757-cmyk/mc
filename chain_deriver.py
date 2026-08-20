@@ -136,7 +136,10 @@ def derive_chain(seed: str, chain_type: str = None,
             step=_step,
             chain_type=resolved_type,
             title=post.get("title", ""),
-            target_keyword=post.get("target_keyword", ""),
+            # Identity contract: every post in one MC chain keeps the normalized root seed.
+            # Derived angles remain in title/angle/key_points; they must not become a
+            # different chain identity and trip the publish gate.
+            target_keyword=seed,
             key_points=post.get("key_points", []),
             angle=post.get("angle", ""),
             category_guess=post.get("category_guess", ""),
