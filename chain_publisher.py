@@ -348,7 +348,7 @@ def _process_post_image(post: dict, blog_key: str, chain_type: str, chain_seed: 
     return post_id
 
 
-def generate_chain_images(chain_id: int) -> None:
+def generate_chain_images(chain_id: int, post_ids: list[int] | None = None) -> None:
     chain = db.get_chain(chain_id)
     if not chain:
         print(f"[publisher] Chain #{chain_id} not found")
@@ -356,6 +356,9 @@ def generate_chain_images(chain_id: int) -> None:
 
     config = load_config()
     posts = db.get_chain_posts(chain_id)
+    if post_ids is not None:
+        wanted = set(post_ids)
+        posts = [p for p in posts if p["id"] in wanted]
     chain_type = chain.get("chain_type", "depth")
     db.update_chain_status(chain_id, "generating")
 
@@ -915,6 +918,17 @@ def schedule_remove(chain_id: int, use_launchd: bool = False) -> None:
 
 # ── 워크플로우 ──
 
+def _build_quality_gate_posts(chain_id: int) -> tuple[dict, dict]:
+    """Build gate input and map blog labels to concrete post IDs."""
+    step_labels = {1: "rotcha", 2: "issue.techpawz", 3: "techpawz"}
+    gate_posts, blog_posts = {}, {}
+    for post in db.get_chain_posts(chain_id):
+        blog_id = step_labels.get(post.get("step", 0), f"step{post.get('step', 0)}")
+        gate_posts[blog_id] = {"title": post.get("target_keyword", ""), "body_md": post.get("draft_md", ""), "html": "", "category": normalize_category(post.get("category_guess", ""))}
+        blog_posts[blog_id] = post
+    return gate_posts, blog_posts
+
+
 def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
               image_only: bool = False, chain_type: str = None,
               publish_mode: str = None, blog_overrides: dict = None,
@@ -984,39 +998,52 @@ def run_chain(seed: str, dry_run: bool = False, draft_only: bool = False,
 
     # ── Quality gate (Phase 47) ──────────────────────────────────
     if publish_mode:
-        from quality.gate import run_all_checks, GateVerdict
-        step_labels = {1: "rotcha", 2: "issue.techpawz", 3: "techpawz"}
-        gate_posts = {}
-        for post in db.get_chain_posts(chain_id):
-            step = post.get("step", 0)
-            blog_id = step_labels.get(step, f"step{step}")
-            gate_posts[blog_id] = {
-                "title": post.get("target_keyword", ""),
-                "body_md": post.get("draft_md", ""),
-                "html": "",  # not rendered yet; HTML check deferred to post-build
-                "category": normalize_category(post.get("category_guess", "")),
-            }
-
-        if gate_posts:
-            verdict = run_all_checks(str(chain_id), gate_posts)
-            emit_event(chain_id, "quality_gate_result", action=verdict.action, score=verdict.total_score, violations=verdict.violations)
-            print(f"\n[mc] Quality gate: {verdict.action} (score={verdict.total_score})")
+        from quality.gate import run_all_checks
+        from chain_drafter import draft_chain
+        max_repairs = max(0, min(int(os.getenv("MC_AUTO_QUALITY_RETRIES", "2")), 3))
+        verdict = None
+        for repair_attempt in range(max_repairs + 1):
+            gate_posts, blog_posts = _build_quality_gate_posts(chain_id)
+            verdict = run_all_checks(str(chain_id), gate_posts) if gate_posts else None
+            if verdict is None:
+                break
+            emit_event(chain_id, "quality_gate_result", attempt=repair_attempt, action=verdict.action, score=verdict.total_score, violations=verdict.violations)
+            print(f"\n[mc] Quality gate: {verdict.action} (score={verdict.total_score}, attempt={repair_attempt})")
             if verdict.violations:
                 for blog_id, viols in verdict.violations.items():
                     for v in viols:
                         print(f"  [{blog_id}] {v}")
-
-            if verdict.action == "reject":
-                print(f"[mc] Quality gate REJECTED (score {verdict.total_score} < 7.0)")
-                print("[mc] Publish aborted. Fix violations and retry.")
+            repairable = {k: v for k, v in verdict.violations.items() if k in blog_posts}
+            if verdict.action in ("accept", "pass") or not repairable or repair_attempt >= max_repairs:
+                break
+            feedback, target_ids = {}, []
+            for blog_id, violations in repairable.items():
+                post = blog_posts[blog_id]
+                target_ids.append(post["id"])
+                feedback[post["id"]] = "\n".join(f"- {item}" for item in violations)
+            emit_event(chain_id, "quality_repair_started", attempt=repair_attempt + 1, post_ids=target_ids, feedback=feedback)
+            print(f"[mc] Auto quality repair {repair_attempt + 1}/{max_repairs}: posts={target_ids}")
+            draft_chain(chain_id, seed, use_context=use_context, post_ids=target_ids, repair_feedback=feedback)
+            repaired_ok = True
+            for repaired in db.get_chain_posts(chain_id):
+                if repaired.get("id") not in target_ids:
+                    continue
+                schema_ok, schema_msg = _validate_draft_schema(repaired.get("draft_md", ""), None)
+                if not schema_ok:
+                    repaired_ok = False
+                    emit_event(chain_id, "quality_repair_schema_failed", post_id=repaired.get("id"), detail=schema_msg)
+                    print(f"[mc] Auto repair schema failed for post #{repaired.get('id')}: {schema_msg}")
+            if not repaired_ok:
                 return None
-            elif verdict.action == "review" and not force:
-                print(f"[mc] Quality gate REVIEW (score {verdict.total_score} 7.0~8.9)")
-                print("[mc] 수동 승인 필요. --force 로 강제 발행하거나 위반 사항을 수정하세요.")
-                return None
-            elif verdict.action == "review" and force:
-                print(f"[mc] Quality gate REVIEW but --force enabled, proceeding")
-
+            generate_chain_images(chain_id, post_ids=target_ids)
+            emit_event(chain_id, "quality_repair_finished", attempt=repair_attempt + 1, post_ids=target_ids)
+        if verdict is not None and verdict.action == "reject":
+            print(f"[mc] Quality gate REJECTED after auto repair (score={verdict.total_score})")
+            return None
+        if verdict is not None and verdict.action == "review" and not force:
+            print(f"[mc] Quality gate REVIEW after auto repair (score={verdict.total_score}; threshold=9.0)")
+            print("[mc] 수동 승인 필요. --force 로 강제 발행하거나 위반 사항을 수정하세요.")
+            return None
     if publish_mode:
         emit_event(chain_id, "stage_started", stage="publish")
         published_ok = publish_chain(chain_id, mode=publish_mode, blog_overrides=blog_overrides,

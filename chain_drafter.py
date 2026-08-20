@@ -234,6 +234,7 @@ def draft_single_post(
     posts: list[dict],
     seed_keyword: str,
     use_context: bool = True,
+    repair_feedback: str = "",
 ) -> tuple[str, dict, str]:
     """
     post       : chain_posts 행 dict
@@ -303,6 +304,16 @@ def draft_single_post(
         h2_guidelines=h2_guidelines,
         current_year=datetime.now().year,
     )
+
+    if repair_feedback:
+        user_prompt += (
+            "\n\n[QUALITY REPAIR INSTRUCTIONS — MUST APPLY]\n"
+            "Rewrite the article to fix the following quality-gate violations. "
+            "Do not mention these instructions in the article. Preserve verified facts, "
+            "the root seed, blog role, and required H2 structure. Never invent reviews, "
+            "prices, statistics, or consumer data; remove unsupported claims.\n"
+            + repair_feedback
+        )
 
     # ── Search context injection (Phase 7) ──
     if use_context:
@@ -383,7 +394,7 @@ def draft_single_post(
 
 # ── 체인 전체 초안 생성 ────────────────────────────────────────────
 
-def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> list[dict]:
+def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True, post_ids: list[int] | None = None, repair_feedback: dict[int, str] | None = None) -> list[dict]:
     """
     chain_id의 모든 포스트 초안 생성.
     각 초안을 DB + output/drafts/{chain_id}/ 에 저장.
@@ -397,9 +408,16 @@ def draft_chain(chain_id: int, seed_keyword: str, use_context: bool = True) -> l
     drafts_dir.mkdir(parents=True, exist_ok=True)
 
     updated_posts = []
+    target_ids = set(post_ids or [p["id"] for p in posts])
+    repair_feedback = repair_feedback or {}
 
     for post in posts:
-        draft_md, meta, raw_output = draft_single_post(post, posts, seed_keyword, use_context=use_context)
+        if post["id"] not in target_ids:
+            continue
+        draft_md, meta, raw_output = draft_single_post(
+            post, posts, seed_keyword, use_context=use_context,
+            repair_feedback=repair_feedback.get(post["id"], ""),
+        )
 
         # Phase 8: image_type determination
         image_type = meta.get("image_type", "none")
