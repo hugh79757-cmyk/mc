@@ -15,6 +15,7 @@ import logging
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 import yaml
 from pathlib import Path
 from datetime import datetime
@@ -44,10 +45,19 @@ import markdown_processor  # noqa: E402 — Phase 26 W4: MarkdownProcessor 파�
 logger = logging.getLogger(__name__)
 
 
+def _request_safe_url(url: str) -> str:
+    """HTTP 요청용 URL로 변환하되 host와 기존 percent-encoding은 보존한다."""
+    parts = urllib.parse.urlsplit(url)
+    safe_path = urllib.parse.quote(parts.path, safe="/%:@!$&'()*+,;=-._~")
+    safe_query = urllib.parse.quote(parts.query, safe="=&%:@/?+!$'()*+,;=-._~")
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, safe_path, safe_query, ""))
+
+
 def _check_url_accessible(url: str) -> None:
     """HEAD 요청으로 URL 접근 가능 여부를 확인한다. 불가능 시 DeployValidationError."""
     try:
-        _head_req = urllib.request.Request(url, method="HEAD")
+        _safe_url = _request_safe_url(url)
+        _head_req = urllib.request.Request(_safe_url, method="HEAD")
         with urllib.request.urlopen(_head_req, timeout=10) as _head_resp:
             if _head_resp.status >= 400:
                 raise DeployValidationError(

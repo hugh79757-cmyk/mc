@@ -37,7 +37,11 @@ from mc_paths import (
 )
 from shared.ai_writer import generate
 from chain_db import get_chain, get_chain_posts, update_post_draft, update_post_raw_output
-from search_retriever import NaverSearchClient, retrieve_context_for_post
+from search_retriever import (
+    NaverSearchClient,
+    retrieve_context_for_post,
+    retrieve_medical_context_for_post,
+)
 
 
 # ── 설정 로드 ──────────────────────────────────────────────────────
@@ -327,9 +331,16 @@ def draft_single_post(
             angle_key = angle_map.get(angle_first, "webkr")
 
             chain_cfg = _load_chain_cfg()
-            ok, ctx = retrieve_context_for_post(
-                seed_keyword, angle_key, client, cfg=chain_cfg, retries=1,
-            )
+            if kw_category == "medicine":
+                # 의약품은 일반 검색을 섞지 않고 공식기관 결과를 우선한다.
+                ok, ctx = retrieve_medical_context_for_post(
+                    seed_keyword, client, cfg=chain_cfg, retries=1,
+                )
+                print("  [drafter] 의료 공식출처 분기: MFDS/DrugSafe 검색 적용")
+            else:
+                ok, ctx = retrieve_context_for_post(
+                    seed_keyword, angle_key, client, cfg=chain_cfg, retries=1,
+                )
             if ok:
                 context_md = ctx
                 # Phase 32: 입력단 연도 검증 — 소스 데이터의 과거연도+최신 조합 보정

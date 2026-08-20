@@ -6,8 +6,8 @@ chain_card_injector.py — 발행된 체인 포스트에 카드 후처리 삽입
     - Depth 0 (rotcha): "더 알아보기" → Depth 1 URL
     - Depth 1 (issue.techpawz): "더 깊이 분석" → Depth 2 URL
     - Depth 2 (techpawz): 외부 링크 → 가장 공신력 있는 출처
-  - 하단 Next 카드: 모든 글 기본 삽입 (본문 마지막 H2 섹션 이후)
-  - 중간 관련 카드: H2가 3개 이상일 때 2번째 H2 직후 1개 삽입
+  - 포스트당 CTA 카드: 공식 안내 또는 다음 글 카드 중 정확히 1개 삽입
+  - 중간 카드: 삽입하지 않음 (카드 스태킹·광고 밀도 방지)
   - 상단: 카드 금지 (광고 전용 영역)
   - CTA 문구: chain_config.yaml의 blog별 card_cta 블록에서 읽기
 
@@ -469,10 +469,10 @@ class CardInjector:
           - Depth 0/1 (is_last=False): 다음 글 카드 + 공식 안내 링크
           - Depth 2 (is_last=True): 외부 링크 카드 (공신력 우선순위)
 
-        삽입 순서 (하단에서 위로):
-          1. 공식/외부 링크 카드 (맨 마지막)
-          2. 다음 글 카드 (is_last=False일 때만)
-          3. 중간 관련 카드 (H2 >= 3일 때 2번째 H2 직후)
+        삽입 순서:
+          1. is_last이면 공식/외부 링크 카드 1개를 하단에 삽입
+          2. 그 외에는 다음 글 카드 1개를 하단에 삽입
+          3. 중간 CTA 카드는 삽입하지 않음
         """
         # D9: 기존 chain-card/chain-official-card shortcode 제거 (중복 주입 방지)
         _old_count = len(re.findall(r'\{\{<\s*chain-(?:card|official-card)\s', draft_md))
@@ -558,19 +558,9 @@ class CardInjector:
             next_card = self.build_card_html(next_title, next_url, cta)
             body = self.inject_bottom_card(body, next_card)
 
-        # 중간 카드: H2>=3일 때 2번째 H2 직후 1개 (하단 카드와 별개, 총 2개 구조)
-        # is_last(Depth 2)는 다음 글이 없으므로 중간에도 외부 링크 카드로 유도,
-        # 그 외에는 다음 글 카드로 이탈 방지.
-        if is_last:
-            mid_links = self.find_external_links(
-                title=post_title, keyword=seed_keyword, seed=seed_keyword
-            )
-            mid_card = self.build_external_link_card(mid_links, seed_keyword=seed_keyword)
-        else:
-            mid_cta = self.get_cta(blog_key, direction)
-            mid_card = self.build_card_html(next_title, next_url, mid_cta)
-        if mid_card:
-            body = self.inject_mid_card(body, mid_card)
+        # 포스트당 카드는 위에서 삽입한 하단 카드 1개로 종료한다.
+        # 중간 카드를 추가하면 긴 본문에서 CTA가 연속으로 노출되어
+        # 독서 흐름과 클릭 선택성이 떨어지고, 재실행 시 스태킹이 발생한다.
 
         # Phase 32: 카드 주입 후 최종 draft_md 연도 검증
         result = fm + "\n\n" + body if fm else body

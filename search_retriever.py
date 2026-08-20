@@ -204,4 +204,85 @@ def retrieve_context_for_post(
             lines.append(f"> {r['description']}")
         lines.append("")
 
+        return (True, "\n".join(lines))
+
+
+def retrieve_medical_context_for_post(
+    keyword: str,
+    client: NaverSearchClient,
+    max_sources: int = 8,
+    cfg: dict = None,
+    retries: int = 1,
+    backoff: float = 1.0,
+) -> tuple:
+    """의약품 전용 공식 출처 검색.
+
+    일반 검색 결과만으로 효능·복용법을 작성하지 않도록 MFDS, 의약품안전나라,
+    한국의약품안전관리원 도메인을 각각 질의한다. 결과가 없는 기관은 컨텍스트에
+    명시하여 초안 생성기가 빈 근거를 사실처럼 채우지 않게 한다.
+    """
+    corrected_keyword = apply_term_correction(keyword, cfg)
+    source_queries = [
+        ("식품의약품안전처(MFDS)", f"{corrected_keyword} site:mfds.go.kr"),
+        ("의약품안전나라(DrugSafe)", f"{corrected_keyword} site:nedrug.mfds.go.kr"),
+        ("한국의약품안전관리원", f"{corrected_keyword} site:drugsafe.or.kr"),
+    ]
+    seen_links: set[str] = set()
+    grouped: dict[str, list[dict]] = {label: [] for label, _ in source_queries}
+
+    for label, query in source_queries:
+        ok, data = client.search(query, endpoint="webkr", display=5)
+        for attempt in range(retries):
+            if ok:
+                break
+            time.sleep(backoff * (2 ** attempt))
+            ok, data = client.search(query, endpoint="webkr", display=5)
+        if not ok:
+            logger.warning("[medical-search] %s failed: %s", label, data)
+            continue
+        try:
+            parsed = json.loads(data)
+        except json.JSONDecodeError:
+            logger.warning("[medical-search] %s returned invalid JSON", label)
+            continue
+        for item in parsed.get("items", []):
+            link = item.get("link", "").strip()
+            if not link or link in seen_links:
+                continue
+            seen_links.add(link)
+            grouped[label].append({
+                "title": _strip_b_tags(item.get("title", "")),
+                "description": _strip_b_tags(item.get("description", "")),
+                "link": link,
+            })
+
+    if not any(grouped.values()):
+        return (False, "Medical official-source search returned no results")
+
+    lines = [
+        "## 의약품 공식 근거 자료",
+        "",
+        "아래 공식 자료에 확인되는 사실만 본문에 사용하세요. 자료에 없는 효능·용량·금기·부작용은 작성하지 마세요.",
+        "",
+    ]
+    for label, _ in source_queries:
+        items = grouped[label]
+        lines.append(f"### {label} 검색 결과 ({len(items)}건)")
+        if not items:
+            lines.append("> 검색 결과 없음. 해당 기관의 사실을 추정하거나 보완하지 마세요.")
+            lines.append("")
+            continue
+        for item in items[: max(1, max_sources // len(source_queries))]:
+            lines.append(f"- **{item['title']}**")
+            if item["description"]:
+                lines.append(f"  - {item['description']}")
+            lines.append(f"  - 출처 URL: {item['link']}")
+        lines.append("")
+
+    missing = [label for label, _ in source_queries if not grouped[label]]
+    if missing:
+        lines.append("### 공식 출처 누락 경고")
+        lines.append("- " + ", ".join(missing))
+        lines.append("- 누락 기관에 관한 세부 주장은 보류하고, 확인 가능한 내용만 작성하세요.")
+
     return (True, "\n".join(lines))
